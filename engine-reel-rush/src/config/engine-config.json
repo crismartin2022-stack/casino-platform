@@ -1,0 +1,30 @@
+// game-engines/engine-reel-rush/src/config/engine-config.json
+{
+    "engineName": "Reel Rush",
+    "version": "1.0.0",
+    "width": 800,
+    "height": 600,
+    "backgroundColor": "#1a1a2e",
+    "reelPositions": [
+        { "x": 200, "y": 100 },
+        { "x": 350, "y": 100 },
+        { "x": 500, "y": 100 },
+        { "x": 650, "y": 100 },
+        { "x": 800, "y": 100 }
+    ],
+    "symbolsPerReel": 3,
+    "symbolHeight": 150,
+    "symbols": [
+        "cherry",
+        "lemon",
+        "orange",
+        "plum",
+        "bell",
+        "bar",
+        "seven",
+        "diamond"
+    ],
+    "features": {
+        "tumble": true
+    }
+}
