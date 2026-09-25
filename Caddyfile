@@ -1,0 +1,6 @@
+# Manejar todas las peticiones
+:80 {
+    # Intentar servir el archivo solicitado (ej: /main.js)
+    # Si no se encuentra, servir el index.html
+    try_files {path} /index.html
+}
