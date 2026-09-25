@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Reel Rush Engine - Demo</title>
+    <style>
+        /* Estilos básicos para centrar el juego */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            border: 2px solid #444;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 0 0 10px #000;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            background: #222;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. El contenedor donde se dibujará el juego -->
+    <div id="game-container">
+        <div id="loading">Loading... 0%</div>
+    </div>
+
+    <!-- 2. Librerías Externas (Descargadas y alojadas en tu proyecto) -->
+    <!-- NOTA: Deberás descargar estos archivos y ponerlos en una carpeta 'lib/' -->
+    <script src="lib/pixi.min.js"></script>
+    <script src="lib/gsap.min.js"></script>
+
+    <!-- 3. El Motor del Juego y sus Componentes (La Cadena de Importación) -->
+    <script type="module">
+        // Importamos el AssetLoader primero, porque es necesario para cargar las imágenes
+        import { AssetLoader } from './game-engines/engine-reel-rush/src/utils/AssetLoader.js';
+
+        // Importamos el Engine principal
+        import { Engine } from './game-engines/engine-reel-rush/src/core/Engine.js';
+
+        // Importamos la configuración del motor
+        import engineConfig from './game-engines/engine-reel-rush/src/config/engine-config.json' with { type: 'json' };
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const gameContainer = document.getElementById('game-container');
+            const loadingDiv = document.getElementById('loading');
+
+            try {
+                // 1. Actualizar el texto de carga
+                loadingDiv.innerText = 'Loading game engine...';
+
+                // 2. Crear una instancia del AssetLoader para cargar los assets
+                // La ruta base es donde está el index.html, por eso los paths son relativos
+                const assetLoader = new AssetLoader('./game-engines/engine-reel-rush/assets/');
+                await assetLoader.load();
+
+                // 3. Crear una instancia del Engine con la configuración
+                const engine = new Engine(engineConfig, gameContainer);
+                
+                // 4. El motor se inicializa solo (gracias al constructor)
+                // Ahora ya puedes probar el giro
+                console.log('Game ready! You can call engine.spin() from the console.');
+                window.spin = () => engine.spin(); // Añadimos una función global para probar fácilmente
+
+                // 5. Ocultar el mensaje de carga
+                loadingDiv.style.display = 'none';
+
+            } catch (error) {
+                console.error("Failed to start game:", error);
+                gameContainer.innerHTML = `<div id="error">Failed to load game. Please refresh.<br><br>${error.message}</div>`;
+            }
+        });
+    </script>
+
+</body>
+</html>
