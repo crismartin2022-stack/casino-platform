@@ -1,6 +1,11 @@
-# Manejar todas las peticiones
 :80 {
-    # Intentar servir el archivo solicitado (ej: /main.js)
-    # Si no se encuentra, servir el index.html
-    try_files {path} /index.html
+    # Servir archivos estáticos desde el directorio actual
+    root * .
+    # Para peticiones que no son archivos (rutas de módulos JS), servir el index.html
+    @notAFile not file
+    handle @notAFile {
+        rewrite * /index.html
+    }
+    # Servir todos los demás archivos normalmente
+    file_server
 }
