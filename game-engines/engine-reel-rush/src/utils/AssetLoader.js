@@ -1,41 +1,45 @@
-// game-engines/engine-reel-rush/src/utils/AssetLoader.js (MODIFICADO)
+// game-engines/engine-reel-rush/src/utils/AssetLoader.js (versión sin sonido)
 import { Loader } from 'pixi.js';
-import engineConfig from '../config/engine-config.json' with { type: 'json' }; // Añadimos 'with { type: "json" }' para JSON modules
+import engineConfig from '../config/engine-config.json' with { type: 'json' };
 
 export class AssetLoader {
-    // El constructor ahora acepta la ruta base de los assets
     constructor(basePath = '') {
         this.loader = new Loader();
-        this.basePath = basePath; // Guardamos la ruta base, ej: './game-engines/engine-reel-rush/assets/'
+        this.basePath = basePath;
         this.setupManifest();
     }
 
     setupManifest() {
-        // Usamos la ruta base para construir la URL completa
         const symbolsPath = `${this.basePath}images/symbols/`;
         const uiPath = `${this.basePath}images/ui/`;
-        const soundsPath = `${this.basePath}sounds/`;
 
-        // Añadir todos los símbolos al loader
+        // 1. Cargar los símbolos (esto ya lo hacía)
         engineConfig.symbols.forEach(symbolName => {
             this.loader.add(symbolName, `${symbolsPath}${symbolName}.png`);
         });
 
-        // Añadir otros assets (UI, sonidos)
+        // 2. Cargar los elementos de la UI (esto también ya lo hacía)
         this.loader
             .add('background', `${uiPath}background.jpg`)
-            .add('spinSound', `${soundsPath}spin.mp3`)
-            .add('winSound', `${soundsPath}win.mp3`);
+            .add('spinButton', `${uiPath}spinButton.png`);
+
+        // 3. SECCIÓN DE SONIDOS - COMENTADA O ELIMINADA
+        // Por ahora, no intentamos cargar sonidos para evitar errores.
+        // 
+        // const soundsPath = `${this.basePath}sounds/`;
+        // this.loader
+        //     .add('spinSound', `${soundsPath}spin.mp3`)
+        //     .add('winSound', `${soundsPath}win.mp3`);
     }
 
     async load() {
         try {
             await this.loader.load();
             console.log('All assets loaded successfully!');
-            return this.loader.resources; // Devuelve todos los recursos cargados
+            return this.loader.resources;
         } catch (error) {
             console.error('Failed to load assets:', error);
-            throw error; // Importante: lanzar el error para que el index.html lo capture
+            throw error;
         }
     }
 }
