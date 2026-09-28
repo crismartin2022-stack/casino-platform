@@ -1,97 +1,45 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>Reel Rush Engine - Demo</title>
-    <style>
-        /* Estilos básicos para centrar el juego */
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #111;
-            color: white;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        #game-container {
-            position: relative;
-            border: 2px solid #444;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
-        }
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-            color: #fff;
-            text-shadow: 0 0 10px #000;
-        }
-        #error {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: red;
-            background: #222;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Casino Platform · Juegos</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #24163f, #07080f 70%); color: #eef; font: 15px/1.5 system-ui, sans-serif; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 22px clamp(16px, 4vw, 48px); }
+    h1 { margin: 0; font-size: clamp(22px, 3vw, 32px); }
+    header a { color: #cbb8ff; text-decoration: none; font-size: 14px; }
+    main { padding: 0 clamp(16px, 4vw, 48px) 48px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+    .game { background: #141a2b; border: 1px solid #2b3350; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; text-decoration: none; color: inherit; transition: transform .15s, border-color .15s; }
+    .game:hover { transform: translateY(-3px); border-color: #8e7ff0; }
+    .art { height: 150px; display: grid; place-items: center; background: linear-gradient(135deg, #2a1b4d, #0e1a3a); font-size: 52px; }
+    .info { padding: 14px 16px; }
+    .info b { display: block; font-size: 17px; }
+    .info small { color: #9aa3c0; }
+    .play { margin: 0 16px 16px; text-align: center; padding: 10px; border-radius: 12px; background: #6c5ce7; font-weight: 700; }
+    footer { color: #7d86a5; font-size: 12px; padding: 0 clamp(16px, 4vw, 48px) 32px; }
+  </style>
 </head>
 <body>
-
-    <!-- 1. El contenedor donde se dibujará el juego -->
-    <div id="game-container">
-        <div id="loading">Loading... 0%</div>
-    </div>
-
-    <!-- 2. Librerías Externas (CDN - Funcionará siempre) -->
-    <!-- Usamos la versión estable v8.2.1 de PixiJS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.2.1/pixi.min.js"></script>
-    
-    <!-- Usamos la versión 3.12.2 de GSAP -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-
-    <!-- 3. El Motor del Juego y sus Componentes (La Cadena de Importación) -->
-    <script type="module">
-        // Importamos la configuración del motor
-        import engineConfig from './game-engines/engine-reel-rush/src/config/engine-config.json' with { type: 'json' };
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            const gameContainer = document.getElementById('game-container');
-            const loadingDiv = document.getElementById('loading');
-
-            try {
-                // 1. Actualizar el texto de carga
-                loadingDiv.innerText = 'Loading game engine...';
-
-                // 2. Crear una instancia del AssetLoader para cargar los assets
-                const assetLoader = new AssetLoader('./game-engines/engine-reel-rush/assets/');
-                await assetLoader.load();
-
-                // 3. Crear una instancia del Engine con la configuración
-                const engine = new Engine(engineConfig, gameContainer);
-                
-                // 4. El motor se inicializa solo
-                console.log('Game ready! You can call engine.spin() from the console.');
-                window.spin = () => engine.spin(); // Añadimos una función global para probar fácilmente
-
-                // 5. Ocultar el mensaje de carga
-                loadingDiv.style.display = 'none';
-
-            } catch (error) {
-                console.error("Failed to start game:", error);
-                gameContainer.innerHTML = `<div id="error">Failed to load game. Please refresh.<br><br>${error.message}</div>`;
-            }
-        });
-    </script>
-
+  <header><h1>🎰 Casino Platform</h1><a href="/admin">Panel de administración →</a></header>
+  <main><div class="grid" id="games"><p>Cargando juegos…</p></div></main>
+  <footer>Modo demo con créditos de prueba. Juega con responsabilidad. +18.</footer>
+  <script type="module">
+    const ICON = { 'reel-rush': '🍒', megaways: '🗿', 'bonus-buy': '🐉', 'hold-win': '🪙', 'colossal-reels': '⚔️' };
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    try {
+      const games = await (await fetch('/api/v1/games')).json();
+      document.getElementById('games').innerHTML = games.map((g) => `
+        <a class="game" href="/play/${encodeURIComponent(g.id)}">
+          <div class="art">${ICON[g.engine] || '🎰'}</div>
+          <div class="info"><b>${esc(g.name)}</b><small>${esc(g.engine)} · RTP ${g.rtp ? (g.rtp * 100).toFixed(2) + ' %' : '—'} · volatilidad ${esc(g.volatility || '—')}</small></div>
+          <div class="play">Jugar demo</div>
+        </a>`).join('') || '<p>No hay juegos publicados.</p>';
+    } catch (e) {
+      document.getElementById('games').textContent = `Error cargando juegos: ${e.message}`;
+    }
+  </script>
 </body>
 </html>

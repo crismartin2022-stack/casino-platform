@@ -1,0 +1,14 @@
+{
+  "name": "casino-platform",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Plataforma de slots: 5 motores, API, RGS con RNG en servidor, panel con agentes de IA.",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning backend/index.js",
+    "dev": "node --watch --disable-warning=ExperimentalWarning backend/index.js",
+    "simulate": "node --disable-warning=ExperimentalWarning scripts/tune-seed.js",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.js"
+  }
+}

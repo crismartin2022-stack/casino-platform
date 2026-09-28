@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel · Casino Platform</title>
+  <link rel="stylesheet" href="/admin-panel/styles.css" />
+</head>
+<body>
+  <div id="login" class="login" hidden>
+    <form id="loginForm" class="card">
+      <h1>🎰 Casino Platform</h1>
+      <p>Introduce el <code>ADMIN_TOKEN</code> configurado en Railway.</p>
+      <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" autocomplete="current-password" required />
+      <button class="primary">Entrar</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </div>
+
+  <div id="app" class="app" hidden>
+    <aside class="side">
+      <div class="brand">🎰 Panel</div>
+      <div class="side-section">Juegos</div>
+      <nav id="gameList"></nav>
+      <button id="newGameBtn" class="ghost">＋ Nuevo juego</button>
+      <div class="side-section">Plataforma</div>
+      <nav>
+        <a data-view="operators">Operadores (API)</a>
+        <a data-view="rounds">Rondas y auditoría</a>
+        <a data-view="stats">Estadísticas</a>
+      </nav>
+      <div class="side-foot" id="providers"></div>
+    </aside>
+
+    <main class="main">
+      <header class="bar" id="gameBar" hidden>
+        <div>
+          <h1 id="gameTitle"></h1>
+          <div id="gameMeta" class="muted"></div>
+        </div>
+        <div class="bar-actions">
+          <button id="previewBtn" class="ghost">▶ Vista previa</button>
+          <button id="publishBtn" class="primary">Publicar</button>
+        </div>
+      </header>
+      <div class="tabs" id="tabs" hidden>
+        <button data-tab="agents" class="on">🤖 Agentes</button>
+        <button data-tab="design">🎨 Diseño</button>
+        <button data-tab="symbols">🍒 Símbolos</button>
+        <button data-tab="sounds">🔊 Sonidos</button>
+        <button data-tab="math">📈 Matemática</button>
+        <button data-tab="assets">🖼 Assets</button>
+        <button data-tab="json">{ } JSON</button>
+        <button data-tab="versions">🕘 Versiones</button>
+      </div>
+      <section id="view" class="view"></section>
+    </main>
+
+    <aside class="preview" id="previewPane" hidden>
+      <div class="preview-bar">
+        <span>Vista previa del borrador</span>
+        <button id="reloadPreview" class="ghost small">↻</button>
+        <button id="closePreview" class="ghost small">✕</button>
+      </div>
+      <iframe id="previewFrame" title="Vista previa" allow="autoplay"></iframe>
+    </aside>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="/admin-panel/app.js"></script>
+</body>
+</html>
