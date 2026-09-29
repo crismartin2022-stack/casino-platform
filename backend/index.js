@@ -13,6 +13,8 @@ registerRoutes(router);
 const STATIC_DIRS = ['game-engines', 'admin-panel', 'client-sdk', 'play', 'docs'];
 router.get('/', (req, res) => serveFile(req, res, `${ROOT}/index.html`, { cache: 'no-cache' }) || send(res, 404, 'index.html no encontrado'));
 router.get('/admin', (req, res) => serveFile(req, res, `${ROOT}/admin-panel/index.html`, { cache: 'no-cache' }));
+// Portal del operador: el mismo panel en modo operador (login con email y contraseña)
+router.get('/operator', (req, res) => serveFile(req, res, `${ROOT}/admin-panel/index.html`, { cache: 'no-cache' }));
 router.get('/play/:gameId', (req, res) => serveFile(req, res, `${ROOT}/play/index.html`, { cache: 'no-cache' }));
 router.get('/media/*', (req, res, { params }) => serveStatic(req, res, `${DATA_DIR}/media`, params.wild, { cache: 'public, max-age=31536000, immutable' }) || send(res, 404, { error: 'No encontrado' }));
 for (const dir of STATIC_DIRS) {

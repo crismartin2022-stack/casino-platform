@@ -134,6 +134,46 @@ CREATE TABLE IF NOT EXISTS table_state (
   state TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS operator_users (
+  id TEXT PRIMARY KEY,
+  operator_id TEXT NOT NULL REFERENCES operators(id),
+  email TEXT NOT NULL UNIQUE,
+  name TEXT,
+  role TEXT NOT NULL DEFAULT 'admin',
+  password_hash TEXT NOT NULL,
+  must_change INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  last_login_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS operator_user_sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES operator_users(id),
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS operator_games (
+  operator_id TEXT NOT NULL REFERENCES operators(id),
+  game_id TEXT NOT NULL REFERENCES games(id),
+  enabled INTEGER NOT NULL DEFAULT 1,
+  rtp_target REAL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (operator_id, game_id)
+);
+CREATE TABLE IF NOT EXISTS rtp_variants (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id),
+  rtp_target REAL NOT NULL,
+  base_math_hash TEXT NOT NULL,
+  result_math_hash TEXT,
+  overlay TEXT,
+  math TEXT,
+  status TEXT NOT NULL DEFAULT 'building',
+  error TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS rtp_variants_game ON rtp_variants(game_id, base_math_hash, rtp_target);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor TEXT NOT NULL,
@@ -143,6 +183,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+
+// Migraciones de columnas nuevas sobre bases existentes (idempotentes).
+for (const [table, col, def] of [
+  ['operators', 'can_create_games', 'INTEGER NOT NULL DEFAULT 0'],
+  ['operators', 'max_games', 'INTEGER NOT NULL DEFAULT 0'],
+  ['operators', 'can_use_agents', 'INTEGER NOT NULL DEFAULT 0'],
+  ['games', 'owner_operator_id', 'TEXT'],
+  ['sessions', 'variant_id', 'TEXT'],
+  ['rounds', 'variant_id', 'TEXT'],
+]) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+db.exec('CREATE INDEX IF NOT EXISTS players_operator ON players(operator_id, created_at)');
 
 /** Ejecuta fn dentro de una transacción SQLite (BEGIN IMMEDIATE para serializar escrituras). */
 export function tx(fn) {

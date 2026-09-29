@@ -213,6 +213,7 @@ async function agentLoop(agent, messages, ctx, usage) {
 async function runSpecialist(agent, task, ctx, usage, referenceImages = []) {
   if (!AGENTS[agent] || AGENTS[agent].director) throw new HttpError(400, `Agente desconocido: ${agent}`);
   const p = providers();
+  if (agent === 'math' && ctx.noMath) return 'No disponible: la matemática, el RTP y las apuestas de este juego las controla el proveedor. Solo se pueden cambiar diseño, imágenes y sonidos.';
   if (agent === 'artist' && !p.venice) return 'No disponible: falta VENICE_API_KEY en el servidor.';
   if (agent === 'sound' && !p.elevenlabs) return 'No disponible: falta ELEVENLABS_API_KEY en el servidor.';
   ctx.emit('agent_start', { agent, title: AGENTS[agent].title, task });
@@ -230,10 +231,11 @@ async function runSpecialist(agent, task, ctx, usage, referenceImages = []) {
  * el progreso llega por eventos (SSE /api/admin/agents/runs/:id/events).
  * `agent` permite hablar directo con un especialista sin pasar por el director.
  */
-export function startRun({ gameId, prompt, runId = null, agent = 'director', actor = 'admin', images = [] }) {
+export function startRun({ gameId, prompt, runId = null, agent = 'director', actor = 'admin', images = [], noMath = false }) {
   if (!providers().anthropic) throw new HttpError(503, 'Falta ANTHROPIC_API_KEY en las variables del servidor');
   if (!prompt?.trim()) throw new HttpError(400, 'Escribe un pedido para los agentes');
   if (!AGENTS[agent]) throw new HttpError(400, `Agente desconocido: ${agent}`);
+  if (noMath && agent === 'math') throw new HttpError(403, 'La matemática de este juego la controla el proveedor');
   const game = getGame(gameId);
   let messages = [];
   if (runId) {
@@ -248,7 +250,7 @@ export function startRun({ gameId, prompt, runId = null, agent = 'director', act
   }
   const state = { cancelled: false };
   active.set(runId, state);
-  const ctx = { runId, gameId, engine: game.engine, actor, state, emit: (type, data) => persist(runId, type, data) };
+  const ctx = { runId, gameId, engine: game.engine, actor, noMath, state, emit: (type, data) => persist(runId, type, data) };
   const usage = {};
   if (!Array.isArray(images)) images = [];
   if (images.length > MAX_REFS) throw new HttpError(400, `Máximo ${MAX_REFS} imágenes por mensaje`);

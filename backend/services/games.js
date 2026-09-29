@@ -25,6 +25,8 @@ export function mathHash(c) {
   return createHash('sha256').update(stableStringify(mathPart)).digest('hex').slice(0, 16);
 }
 
+const lockedPart = (c) => `${mathHash(c)}|${c.rtpTarget}|${stableStringify(c.bet ?? null)}|${c.id}`;
+
 export function seedTemplates() {
   const out = {};
   for (const f of readdirSync(SEED_DIR).filter((x) => x.endsWith('.json'))) {
@@ -54,7 +56,7 @@ function rowToGame(r, { withDraft = true } = {}) {
   const pub = r.published_version ? one('SELECT version, math, created_at, note FROM game_versions WHERE game_id = ? AND version = ?', r.id, r.published_version) : null;
   const draft = JSON.parse(r.draft);
   return {
-    id: r.id, engine: r.engine, name: r.name, status: r.status,
+    id: r.id, engine: r.engine, name: r.name, status: r.status, ownerOperatorId: r.owner_operator_id ?? null,
     publishedVersion: r.published_version,
     publishedAt: pub?.created_at ?? null,
     math: pub?.math ? JSON.parse(pub.math) : null,
@@ -64,8 +66,21 @@ function rowToGame(r, { withDraft = true } = {}) {
   };
 }
 
-export function listGames() {
-  return all('SELECT * FROM games ORDER BY created_at').map((r) => rowToGame(r, { withDraft: false }));
+export function listGames({ ownerOperatorId } = {}) {
+  const rows = ownerOperatorId ? all('SELECT * FROM games WHERE owner_operator_id = ? ORDER BY created_at', ownerOperatorId) : all('SELECT * FROM games ORDER BY created_at');
+  return rows.map((r) => rowToGame(r, { withDraft: false }));
+}
+
+/** Crea un juego propio de un operador a partir de una configuración publicada (con su RTP ya aplicado). */
+export function createOwnedGame(operatorId, { name, base }, actor) {
+  const suffix = operatorId.replace(/^op_/, '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+  let slug = `${(name || base.name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'juego'}-${suffix}`;
+  for (let i = 2; one('SELECT id FROM games WHERE id = ?', slug); i++) slug = slug.replace(/(-\d+)?$/, `-${i}`);
+  const c = { ...structuredClone(base), id: slug, name: name || base.name };
+  c.theme = { ...c.theme, title: name || c.theme?.title };
+  run('INSERT INTO games (id, engine, name, draft, draft_updated_at, owner_operator_id) VALUES (?, ?, ?, ?, ?, ?)', slug, c.engine, c.name, JSON.stringify(c), now(), operatorId);
+  audit(actor, 'game.create', slug, { engine: c.engine, owner: operatorId, from: base.id });
+  return getGame(slug);
 }
 
 export function getGame(id) {
@@ -112,9 +127,13 @@ export function publicConfig(id, c, version) {
 }
 
 export function saveDraft(id, config, actor = 'admin', { allowInvalid = false } = {}) {
-  const g = one('SELECT engine FROM games WHERE id = ?', id);
+  const g = one('SELECT engine, draft, owner_operator_id FROM games WHERE id = ?', id);
   if (!g) throw new HttpError(404, `Juego no encontrado: ${id}`);
   if (config.engine !== g.engine) throw new HttpError(400, 'No se puede cambiar el motor de un juego existente');
+  // Juegos de un operador: solo el proveedor (admin) puede tocar matemática, RTP y apuestas.
+  if (g.owner_operator_id && actor !== 'admin' && lockedPart(config) !== lockedPart(JSON.parse(g.draft))) {
+    throw new HttpError(403, 'La matemática, el RTP y las apuestas de este juego las controla el proveedor: solo puedes cambiar diseño, imágenes y sonidos');
+  }
   const errors = validateConfig(config);
   if (errors.length && !allowInvalid) throw new HttpError(422, 'Configuración inválida', errors);
   run('UPDATE games SET draft = ?, name = ?, draft_updated_at = ? WHERE id = ?', JSON.stringify(config), config.name || id, now(), id);
@@ -174,6 +193,12 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
   const hash = mathHash(draft);
   const last = one('SELECT version, math_hash, math FROM game_versions WHERE game_id = ? ORDER BY version DESC LIMIT 1', id);
   let math = last && last.math_hash === hash ? JSON.parse(last.math) : null;
+  // Misma matemática ya certificada en otro juego o variante (p. ej. un juego creado por un operador): se reutiliza.
+  if (!math) {
+    const prev = one('SELECT math FROM game_versions WHERE math_hash = ? AND math IS NOT NULL ORDER BY created_at LIMIT 1', hash)
+      || one("SELECT math FROM rtp_variants WHERE result_math_hash = ? AND status = 'ready' AND math IS NOT NULL LIMIT 1", hash);
+    if (prev?.math) math = JSON.parse(prev.math);
+  }
   if (!math && ENGINES[draft.engine].kind === 'table') {
     const a = ENGINES[draft.engine].analyze(draft);
     math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, hitFrequency: a.hitFrequency, exact: true };

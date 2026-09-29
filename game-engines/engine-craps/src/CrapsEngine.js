@@ -57,10 +57,19 @@ const CSS = `
   background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--felt) 90%, #fff) 0%, var(--felt) 55%, #000 130%); border: 6px solid color-mix(in srgb, var(--accent) 60%, #3a2508); }
 .cr-tray .hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 11px system-ui; opacity: .7; pointer-events: none; }
 .cr-tray svg { position: absolute; inset: 0; pointer-events: none; }
-.cr-die { position: absolute; width: 56px; height: 56px; transform-style: preserve-3d; left: 0; top: 0; }
-.cr-die .f { position: absolute; inset: 0; background: #fbfbfb; border-radius: 10px; border: 1px solid #ccc; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 7px;
-  box-shadow: inset 0 0 10px rgba(0,0,0,.25); backface-visibility: hidden; }
-.cr-die .f i { width: 10px; height: 10px; border-radius: 50%; background: transparent; place-self: center; }
+.cr-die { position: absolute; width: var(--ds, 56px); height: var(--ds, 56px); transform-style: preserve-3d; left: 0; top: 0; }
+.cr-die .f { position: absolute; inset: 0; background: linear-gradient(145deg, color-mix(in srgb, var(--die-face, #fbfbfb) 100%, #fff), color-mix(in srgb, var(--die-face, #fbfbfb) 88%, #000));
+  border-radius: var(--die-radius, 18%); border: 1px solid var(--die-edge, #ccc); background-size: cover; background-position: center; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--ds, 56px) * .13); box-shadow: inset 0 0 calc(var(--ds, 56px) * .18) rgba(0,0,0,.25); backface-visibility: hidden; }
+.cr-die .f i { width: calc(var(--ds, 56px) * .18); height: calc(var(--ds, 56px) * .18); border-radius: 50%; background: transparent; place-self: center; }
+/* Lanzamiento a pantalla completa: los dados cruzan la mesa, rebotan en la pared y caen */
+.cr-throw { position: fixed; inset: 0; pointer-events: none; z-index: 35; perspective: 1100px; transition: opacity .35s; }
+.cr-throw.out { opacity: 0; }
+.cr-shadow { position: absolute; left: 0; top: 0; width: var(--ds, 56px); height: calc(var(--ds, 56px) * .5); border-radius: 50%; background: radial-gradient(#000a, #0000 70%); }
+.cr-throw-total { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); font-size: clamp(34px, 7vw, 64px); color: var(--accent); text-shadow: 0 3px 12px #000, 0 0 20px #000;
+  opacity: 0; transition: opacity .2s, transform .25s; white-space: nowrap; }
+.cr-throw-total.show { opacity: 1; transform: translate(-50%, -125%); }
+.cr-die .f.img i { display: none; }
 .cr-die .f i.on { background: var(--pip, #c0392b); box-shadow: inset 0 2px 2px rgba(0,0,0,.5); }
 .cr-total { position: absolute; top: 10px; left: 0; right: 0; text-align: center; font-size: 30px; color: var(--accent); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .cr-total.show { opacity: 1; }
@@ -132,6 +141,12 @@ export class CrapsEngine {
     root.setProperty('--felt', p.reelBg || '#0f5132');
     root.setProperty('--font', `'${t.font || 'Bungee'}', system-ui, sans-serif`);
     if (t.tableImage) root.setProperty('--felt-img', `url("${t.tableImage}")`);
+    const D = t.dice || {};
+    this.diceTheme = D;
+    if (D.face) root.setProperty('--die-face', D.face);
+    if (D.pip) root.setProperty('--pip', D.pip);
+    if (D.edge) root.setProperty('--die-edge', D.edge);
+    if (D.radius != null) root.setProperty('--die-radius', `${Math.max(0, Math.min(50, Number(D.radius)))}%`);
     const bg = document.getElementById('bg');
     if (bg) {
       if (t.background) bg.style.setProperty('--bg-desktop', `url("${t.background}")`);
@@ -201,7 +216,7 @@ export class CrapsEngine {
     }, this.fmt(v).replace(/[^0-9.,]/g, '').replace(/[.,]00$/, '')));
     this.undoBtn = h('button', { class: 'cr-btn', onclick: () => this.undo() }, '↶ Deshacer');
     this.clearBtn = h('button', { class: 'cr-btn', onclick: () => this.clearPending() }, 'Limpiar');
-    this.rollBtn = h('button', { class: 'cr-btn cr-roll', onclick: () => this.throwDice(0.7, { x: 1, y: -0.3 }) }, '🎲 TIRAR');
+    this.rollBtn = h('button', { class: 'cr-btn cr-roll', onclick: () => this.throwDice(0.65 + Math.random() * 0.3, { x: (Math.random() - 0.5) * 0.8, y: -1 }) }, '🎲 TIRAR');
     const bar = h('div', { class: 'cr-bar' },
       h('div', { class: 'cr-stats' },
         h('div', { class: 'cr-stat' }, h('small', {}, 'SALDO'), this.balEl),
@@ -225,7 +240,8 @@ export class CrapsEngine {
   makeDie() {
     const cube = h('div', { class: 'cr-die' });
     for (let f = 1; f <= 6; f++) {
-      const face = h('div', { class: 'f', style: `transform: ${FACE_POS[f]} translateZ(28px)` });
+      const img = this.diceTheme?.faces?.[f];
+      const face = h('div', { class: `f${img ? ' img' : ''}`, style: `transform: ${FACE_POS[f]} translateZ(calc(var(--ds, 56px) / 2))${img ? `; background-image: url("${String(img).replace(/"/g, '%22')}")` : ''}` });
       for (let i = 1; i <= 9; i++) face.append(h('i', { class: PIPS[f].includes(i) ? 'on' : '' }));
       cube.append(face);
     }
@@ -269,36 +285,119 @@ export class CrapsEngine {
     });
   }
 
-  /** Anima el lanzamiento hacia el resultado que decidió el servidor. */
+  /**
+   * Anima el lanzamiento hacia el resultado que decidió el servidor. Los dados vuelan por toda la mesa
+   * (capa a pantalla completa, visible aunque la página esté desplazada en el celular): física simple con
+   * gravedad, rebotes en el paño y en la pared del fondo, fricción y giro; al final se orientan a la cara real.
+   */
   async animateDice(values, power, dir) {
-    const w = this.tray.clientWidth, hgt = this.tray.clientHeight;
-    const size = 56;
-    const turbo = false;
-    const dur = 900 + power * 700;
+    this.throwLayer?.remove();
+    clearTimeout(this.throwFade);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Zona de juego visible: la mesa recortada a la pantalla (sin la barra de abajo)
+    const barTop = this.root.querySelector('.cr-bar')?.getBoundingClientRect().top ?? vh;
+    const fr = this.felt.getBoundingClientRect();
+    let area = { l: Math.max(0, fr.left), t: Math.max(0, fr.top), r: Math.min(vw, fr.right), b: Math.min(barTop, vh, fr.bottom) };
+    if (area.b - area.t < 220 || area.r - area.l < 220) area = { l: 0, t: 0, r: vw, b: Math.min(barTop, vh) };
+    const W = area.r - area.l, H = area.b - area.t;
+    const dScale = Math.max(0.7, Math.min(1.4, Number(this.diceTheme?.scale) || 1));
+    const size = Math.round(Math.max(40, Math.min(110, Math.min(W, H) * 0.13 * dScale)));
+    const layer = h('div', { class: 'cr-throw', style: `--ds:${size}px` });
+    const shadows = [h('div', { class: 'cr-shadow' }), h('div', { class: 'cr-shadow' })];
+    const dice = [this.makeDie(), this.makeDie()];
+    const total = h('div', { class: 'cr-throw-total' }, String(values[0] + values[1]));
+    layer.append(...shadows, dice[0].el, dice[1].el, total);
+    this.root.append(layer);
+    this.throwLayer = layer;
     this.totalEl.classList.remove('show');
     this.sound.play('roll');
-    const anims = this.dice.map((d, i) => {
-      const sx = dir.x >= 0 ? 10 : w - size - 10;
-      const sy = hgt / 2 - size / 2 + (i ? 30 : -30);
-      const ex = Math.max(8, Math.min(w - size - 8, w / 2 - size + i * 70 + dir.x * power * 40 + (Math.random() - 0.5) * 40));
-      const ey = Math.max(8, Math.min(hgt - size - 8, hgt / 2 - size / 2 + dir.y * power * 40 + (Math.random() - 0.5) * 50));
-      const [rx, ry] = FACE_ROT[values[i]];
-      const spins = 2 + Math.round(power * 3);
-      const bounceY = Math.min(hgt - size - 8, ey + 30);
-      const kf = [
-        { transform: `translate3d(${sx}px, ${sy}px, 0) rotateX(0deg) rotateY(0deg)` },
-        { transform: `translate3d(${(sx + ex) / 2}px, ${Math.max(4, sy - 50)}px, 0) rotateX(${360 * spins}deg) rotateY(${200 * spins}deg)`, offset: 0.35 },
-        { transform: `translate3d(${ex + (sx < ex ? 25 : -25)}px, ${bounceY}px, 0) rotateX(${360 * spins + 300}deg) rotateY(${200 * spins + 160}deg)`, offset: 0.7 },
-        { transform: `translate3d(${ex}px, ${ey}px, 0) rotateX(${rx + 360 * (spins + 1)}deg) rotateY(${ry + 360 * spins}deg)` },
-      ];
-      d.x = ex; d.y = ey;
-      const a = d.el.animate(kf, { duration: turbo ? dur / 2 : dur, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
-      setTimeout(() => this.sound.play('dice'), dur * 0.7);
-      return a.finished.then(() => { a.cancel(); this.setDie(d, ex, ey, values[i]); });
-    });
+
+    // Dirección: hacia el fondo de la mesa (arriba), con el ángulo del arrastre si lo hubo
+    let dx = dir?.x ?? 0, dy = dir?.y ?? -1;
+    if (dy > -0.35) dy = -0.35 - Math.random() * 0.3;
+    const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
+    const scale = Math.max(0.6, H / 650);
+    const speed = (900 + power * 1100) * scale;
+    const m = 6;
+    const bounds = { x0: area.l + m, x1: area.r - size - m, y0: area.t + m, y1: area.b - size - m };
+    const startX = area.l + W / 2 - size - dx * W * 0.15;
+    const st = [0, 1].map((i) => ({
+      x: Math.min(bounds.x1, Math.max(bounds.x0, startX + i * (size + 14))), y: bounds.y1, z: size * 1.6,
+      vx: dx * speed * (0.92 + Math.random() * 0.16) + (i ? 60 : -60), vy: dy * speed * (0.92 + Math.random() * 0.16),
+      vz: (260 + power * 260) * scale, rx: 0, ry: 0, rz: Math.random() * 90, spin: (Math.random() - 0.5) * 900, bounces: 0,
+    }));
+    const G = 2600 * scale, dt = 1 / 60;
+    const frames = [[], []];
+    let t = 0, clacked = 0;
+    for (; t < 3.2; t += dt) {
+      let moving = false;
+      for (const d of st) {
+        d.vz -= G * dt;
+        d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+        if (d.z <= 0) {
+          d.z = 0;
+          if (d.vz < -60) { d.vz = -d.vz * 0.42; d.vx *= 0.82; d.vy *= 0.82; d.spin *= 0.7; d.bounces++; if (clacked < 4) { clacked++; setTimeout(() => this.sound.play('dice'), t * 1000); } } else d.vz = 0;
+        }
+        if (d.x < bounds.x0) { d.x = bounds.x0; d.vx = Math.abs(d.vx) * 0.62; d.spin *= -0.8; }
+        if (d.x > bounds.x1) { d.x = bounds.x1; d.vx = -Math.abs(d.vx) * 0.62; d.spin *= -0.8; }
+        if (d.y < bounds.y0) { d.y = bounds.y0; d.vy = Math.abs(d.vy) * 0.55; d.vz += 120 * scale; } // pared del fondo (pirámides)
+        if (d.y > bounds.y1) { d.y = bounds.y1; d.vy = -Math.abs(d.vy) * 0.5; }
+        if (d.z === 0) { const f = Math.pow(0.07, dt); d.vx *= f; d.vy *= f; d.spin *= f; }
+        const sp = Math.hypot(d.vx, d.vy);
+        d.rx -= d.vy * dt * (d.z > 0 ? 1.1 : 0.8);
+        d.ry += d.vx * dt * (d.z > 0 ? 1.1 : 0.8);
+        d.rz += d.spin * dt;
+        if (sp > 18 || d.z > 0.5 || Math.abs(d.vz) > 1) moving = true;
+      }
+      // Choque entre los dos dados: se separan e intercambian parte de la velocidad
+      const [a, b] = st;
+      const ddx = b.x - a.x, ddy = b.y - a.y, dist = Math.hypot(ddx, ddy);
+      if (dist < size * 1.05 && dist > 0) {
+        const push = (size * 1.05 - dist) / 2, ux = ddx / dist, uy = ddy / dist;
+        a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push;
+        const rel = (a.vx - b.vx) * ux + (a.vy - b.vy) * uy;
+        if (rel > 0) { a.vx -= rel * ux * 0.8; a.vy -= rel * uy * 0.8; b.vx += rel * ux * 0.8; b.vy += rel * uy * 0.8; }
+      }
+      for (let i = 0; i < 2; i++) frames[i].push({ x: st[i].x, y: st[i].y, z: st[i].z, rx: st[i].rx, ry: st[i].ry, rz: st[i].rz });
+      if (!moving && t > 0.6) break;
+    }
+    const dur = Math.round(frames[0].length * dt * 1000);
+    const anims = [];
+    for (let i = 0; i < 2; i++) {
+      const fr2 = frames[i];
+      const last = fr2[fr2.length - 1];
+      const [fx, fy] = FACE_ROT[values[i]];
+      const tx = fx + 360 * Math.round((last.rx - fx) / 360), ty = fy + 360 * Math.round((last.ry - fy) / 360);
+      const tz = 90 * Math.round(last.rz / 90) + (Math.random() - 0.5) * 24;
+      const from = Math.floor(fr2.length * 0.55);
+      const step = Math.max(1, Math.floor(fr2.length / 90));
+      const kf = [], sk = [];
+      for (let k = 0; k < fr2.length; k += step) {
+        const f = fr2[k];
+        const u = k < from ? 0 : (k - from) / Math.max(1, fr2.length - 1 - from);
+        const e = u * u * (3 - 2 * u);
+        const rx = f.rx + (tx - last.rx) * e, ry = f.ry + (ty - last.ry) * e, rz = f.rz + (tz - last.rz) * e;
+        const lift = f.z * 0.55, sc = 1 + f.z / (size * 9);
+        kf.push({ offset: k / (fr2.length - 1), transform: `translate3d(${f.x}px, ${f.y - lift}px, 0) scale(${sc}) rotateZ(${rz}deg) rotateX(${rx}deg) rotateY(${ry}deg)` });
+        sk.push({ offset: k / (fr2.length - 1), opacity: Math.max(0.25, 0.9 - f.z / (size * 5)), transform: `translate3d(${f.x + f.z * 0.25}px, ${f.y + size * 0.72}px, 0) scale(${1 + f.z / (size * 6)})` });
+      }
+      const endT = `translate3d(${last.x}px, ${last.y}px, 0) rotateZ(${tz}deg) rotateX(${tx}deg) rotateY(${ty}deg)`;
+      kf.push({ offset: 1, transform: endT });
+      sk.push({ offset: 1, opacity: 0.9, transform: `translate3d(${last.x}px, ${last.y + size * 0.72}px, 0) scale(1)` });
+      const a = dice[i].el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' });
+      shadows[i].animate(sk, { duration: dur, easing: 'linear', fill: 'forwards' });
+      anims.push(a.finished.then(() => { dice[i].el.style.transform = endT; }));
+    }
     await Promise.all(anims);
+    const cx = (frames[0].at(-1).x + frames[1].at(-1).x) / 2 + size / 2, cy = Math.min(frames[0].at(-1).y, frames[1].at(-1).y);
+    total.style.left = `${cx}px`; total.style.top = `${Math.max(area.t + 40, cy)}px`;
+    total.classList.add('show');
+    // La bandeja lateral conserva el último resultado
+    const tw = this.tray.clientWidth || 300, th = this.tray.clientHeight || 200;
+    this.dice.forEach((d, i) => this.setDie(d, tw / 2 - 70 + i * 84, th / 2 - 28, values[i], i ? 12 : -8));
     this.totalEl.textContent = String(values[0] + values[1]);
     this.totalEl.classList.add('show');
+    this.throwFade = setTimeout(() => { layer.classList.add('out'); setTimeout(() => layer.remove(), 400); }, 2600);
   }
 
   // ---------------------------------------------------------------- Apuestas

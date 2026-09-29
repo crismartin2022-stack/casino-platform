@@ -8,6 +8,7 @@ import { randomBytes, randomUUID, createHash, createHmac } from 'node:crypto';
 import { one, run, all, tx, audit } from '../db.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
+import { operatorCanUse, configForOperator } from './variants.js';
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const token = (n = 24) => randomBytes(n).toString('base64url');
@@ -27,7 +28,10 @@ export function createOperator({ name, walletMode = 'internal', walletUrl = null
   return { id, name, walletMode, walletUrl, currency, apiKey, walletSecret };
 }
 
-export const listOperators = () => all('SELECT id, name, wallet_mode, wallet_url, currency, active, created_at FROM operators ORDER BY created_at');
+export const listOperators = () => all(`SELECT o.id, o.name, o.wallet_mode, o.wallet_url, o.currency, o.active, o.can_create_games, o.max_games, o.can_use_agents, o.created_at,
+  (SELECT COUNT(*) FROM games g WHERE g.owner_operator_id = o.id) AS own_games,
+  (SELECT COUNT(*) FROM operator_users u WHERE u.operator_id = o.id) AS users
+  FROM operators o ORDER BY o.created_at`);
 
 export function operatorFromKey(apiKey) {
   if (!apiKey) throw new HttpError(401, 'Falta la cabecera X-API-Key');
@@ -55,13 +59,13 @@ function upsertPlayer(operatorId, externalId, currency) {
 
 const expiry = () => new Date(Date.now() + config.sessionTtlHours * 3600_000).toISOString();
 
-export function createDemoSession(gameId, { source = 'published', balance = config.demoBalanceCents, currency = 'USD' } = {}) {
+export function createDemoSession(gameId, { source = 'published', balance = config.demoBalanceCents, currency = 'USD', variantId = null } = {}) {
   if (!one('SELECT id FROM games WHERE id = ?', gameId)) throw new HttpError(404, 'Juego no encontrado');
   const id = `demo_${token(10)}`;
   const t = `ses_${token(24)}`;
   tx(() => {
     run('INSERT INTO players (id, operator_id, external_id, currency, balance, demo) VALUES (?, NULL, ?, ?, ?, 1)', id, id, currency, balance);
-    run('INSERT INTO sessions (token, player_id, game_id, mode, source, expires_at) VALUES (?, ?, ?, ?, ?, ?)', t, id, gameId, 'demo', source, expiry());
+    run('INSERT INTO sessions (token, player_id, game_id, mode, source, expires_at, variant_id) VALUES (?, ?, ?, ?, ?, ?, ?)', t, id, gameId, 'demo', source, expiry(), variantId);
   });
   return { token: t, playerId: id, mode: 'demo', source, balance, currency };
 }
@@ -69,12 +73,12 @@ export function createDemoSession(gameId, { source = 'published', balance = conf
 export function createOperatorSession(op, { playerId, gameId, currency, mode = 'real' }) {
   if (!playerId || !gameId) throw new HttpError(400, 'Faltan playerId o gameId');
   if (!['real', 'demo'].includes(mode)) throw new HttpError(400, 'mode debe ser real o demo');
-  const g = one('SELECT id, published_version, status FROM games WHERE id = ?', gameId);
-  if (!g || !g.published_version || g.status !== 'active') throw new HttpError(404, 'Juego no disponible');
-  if (mode === 'demo') return createDemoSession(gameId, { currency: currency || op.currency });
+  if (!operatorCanUse(op.id, gameId)) throw new HttpError(404, 'Juego no disponible para este operador');
+  const { variantId } = configForOperator(op.id, gameId); // 409 si su RTP asignado aún se está calculando
+  if (mode === 'demo') return createDemoSession(gameId, { currency: currency || op.currency, variantId });
   const p = upsertPlayer(op.id, String(playerId), currency || op.currency);
   const t = `ses_${token(24)}`;
-  run('INSERT INTO sessions (token, player_id, game_id, mode, source, expires_at) VALUES (?, ?, ?, ?, ?, ?)', t, p.id, gameId, 'real', 'published', expiry());
+  run('INSERT INTO sessions (token, player_id, game_id, mode, source, expires_at, variant_id) VALUES (?, ?, ?, ?, ?, ?, ?)', t, p.id, gameId, 'real', 'published', expiry(), variantId);
   return { token: t, playerId: p.id, mode: 'real', currency: p.currency };
 }
 
