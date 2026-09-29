@@ -7,13 +7,24 @@ import { recordingRng, cryptoRng, replayRng } from '../math/rng.js';
 import { getSession, walletForSession } from './wallets.js';
 import { getPublished, getDraft, getVersionConfig } from './games.js';
 import { replayTableRound as replayTable } from './table.js';
+import { configWithVariant, variantById } from './variants.js';
 
 export function loadConfigFor(session) {
   if (session.source === 'draft') {
     if (session.mode !== 'demo') throw new HttpError(403, 'Los borradores solo se pueden jugar en modo demo');
-    return { version: null, config: getDraft(session.game_id) };
+    return { version: null, config: getDraft(session.game_id), variantId: null };
   }
-  return getPublished(session.game_id);
+  const pub = getPublished(session.game_id);
+  if (!session.variant_id) return { ...pub, variantId: null };
+  // RTP asignado por el proveedor a este operador
+  return { version: pub.version, config: configWithVariant(session.game_id, pub.version, session.variant_id), variantId: session.variant_id };
+}
+
+/** RTP/volatilidad que ve el jugador: los de la variante si la sesión tiene una. */
+export function mathFor(session, gameMath) {
+  if (!session.variant_id) return gameMath;
+  const v = variantById(session.variant_id);
+  return v.math ? JSON.parse(v.math) : gameMath;
 }
 
 const toCents = (mult, bet) => Math.round(mult * bet);
@@ -38,7 +49,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   const prior = existingRound(token, clientRoundId);
   if (prior) return { ...prior, replayed: true };
 
-  const { version, config } = loadConfigFor(session);
+  const { version, config, variantId } = loadConfigFor(session);
   const engine = getEngine(config.engine);
   if (engine.kind === 'table') throw new HttpError(400, 'Este juego es de mesa: usa /api/v1/table');
   if (!config.bet.levels.includes(bet)) throw new HttpError(400, `Apuesta no permitida. Niveles: ${config.bet.levels.join(', ')}`);
@@ -48,7 +59,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   const rng = recordingRng(cryptoRng());
   const roundId = `rd_${randomUUID()}`;
   const wallet = walletForSession(session);
-  const base = [roundId, clientRoundId, token, session.player_id, session.game_id, version, session.source, session.mode, mode, bet, cost];
+  const base = [roundId, clientRoundId, token, session.player_id, session.game_id, version, variantId ?? null, session.source, session.mode, mode, bet, cost];
 
   if (wallet.mode === 'internal') {
     // Todo en una transacción: o se registra la ronda completa o no pasa nada.
@@ -58,8 +69,8 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
       const result = engine.play(config, rng, { mode });
       const win = toCents(result.totalWin, bet);
       const after = wallet.creditSync(win, roundId);
-      run(`INSERT INTO rounds (id, client_round_id, session_token, player_id, game_id, version, source, mode, play_mode, bet, cost,
-             win, balance_before, balance_after, status, rng, result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'completed',?,?)`,
+      run(`INSERT INTO rounds (id, client_round_id, session_token, player_id, game_id, version, variant_id, source, mode, play_mode, bet, cost,
+             win, balance_before, balance_after, status, rng, result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'completed',?,?)`,
         ...base, win, before, after, JSON.stringify(rng.draws), JSON.stringify(result));
       return one('SELECT * FROM rounds WHERE id = ?', roundId);
     });
@@ -67,8 +78,8 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   }
 
   // Seamless: la ronda queda registrada antes de tocar el dinero del operador.
-  run(`INSERT INTO rounds (id, client_round_id, session_token, player_id, game_id, version, source, mode, play_mode, bet, cost, status)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending_debit')`, ...base);
+  run(`INSERT INTO rounds (id, client_round_id, session_token, player_id, game_id, version, variant_id, source, mode, play_mode, bet, cost, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pending_debit')`, ...base);
   let afterDebit;
   try {
     afterDebit = await wallet.debit(cost, roundId);
@@ -122,7 +133,7 @@ export function replayRound(roundId) {
   const r = one('SELECT * FROM rounds WHERE id = ?', roundId);
   if (!r) throw new HttpError(404, 'Ronda no encontrada');
   if (!r.rng) throw new HttpError(409, 'La ronda no tiene resultado');
-  const config = r.version ? getVersionConfig(r.game_id, r.version) : null;
+  const config = r.version ? configWithVariant(r.game_id, r.version, r.variant_id) : null;
   if (!config) throw new HttpError(409, 'Ronda jugada sobre un borrador: no reproducible');
   if (getEngine(config.engine).kind === 'table') {
     if (r.play_mode !== 'roll') throw new HttpError(409, 'Esta operación no tiene dados que verificar');

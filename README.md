@@ -77,6 +77,15 @@ También puedes editar a mano: Diseño, Símbolos (imagen, nombre, pagos), Sonid
 
 **Permisos de los agentes:** cada especialista solo puede tocar su parte (el Artista no puede cambiar pagos, el Diseñador no toca reglas…). Ningún agente puede publicar: siempre lo hace una persona.
 
+## Portal del operador
+
+Cada casino que integra tus juegos tiene su propio panel en **`/operator`** (email y contraseña, roles administrador, finanzas y soporte):
+resumen con GGR, jugadas con verificación, jugadores y saldo, catálogo con su RTP, API key y prueba de su billetera, usuarios y reportes CSV.
+
+Desde tu panel (**Operadores → Gestionar**) decides por operador: qué juegos ve, **con qué RTP** (se calcula una variante del juego con esa tabla de pagos),
+si puede **crear juegos propios** y cuántos, y si puede usar los agentes de IA. En sus juegos propios solo cambia diseño, imágenes y sonidos:
+la matemática, el RTP y las apuestas siguen bajo tu control. Detalle en [docs/API.md](docs/API.md#5-portal-del-operador-operator).
+
 ## Integridad para dinero real
 
 - El resultado de cada ronda se calcula **solo en el servidor** con `crypto.randomInt` (CSPRNG del sistema). El navegador solo anima.

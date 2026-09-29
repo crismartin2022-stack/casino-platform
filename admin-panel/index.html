@@ -9,8 +9,9 @@
 <body>
   <div id="login" class="login" hidden>
     <form id="loginForm" class="card">
-      <h1>🎰 Casino Platform</h1>
-      <p>Introduce el <code>ADMIN_TOKEN</code> configurado en Railway.</p>
+      <h1 id="loginTitle">🎰 Casino Platform</h1>
+      <p id="loginHint">Introduce el <code>ADMIN_TOKEN</code> configurado en Railway.</p>
+      <input id="emailInput" type="email" placeholder="Email" autocomplete="username" hidden />
       <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" autocomplete="current-password" required />
       <button class="primary">Entrar</button>
       <p id="loginError" class="error"></p>
@@ -19,12 +20,12 @@
 
   <div id="app" class="app" hidden>
     <aside class="side">
-      <div class="brand">🎰 Panel</div>
-      <div class="side-section">Juegos</div>
+      <div class="brand" id="brand">🎰 Panel</div>
+      <div class="side-section" id="gamesTitle">Juegos</div>
       <nav id="gameList"></nav>
       <button id="newGameBtn" class="ghost">＋ Nuevo juego</button>
-      <div class="side-section">Plataforma</div>
-      <nav>
+      <div class="side-section" id="platformTitle">Plataforma</div>
+      <nav id="platformNav">
         <a data-view="operators">Operadores (API)</a>
         <a data-view="rounds">Rondas y auditoría</a>
         <a data-view="stats">Estadísticas</a>

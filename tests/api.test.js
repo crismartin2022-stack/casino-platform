@@ -44,7 +44,7 @@ before(async () => {
   dir = mkdtempSync(`${tmpdir()}/casino-test-`);
   proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', './tests/helpers/mock-ai.js', 'backend/index.js'], {
     env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ADMIN_TOKEN: 'test-admin', LOG_REQUESTS: '0', ALLOW_HTTP_WALLET: '1',
-      ANTHROPIC_API_KEY: 'x', VENICE_API_KEY: 'x', ELEVENLABS_API_KEY: 'x', PUBLISH_SIM_SPINS: '150000', PUBLISH_MAX_RTP_DEVIATION: '0.02' },
+      ANTHROPIC_API_KEY: 'x', VENICE_API_KEY: 'x', ELEVENLABS_API_KEY: 'x', PUBLISH_SIM_SPINS: '150000', PUBLISH_MAX_RTP_DEVIATION: '0.02', VARIANT_TUNE_SPINS: '40000' },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve, reject) => {
@@ -275,4 +275,128 @@ test('operador interno: depósitos idempotentes', async () => {
   const s = await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'p9', gameId: 'colossal-reels' } });
   const r = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.body.token}` }, body: { bet: 100 } });
   assert.equal(r.body.balance, 5000 - 100 + r.body.win);
+});
+
+const waitFor = async (fn, ms = 90_000) => {
+  const t0 = Date.now();
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() - t0 > ms) throw new Error('tiempo agotado');
+    await new Promise((r) => setTimeout(r, 300));
+  }
+};
+
+test('portal del operador: roles, RTP asignado por el proveedor, juegos propios limitados y reportes', async () => {
+  const op = (await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Portal' } })).body;
+  const key = { 'x-api-key': op.apiKey };
+  // --- El proveedor deshabilita un juego y asigna otro RTP a otro
+  await req(`/api/admin/operators/${op.id}/games/megaways`, { method: 'PUT', headers: ADMIN, body: { enabled: false } });
+  const no = await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'p1', gameId: 'megaways' } });
+  assert.equal(no.status, 404);
+  const set = await req(`/api/admin/operators/${op.id}/games/reel-rush`, { method: 'PUT', headers: ADMIN, body: { rtpTarget: 0.94 } });
+  assert.equal(set.status, 200);
+  assert.equal(set.body.rtpTarget, 0.94);
+  const bad = await req(`/api/admin/operators/${op.id}/games/reel-rush`, { method: 'PUT', headers: ADMIN, body: { rtpTarget: 1.3 } });
+  assert.equal(bad.status, 400);
+  const craps = await req(`/api/admin/operators/${op.id}/games/craps`, { method: 'PUT', headers: ADMIN, body: { rtpTarget: 0.95 } });
+  assert.equal(craps.status, 400);
+  const v = await waitFor(async () => (await req('/api/admin/games/reel-rush/rtp-variants', { headers: ADMIN })).body.find((x) => x.status === 'ready' && x.rtpTarget === 0.94));
+  assert.ok(Math.abs(v.math.rtp - 0.94) < 0.03, `RTP de la variante ${v.math.rtp}`);
+  await req('/api/v1/operator/players/p1/balance', { method: 'POST', headers: key, body: { amount: 100_000, reference: 'd1' } });
+  const s = (await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'p1', gameId: 'reel-rush' } })).body;
+  const auth = { authorization: `Bearer ${s.token}` };
+  const sess = (await req('/api/v1/session', { headers: auth })).body;
+  assert.equal(sess.game.math.rtp, v.math.rtp); // el jugador ve el RTP asignado
+  let last;
+  for (let i = 0; i < 5; i++) last = (await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100 } })).body;
+  const rep = (await req(`/api/admin/rounds/${last.roundId}/replay`, { headers: ADMIN })).body;
+  assert.equal(rep.match, true);
+  const cat = (await req('/api/v1/operator/games', { headers: key })).body;
+  assert.ok(!cat.some((g) => g.id === 'megaways'));
+  assert.equal(cat.find((g) => g.id === 'reel-rush').math.rtp, v.math.rtp);
+
+  // --- Usuarios del portal
+  const u = (await req(`/api/admin/operators/${op.id}/users`, { method: 'POST', headers: ADMIN, body: { email: 'Admin@CasinoPortal.com', role: 'admin' } })).body;
+  assert.ok(u.temporaryPassword);
+  const wrong = await req('/api/portal/login', { method: 'POST', body: { email: 'admin@casinoportal.com', password: 'mal' } });
+  assert.equal(wrong.status, 401);
+  const lg = (await req('/api/portal/login', { method: 'POST', body: { email: 'admin@casinoportal.com', password: u.temporaryPassword } })).body;
+  assert.equal(lg.mustChangePassword, true);
+  const P = { authorization: `Bearer ${lg.token}` };
+  const me = (await req('/api/admin/me', { headers: P })).body;
+  assert.equal(me.kind, 'operator');
+  assert.equal(me.operator.id, op.id);
+  assert.equal(me.providers.anthropic, false); // agentes no habilitados
+  const pw = await req('/api/portal/password', { method: 'POST', headers: P, body: { current: u.temporaryPassword, next: 'nueva-clave-segura' } });
+  assert.equal(pw.status, 200);
+  // Solo lo suyo y nada del proveedor
+  assert.equal((await req('/api/admin/operators', { headers: P })).status, 403);
+  assert.equal((await req('/api/admin/rounds', { headers: P })).status, 403);
+  assert.equal((await req('/api/admin/games/reel-rush', { headers: P })).status, 403);
+  assert.deepEqual((await req('/api/admin/games', { headers: P })).body, []);
+
+  // --- Reportes
+  const sum = (await req('/api/portal/summary', { headers: P })).body;
+  assert.equal(sum.totals.rounds, 5);
+  assert.equal(sum.totals.ggr, sum.totals.wagered - sum.totals.won);
+  const rl = (await req('/api/portal/rounds?player=p1', { headers: P })).body;
+  assert.equal(rl.length, 5);
+  assert.equal(rl[0].player, 'p1');
+  const ver = (await req(`/api/portal/rounds/${last.roundId}/verify`, { headers: P })).body;
+  assert.equal(ver.match, true);
+  const pl = (await req('/api/portal/players', { headers: P })).body;
+  assert.equal(pl[0].player, 'p1');
+  const csv = await fetch(`${B}/api/portal/export/rounds.csv`, { headers: P });
+  assert.match(csv.headers.get('content-type'), /text\/csv/);
+  const text = await csv.text();
+  assert.match(text, /ronda,fecha_utc,jugador/);
+  assert.equal(text.trim().split('\n').length, 6);
+  // Otro operador no ve esas rondas
+  const other = (await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Otro' } })).body;
+  const ou = (await req(`/api/admin/operators/${other.id}/users`, { method: 'POST', headers: ADMIN, body: { email: 'x@otro.com', role: 'support' } })).body;
+  const OP = { authorization: `Bearer ${(await req('/api/portal/login', { method: 'POST', body: { email: 'x@otro.com', password: ou.temporaryPassword } })).body.token}` };
+  assert.equal((await req(`/api/portal/rounds/${last.roundId}`, { headers: OP })).status, 404);
+  // Rol soporte: no mueve saldo
+  assert.equal((await req('/api/portal/players/p1/balance', { method: 'POST', headers: OP, body: { amount: 100 } })).status, 403);
+  const bal = await req('/api/portal/players/p1/balance', { method: 'POST', headers: P, body: { amount: 500, reference: 'bono-1' } });
+  assert.equal(bal.status, 200);
+
+  // --- Juegos propios: apagado por defecto, luego habilitado con máximo 1
+  const g0 = await req('/api/portal/games', { method: 'POST', headers: P, body: { name: 'Mi Juego', baseGameId: 'reel-rush' } });
+  assert.equal(g0.status, 403);
+  await req(`/api/admin/operators/${op.id}`, { method: 'PATCH', headers: ADMIN, body: { canCreateGames: true, maxGames: 1 } });
+  const g1 = await req('/api/portal/games', { method: 'POST', headers: P, body: { name: 'Mi Juego', baseGameId: 'reel-rush' } });
+  assert.equal(g1.status, 201);
+  const gid = g1.body.id;
+  assert.equal(g1.body.ownerOperatorId, op.id);
+  const g2 = await req('/api/portal/games', { method: 'POST', headers: P, body: { name: 'Otro más', baseGameId: 'reel-rush' } });
+  assert.equal(g2.status, 403);
+  // Diseño sí, matemática no
+  const okTheme = await req(`/api/admin/games/${gid}/draft`, { method: 'PATCH', headers: P, body: { ops: [{ op: 'set', path: 'theme.palette.primary', value: '#123456' }] } });
+  assert.equal(okTheme.status, 200);
+  const draft = (await req(`/api/admin/games/${gid}`, { headers: P })).body.draft;
+  const sym = draft.symbols.find((x) => x.pays && Object.keys(x.pays).length);
+  const noPays = await req(`/api/admin/games/${gid}/draft`, { method: 'PATCH', headers: P, body: { ops: [{ op: 'set', path: `symbols.${sym.id}.pays`, value: { 3: 999 } }] } });
+  assert.equal(noPays.status, 403);
+  const noRtp = await req(`/api/admin/games/${gid}/draft`, { method: 'PATCH', headers: P, body: { ops: [{ op: 'set', path: 'rtpTarget', value: 1.05 }] } });
+  assert.equal(noRtp.status, 403);
+  assert.equal((await req(`/api/admin/games/${gid}/tune`, { method: 'POST', headers: P, body: {} })).status, 403);
+  assert.equal((await req('/api/admin/agents/runs', { method: 'POST', headers: P, body: { gameId: gid, prompt: 'hola' } })).status, 403);
+  // Publicar reutiliza la matemática certificada (RTP asignado)
+  const pub = await req(`/api/admin/games/${gid}/publish`, { method: 'POST', headers: P, body: { note: 'primera' } });
+  assert.equal(pub.status, 200);
+  assert.equal(pub.body.math.rtp, v.math.rtp);
+  const own = (await req('/api/admin/games', { headers: P })).body;
+  assert.deepEqual(own.map((g) => g.id), [gid]);
+  // Solo su operador lo puede abrir; no aparece en la lista pública
+  assert.equal((await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'p1', gameId: gid } })).status, 201);
+  assert.equal((await req('/api/v1/operator/sessions', { method: 'POST', headers: { 'x-api-key': other.apiKey }, body: { playerId: 'p1', gameId: gid } })).status, 404);
+  assert.ok(!(await req('/api/v1/games')).body.some((g) => g.id === gid));
+  // El proveedor lo ve y puede suspender al operador
+  const det = (await req(`/api/admin/operators/${op.id}`, { headers: ADMIN })).body;
+  assert.equal(det.usedGames, 1);
+  assert.ok(det.games.find((g) => g.id === gid).own);
+  await req(`/api/admin/operators/${op.id}`, { method: 'PATCH', headers: ADMIN, body: { active: false } });
+  assert.equal((await req('/api/portal/summary', { headers: P })).status, 401);
 });

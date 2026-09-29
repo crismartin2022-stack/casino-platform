@@ -300,6 +300,8 @@ export function defaults() {
       title: 'Dados de Oro', background: null, backgroundColor: '#0b2a1a', tableImage: null,
       palette: { primary: '#c0392b', accent: '#f1c40f', panel: '#071a10', text: '#ffffff', reelBg: '#0f5132' },
       font: 'Bungee',
+      // Dados editables: colores, redondeo (% del lado), tamaño y una imagen opcional por cara
+      dice: { face: '#fbfbfb', pip: '#c0392b', edge: '#cccccc', radius: 18, scale: 1, faces: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null } },
     },
     sounds: { music: null, roll: null, dice: null, chip: null, win: null, bigWin: null, lose: null, click: null },
   };

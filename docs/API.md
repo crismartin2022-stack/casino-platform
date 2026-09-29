@@ -156,5 +156,47 @@ Tiempo máximo de respuesta: 8 s.
 | GET | `/api/admin/rounds` · `/rounds/:id/replay` | Rondas y verificación reproducible |
 | GET | `/api/admin/stats` · `/api/admin/audit` | RTP real por juego · registro de auditoría |
 | GET / POST | `/api/admin/operators` | Operadores y API keys |
+| GET / PATCH | `/api/admin/operators/:id` | Detalle (juegos, RTP, usuarios) · `{ active?, canCreateGames?, maxGames?, canUseAgents? }` |
+| PUT | `/api/admin/operators/:id/games/:gameId` | `{ enabled?, rtpTarget? }` habilita el juego para ese operador y le asigna un RTP (`null` = el del juego) |
+| POST / PATCH | `/api/admin/operators/:id/users` · `/users/:uid` | Crea usuario del portal (`{ email, name, role: admin\|finance\|support }` → contraseña temporal) · cambia rol o lo desactiva |
+| POST | `/api/admin/operators/:id/users/:uid/reset-password` | Nueva contraseña temporal |
+| GET / POST | `/api/admin/games/:id/rtp-variants` | Variantes de RTP de un juego · `{ target }` calcula una nueva |
+
+### RTP por operador
+
+El proveedor asigna a cada operador el RTP de cada juego (85 %–110 %). La plataforma ajusta la tabla de pagos de la versión publicada a ese RTP (misma matemática, pagos escalados, compras de bonus re-preciadas) y guarda el resultado como **variante**. Cada sesión nueva de ese operador juega con su variante; cada ronda registra `version` y `variant_id`, así que el replay reproduce exactamente lo jugado.
+
+- Mientras la variante se calcula, `POST /api/v1/operator/sessions` responde `409` para ese juego: nunca se juega con un RTP distinto al asignado.
+- Si se publica una versión con matemática nueva, las variantes asignadas se recalculan solas.
+- En juegos de mesa (Craps) el RTP depende de los pagos de cada apuesta: no hay variantes.
+
+---
+
+## 5. Portal del operador (`/operator`)
+
+Cada casino entra con email y contraseña (los crea el proveedor o su propio administrador). Ve solo lo suyo.
+
+| Rol | Puede |
+| --- | --- |
+| `admin` | Todo: reportes, jugadas, jugadores, saldo, juegos propios, API key, billetera y usuarios |
+| `finance` | Reportes, jugadas, jugadores y cargar/retirar saldo (billetera interna) |
+| `support` | Consultar reportes, jugadas y jugadores |
+
+Autenticación: `POST /api/portal/login { email, password }` → `{ token }` y luego `Authorization: Bearer ous_…`.
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/portal/summary?from=AAAA-MM-DD&to=` | Apostado, pagado, GGR, RTP real, rondas y jugadores; por día y por juego |
+| GET | `/api/portal/rounds?player=&game=&status=&mode=&from=&to=&limit=&offset=` · `/rounds/:id` · `/rounds/:id/verify` | Jugadas, detalle y verificación |
+| GET | `/api/portal/players?q=` · `/players/:id` | Jugadores con totales · detalle y movimientos |
+| POST | `/api/portal/players/:id/balance` | `{ amount, reference }` carga/retiro (billetera interna; roles admin y finance) |
+| GET / POST | `/api/portal/games` | Catálogo con su RTP + juegos propios y límite · crear juego propio `{ name, baseGameId }` |
+| POST | `/api/portal/demo-session` | `{ gameId }` → `launchUrl` en modo demo para probar |
+| GET / PUT | `/api/portal/integration` | Datos de integración · `{ walletUrl }` |
+| POST | `/api/portal/integration/rotate-key` · `/rotate-secret` · `/test-wallet` | Nueva API key · nuevo secreto de firma · prueba de la billetera seamless (`{ playerId }`) |
+| GET / POST / PATCH | `/api/portal/users` · `/users/:uid` | Usuarios de su casino |
+| GET | `/api/portal/export/rounds.csv` · `summary.csv` · `games.csv` · `players.csv` | Reportes CSV (mismos filtros) |
+
+**Juegos propios:** si el proveedor lo habilita (con un máximo), el operador crea juegos a partir de uno de su catálogo. Heredan la matemática y el RTP que tiene asignado; puede cambiar nombre, diseño, imágenes, sonidos y dados, y usar los agentes de diseño si el proveedor se los activó. La matemática, el RTP y las apuestas quedan bloqueados (`403`). Solo su operador puede abrirlos.
 
 Rutas de configuración usadas por `ops`: `theme.palette.primary`, `symbols.<id>.image`, `symbols.<id>.pays`, `sounds.win`, `rules.freeSpins.3`… (en listas de símbolos se usa el `id`).

@@ -1,12 +1,16 @@
 // Panel de administración: juegos, agentes de IA, diseño, sonido, matemática, versiones y operadores.
+// El mismo panel sirve el PORTAL DEL OPERADOR en /operator (login con email): reportes, jugadas, jugadores,
+// catálogo con su RTP, integración, usuarios y —si el proveedor lo habilita— sus propios juegos (sin matemática).
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (x) => (x == null ? '—' : `${(x * 100).toFixed(2)} %`);
 const money = (c) => (c / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const OP_MODE = location.pathname.replace(/\/$/, '') === '/operator';
+const TOKEN_KEY = OP_MODE ? 'portalToken' : 'adminToken';
 const S = {
-  token: sessionStorage.getItem('adminToken') || '',
+  token: sessionStorage.getItem(TOKEN_KEY) || '',
   me: null, games: [], gameId: null, game: null, tab: 'agents', platformView: null,
   runId: null, runStream: null, previewToken: null, agentsBusy: false, engines: {},
 };
@@ -20,7 +24,7 @@ async function api(path, { method = 'GET', body, raw, headers = {} } = {}) {
     body: raw ? body : body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { logout(); throw new Error('Sesión de administrador inválida'); }
+  if (res.status === 401) { logout(); throw new Error(data.error || 'Sesión inválida'); }
   if (!res.ok) {
     const e = new Error(data.error || `Error ${res.status}`);
     e.details = data.details;
@@ -53,35 +57,80 @@ async function busy(btn, fn) {
 
 // ------------------------------------------------------------------ Login
 function logout() {
-  sessionStorage.removeItem('adminToken');
+  if (OP_MODE && S.token) fetch('/api/portal/logout', { method: 'POST', headers: { authorization: `Bearer ${S.token}` } }).catch(() => {});
+  sessionStorage.removeItem(TOKEN_KEY);
   S.token = '';
   $('#app').hidden = true;
   $('#login').hidden = false;
 }
 
+if (OP_MODE) {
+  document.title = 'Portal del operador';
+  $('#loginTitle').textContent = '🎰 Portal del operador';
+  $('#loginHint').textContent = 'Entra con el email y la contraseña que te dio tu proveedor.';
+  $('#emailInput').hidden = false;
+  $('#emailInput').required = true;
+  $('#tokenInput').placeholder = 'Contraseña';
+}
+
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  S.token = $('#tokenInput').value.trim();
+  $('#loginError').textContent = '';
   try {
+    if (OP_MODE) {
+      const res = await fetch('/api/portal/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('#emailInput').value, password: $('#tokenInput').value }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || `Error ${res.status}`);
+      S.token = d.token;
+    } else S.token = $('#tokenInput').value.trim();
     await start();
-    sessionStorage.setItem('adminToken', S.token);
+    sessionStorage.setItem(TOKEN_KEY, S.token);
+    $('#tokenInput').value = '';
   } catch (err) {
     $('#loginError').textContent = err.message;
   }
 });
 
+const isOp = () => S.me?.kind === 'operator';
+const can = (perm) => !isOp() || S.me.perms.includes(perm);
+
 async function start() {
   S.me = await api('/api/admin/me');
+  if (OP_MODE !== isOp()) { logout(); throw new Error(OP_MODE ? 'Usa tu email y contraseña de operador' : 'Este es el panel del proveedor: los operadores entran por /operator'); }
   $('#login').hidden = true;
   $('#app').hidden = false;
   const p = S.me.providers;
-  $('#providers').innerHTML = [['anthropic', 'Claude (agentes)'], ['venice', 'Venice (imágenes)'], ['elevenlabs', 'ElevenLabs (sonido)']]
-    .map(([k, l]) => `<div><span class="dot ${p[k] ? 'ok' : ''}"></span>${l}</div>`).join('');
+  $('#providers').innerHTML = isOp()
+    ? `<div>${esc(S.me.user.email)}</div><div class="muted">${esc({ admin: 'Administrador', finance: 'Finanzas', support: 'Soporte' }[S.me.user.role] || S.me.user.role)}</div>`
+    : [['anthropic', 'Claude (agentes)'], ['venice', 'Venice (imágenes)'], ['elevenlabs', 'ElevenLabs (sonido)']]
+      .map(([k, l]) => `<div><span class="dot ${p[k] ? 'ok' : ''}"></span>${l}</div>`).join('');
   S.engines = Object.fromEntries((await (await fetch('/api/v1/engines')).json()).map((e) => [e.id, e]));
+  if (isOp()) setupOperatorShell();
   await loadGames();
   const fromHash = decodeURIComponent(location.hash.slice(1));
   if (S.games.some((g) => g.id === fromHash)) selectGame(fromHash);
+  else if (isOp()) { openView(fromHash && VIEWS[fromHash] ? fromHash : 'summary'); if (S.me.user.mustChangePassword) askNewPassword(); }
   else if (S.games[0]) selectGame(S.games[0].id);
+}
+
+/** Portal del operador: marca, menú y pestañas según sus permisos. */
+function setupOperatorShell() {
+  const L = S.me.limits;
+  $('#brand').textContent = `🎰 ${S.me.operator.name}`;
+  $('#gamesTitle').textContent = 'Mis juegos';
+  $('#gamesTitle').hidden = !L.canCreateGames && !L.usedGames;
+  $('#newGameBtn').hidden = !(L.canCreateGames && can('games'));
+  $('#newGameBtn').textContent = `＋ Nuevo juego (${L.usedGames} de ${L.maxGames})`;
+  $('#platformTitle').textContent = 'Mi casino';
+  const items = [['summary', '📊 Resumen'], ['plays', '🎲 Jugadas'], ['players', '👤 Jugadores'], ['catalog', '🎰 Catálogo de juegos'],
+    ['integration', '🔌 Integración'], ...(can('users') ? [['users', '👥 Usuarios']] : []), ['account', '🔑 Mi cuenta']];
+  $('#platformNav').innerHTML = items.map(([k, l]) => `<a data-view="${k}">${l}</a>`).join('');
+  // Pestañas del editor: sin matemática ni JSON; agentes solo si el proveedor los habilitó
+  $('#tabs button[data-tab="math"]').hidden = true;
+  $('#tabs button[data-tab="json"]').hidden = true;
+  $('#tabs button[data-tab="agents"]').hidden = !L.canUseAgents;
+  if (!L.canUseAgents) S.tab = 'design';
+  $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
 }
 
 // ------------------------------------------------------------------ Juegos
@@ -133,6 +182,7 @@ $('#tabs').addEventListener('click', (e) => {
 });
 
 function renderTab() {
+  if ($(`#tabs button[data-tab="${S.tab}"]`)?.hidden) { S.tab = 'design'; $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab)); }
   const v = $('#view');
   const fn = { agents: tabAgents, design: tabDesign, symbols: tabSymbols, sounds: tabSounds, math: tabMath, assets: tabAssets, json: tabJson, versions: tabVersions }[S.tab];
   v.innerHTML = '';
@@ -162,13 +212,14 @@ $('#publishBtn').addEventListener('click', guard(async () => {
   if (note === null) return;
   const btn = $('#publishBtn');
   const r = await busy(btn, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/publish`, { method: 'POST', body: { note } }));
-  toast(`Publicada v${r.version} · RTP ${pct(r.math.rtp)}${r.mathChanged ? ' (matemática re-simulada)' : ''}`);
+  toast(`Publicada v${r.version} · RTP ${pct(r.math.rtp)}${r.mathChanged && !isOp() ? ' (matemática re-simulada)' : ''}${r.rtpVariantsRebuilding ? ` · recalculando ${r.rtpVariantsRebuilding} RTP de operadores` : ''}`);
   await refreshGame();
   await loadGames();
   if (S.tab === 'versions') renderTab();
 }));
 
 $('#newGameBtn').addEventListener('click', guard(async () => {
+  if (isOp()) return newOwnGame();
   const engines = await (await fetch('/api/v1/engines')).json();
   openPicker('Nuevo juego', `<div class="stack">
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
@@ -251,11 +302,11 @@ async function tabAgents(v) {
       ${S.me.providers.anthropic ? '' : '<br><span class="error">Falta ANTHROPIC_API_KEY en el servidor: los agentes no pueden trabajar.</span>'}</div></div>
     </div>
     <div class="stack">
-      <div class="suggestions">${SUGGESTIONS.map((s) => `<button data-s="${esc(s)}">${esc(s.slice(0, 48))}…</button>`).join('')}</div>
+      <div class="suggestions">${SUGGESTIONS.filter((s) => !isOp() || !/volatilidad|RTP/.test(s)).map((s) => `<button data-s="${esc(s)}">${esc(s.slice(0, 48))}…</button>`).join('')}</div>
       <div class="composer">
         <div><label>Hablar con</label><select id="agentSel">
           <option value="director">🎬 Director (coordina a todos)</option><option value="designer">🎨 Diseñador</option>
-          <option value="artist">🖌 Artista (imágenes)</option><option value="sound">🎵 Sonido</option><option value="math">📈 Matemático</option></select></div>
+          <option value="artist">🖌 Artista (imágenes)</option><option value="sound">🎵 Sonido</option>${isOp() ? '' : '<option value="math">📈 Matemático</option>'}</select></div>
         <div><label>Pedido <span class="muted">(puedes adjuntar o pegar imágenes de referencia)</span></label>
           <div id="refThumbs" class="ref-thumbs"></div>
           <textarea id="prompt" rows="2" placeholder="Ej.: Quiero un tema pirata con cofres, calaveras doradas y mar de noche…"></textarea></div>
@@ -460,7 +511,8 @@ async function tabDesign(v) {
       ${imgField('logo', 'Logo')}${imgField('reelsBackground', 'Fondo detrás de los rodillos')}
       ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}
     </div></div>
-    <div class="card stack"><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
+    ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) : ''}
+    <div class="card stack" ${engineInfo(S.game.engine).kind === 'table' ? 'hidden' : ''}><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
       <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
       <div><label>Separación entre celdas (<span id="lGapV">${t.cellGap ?? 6}</span> px)</label><input id="lGap" type="range" min="0" max="16" step="1" value="${t.cellGap ?? 6}" /></div>
       <div><label>Color de las celdas</label><input id="lCell" type="color" value="${esc(t.cellColor || p.reelBg || '#0f3460')}" /></div>
@@ -517,6 +569,7 @@ async function tabDesign(v) {
   $$('[data-clear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     await patchDraft([{ op: 'set', path: `theme.${b.dataset.clear}`, value: null }]); renderTab();
   })));
+  bindDiceCard(v);
   $('#dSave').addEventListener('click', guard(async () => {
     const palette = Object.fromEntries($$('[data-pal]', v).map((i) => [i.dataset.pal, i.value]));
     await patchDraft([
@@ -540,6 +593,52 @@ async function tabDesign(v) {
   }));
 }
 
+// ---- Dados (juegos de mesa): colores, forma, tamaño e imagen propia por cara ----
+function diceCard(D) {
+  const faces = D.faces || {};
+  return `<div class="card stack" id="diceCard"><h3 style="margin:0">🎲 Dados</h3>
+    <div class="row" style="align-items:center;gap:18px">
+      <div id="diePreview" style="display:flex;gap:10px">${[5, 3].map((n) => diePreview(D, n)).join('')}</div>
+      <span class="muted">Vista previa. Si una cara tiene imagen, se muestra la imagen en lugar de los puntos.</span></div>
+    <div class="grid2">
+      <div><label>Color de las caras</label><input type="color" id="dkFace" value="${esc(D.face || '#fbfbfb')}" /></div>
+      <div><label>Color de los puntos</label><input type="color" id="dkPip" value="${esc(D.pip || '#c0392b')}" /></div>
+      <div><label>Color del borde</label><input type="color" id="dkEdge" value="${esc(D.edge || '#cccccc')}" /></div>
+      <div><label>Redondeo de las esquinas (<span id="dkRadV">${D.radius ?? 18}</span> %)</label><input type="range" id="dkRad" min="0" max="50" step="1" value="${D.radius ?? 18}" /></div>
+      <div><label>Tamaño al lanzar (<span id="dkScaleV">${Number(D.scale ?? 1).toFixed(2)}</span>×)</label><input type="range" id="dkScale" min="0.7" max="1.4" step="0.05" value="${D.scale ?? 1}" /></div>
+    </div>
+    <table><thead><tr><th>Cara</th><th>Imagen propia (opcional)</th><th></th></tr></thead><tbody>
+      ${[1, 2, 3, 4, 5, 6].map((f) => `<tr data-face="${f}"><td><b>${f}</b></td><td>${faces[f] ? `<img src="${esc(faces[f])}" style="height:40px;width:40px;object-fit:cover;border-radius:6px" />` : '<span class="muted">Puntos</span>'}</td>
+        <td class="row"><button class="small" data-dface>Imagen…</button>${faces[f] ? '<button class="small danger" data-dfclear>Quitar</button>' : ''}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="row"><button class="primary" id="dkSave">Guardar dados</button><span class="muted">También puedes pedirle al 🖌 Artista “haz dados dorados con puntos negros” o imágenes para cada cara.</span></div></div>`;
+}
+
+function diePreview(D, n) {
+  const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
+  const img = D.faces?.[n];
+  return `<div style="width:58px;height:58px;border-radius:${D.radius ?? 18}%;border:1px solid ${esc(D.edge || '#ccc')};background:${img ? `center/cover url('${esc(img)}')` : esc(D.face || '#fbfbfb')};
+    display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:7px;box-shadow:inset 0 0 10px #0004">${img ? '' : Array.from({ length: 9 }, (_, i) => `<i style="width:10px;height:10px;border-radius:50%;place-self:center;background:${PIPS[n].includes(i + 1) ? esc(D.pip || '#c0392b') : 'transparent'}"></i>`).join('')}</div>`;
+}
+
+function bindDiceCard(v) {
+  if (!$('#diceCard', v)) return;
+  const cur = () => ({ ...(S.game.draft.theme?.dice || {}), face: $('#dkFace').value, pip: $('#dkPip').value, edge: $('#dkEdge').value, radius: Number($('#dkRad').value), scale: Number($('#dkScale').value) });
+  const redraw = () => { $('#dkRadV').textContent = $('#dkRad').value; $('#dkScaleV').textContent = Number($('#dkScale').value).toFixed(2); $('#diePreview').innerHTML = [5, 3].map((n) => diePreview(cur(), n)).join(''); };
+  $$('#diceCard input', v).forEach((i) => i.addEventListener('input', redraw));
+  $$('[data-dface]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (url) { await patchDraft([{ op: 'set', path: `theme.dice.faces.${b.closest('tr').dataset.face}`, value: url }], 'Cara del dado guardada'); renderTab(); }
+  })));
+  $$('[data-dfclear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    await patchDraft([{ op: 'set', path: `theme.dice.faces.${b.closest('tr').dataset.face}`, value: null }], 'Imagen quitada'); renderTab();
+  })));
+  $('#dkSave').addEventListener('click', guard(async () => {
+    const { faces, ...rest } = cur();
+    await patchDraft([{ op: 'merge', path: 'theme.dice', value: rest }], 'Dados guardados');
+  }));
+}
+
 // ------------------------------------------------------------------ Pestaña: Símbolos
 async function tabSymbols(v) {
   if (engineInfo(S.game.engine).kind === 'table') {
@@ -548,7 +647,7 @@ async function tabSymbols(v) {
   }
   const syms = S.game.draft.symbols;
   const maxN = Math.max(...syms.flatMap((s) => Object.keys(s.pays || {}).map(Number)), 3);
-  const counts = []; for (let n = 3; n <= maxN; n++) counts.push(n);
+  const counts = []; if (!isOp()) for (let n = 3; n <= maxN; n++) counts.push(n);
   const unit = { lines: 'múltiplo de la apuesta por línea', cluster: 'múltiplo de la apuesta total, según el tamaño del grupo (la columna es el mínimo del nivel)',
     count: 'múltiplo de la apuesta total, según cuántos iguales hay en pantalla (la columna es el mínimo del nivel)' }[engineInfo(S.game.engine).paysBy] || 'múltiplo de la apuesta total (por way)';
   v.innerHTML = `<div class="card"><table><thead><tr><th>Imagen</th><th>Id</th><th>Nombre</th><th>Tipo</th>${counts.map((n) => `<th>${n}×</th>`).join('')}</tr></thead>
@@ -556,7 +655,7 @@ async function tabSymbols(v) {
       <td><input data-f="name" value="${esc(s.name)}" /></td><td>${esc(s.type || 'regular')}</td>
       ${counts.map((n) => `<td>${s.type === 'regular' || !s.type ? `<input type="number" step="any" min="0" data-pay="${n}" value="${s.pays?.[n] ?? ''}" style="width:90px" />` : ''}</td>`).join('')}</tr>`).join('')}
     </tbody></table>
-    <p class="muted">Pagos en ${unit}. Cambiar pagos modifica el RTP: después usa 📈 Matemática → “Ajustar RTP” antes de publicar.</p>
+    <p class="muted">${isOp() ? 'Puedes cambiar nombres e imágenes. Los pagos y el RTP los define tu proveedor.' : `Pagos en ${unit}. Cambiar pagos modifica el RTP: después usa 📈 Matemática → “Ajustar RTP” antes de publicar.`}</p>
     <div class="row"><button class="primary" id="sSave">Guardar símbolos</button></div></div>`;
   $$('img.sym', v).forEach((img) => img.addEventListener('click', guard(async () => {
     const id = img.closest('tr').dataset.id;
@@ -841,25 +940,36 @@ async function tabVersions(v) {
 }
 
 // ------------------------------------------------------------------ Vistas de plataforma
-$$('.side nav a[data-view]').forEach((a) => a.addEventListener('click', () => {
-  S.platformView = a.dataset.view;
+const VIEWS = {};
+$('#platformNav').addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-view]');
+  if (a) openView(a.dataset.view);
+});
+
+function openView(name, ...args) {
+  S.platformView = name;
   S.gameId = null;
-  location.hash = '';
-  $$('.side nav a').forEach((x) => x.classList.toggle('on', x === a));
+  location.hash = isOp() ? name : '';
+  $$('.side nav a').forEach((x) => x.classList.toggle('on', x.dataset.view === name));
   $('#gameBar').hidden = true;
   $('#tabs').hidden = true;
+  $('#previewPane').hidden = true;
   const v = $('#view');
   v.innerHTML = '';
-  guard({ operators: viewOperators, rounds: viewRounds, stats: viewStats }[a.dataset.view])(v);
-}));
+  guard(VIEWS[name])(v, ...args);
+}
 
 async function viewOperators(v) {
   const ops = await api('/api/admin/operators');
   v.innerHTML = `<div class="stack"><h2 style="margin:0">Operadores</h2>
-    <p class="muted">Cada operador (casino que integra tus juegos) recibe una API key para abrir sesiones de jugador. Documentación: <a href="/docs/API.md" target="_blank">docs/API.md</a></p>
-    <div class="card"><table><thead><tr><th>Id</th><th>Nombre</th><th>Billetera</th><th>Moneda</th><th>Alta</th><th></th></tr></thead><tbody>
-      ${ops.map((o) => `<tr><td><code>${esc(o.id)}</code></td><td>${esc(o.name)}</td><td>${esc(o.wallet_mode)}${o.wallet_url ? `<div class="muted">${esc(o.wallet_url)}</div>` : ''}</td><td>${esc(o.currency)}</td><td>${esc(o.created_at)}</td>
-      <td><button class="small" data-rotate="${esc(o.id)}">Nueva API key</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sin operadores.</td></tr>'}</tbody></table></div>
+    <p class="muted">Cada operador (casino que integra tus juegos) recibe una API key para abrir sesiones de jugador y usuarios para su portal en
+      <a href="/operator" target="_blank">${esc(location.origin)}/operator</a>. En “Gestionar” eliges qué juegos ve, con qué RTP, y si puede crear juegos propios.
+      Documentación: <a href="/docs/API.md" target="_blank">docs/API.md</a></p>
+    <div class="card" style="overflow:auto"><table><thead><tr><th>Nombre</th><th>Billetera</th><th>Moneda</th><th>Juegos propios</th><th>Usuarios</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${ops.map((o) => `<tr><td><b>${esc(o.name)}</b><div class="muted"><code>${esc(o.id)}</code></div></td><td>${esc(o.wallet_mode)}${o.wallet_url ? `<div class="muted">${esc(o.wallet_url)}</div>` : ''}</td><td>${esc(o.currency)}</td>
+      <td>${o.can_create_games ? `${o.own_games} de ${o.max_games}` : '<span class="muted">no habilitado</span>'}</td><td>${o.users}</td>
+      <td>${o.active ? '<span class="badge ok">activo</span>' : '<span class="badge warn">suspendido</span>'}</td>
+      <td class="row"><button class="small primary" data-manage="${esc(o.id)}">Gestionar</button><button class="small" data-rotate="${esc(o.id)}">Nueva API key</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin operadores.</td></tr>'}</tbody></table></div>
     <div class="card stack"><h3 style="margin:0">Nuevo operador</h3><div class="grid2">
       <div><label>Nombre</label><input id="oName" /></div>
       <div><label>Billetera</label><select id="oMode"><option value="internal">Interna (saldo en esta plataforma)</option><option value="seamless">Seamless (saldo en el operador)</option></select></div>
@@ -867,16 +977,118 @@ async function viewOperators(v) {
       <div><label>Moneda</label><input id="oCur" value="USD" maxlength="3" /></div></div>
       <div class="row"><button class="primary" id="oCreate">Crear</button></div><div id="oSecret"></div></div></div>`;
   const showSecret = (r) => {
-    $('#oSecret').innerHTML = `<p><b>Guarda esto ahora, no se volverá a mostrar:</b></p><div class="secret">API key: ${esc(r.apiKey)}${r.walletSecret ? `<br>Secreto de firma de billetera: ${esc(r.walletSecret)}` : ''}</div>`;
+    $('#oSecret').innerHTML = `<p><b>Guarda esto ahora, no se volverá a mostrar:</b></p><div class="secret">API key: ${esc(r.apiKey)}${r.walletSecret ? `<br>Secreto de firma de billetera: ${esc(r.walletSecret)}` : ''}</div>
+      ${r.id && r.name ? `<p><button class="primary" data-manage="${esc(r.id)}">Configurar juegos, RTP y usuarios de ${esc(r.name)} →</button></p>` : ''}`;
+    $$('#oSecret [data-manage]').forEach((b) => b.addEventListener('click', () => openView('operator', b.dataset.manage)));
   };
   $('#oCreate').addEventListener('click', guard(async () => {
     const r = await api('/api/admin/operators', { method: 'POST', body: { name: $('#oName').value, walletMode: $('#oMode').value, walletUrl: $('#oUrl').value || null, currency: $('#oCur').value.toUpperCase() } });
     showSecret(r);
   }));
+  $$('[data-manage]', v).forEach((b) => b.addEventListener('click', () => openView('operator', b.dataset.manage)));
   $$('[data-rotate]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     if (!confirm('La API key actual dejará de funcionar. ¿Continuar?')) return;
     showSecret(await api(`/api/admin/operators/${b.dataset.rotate}/rotate-key`, { method: 'POST' }));
   })));
+}
+
+const RTP_CHOICES = [0.85, 0.88, 0.90, 0.92, 0.94, 0.95, 0.96, 0.97, 0.98];
+const ROLE_NAMES = { admin: 'Administrador', finance: 'Finanzas', support: 'Soporte' };
+
+function secretBox(title, lines) {
+  return `<div class="card stack" style="border-color:var(--warn)"><b>${esc(title)}</b><div class="secret">${lines.map(esc).join('<br>')}</div>
+    <span class="muted">Cópialo ahora: no se volverá a mostrar.</span></div>`;
+}
+
+/** Vista del proveedor sobre un operador: permisos, juegos y RTP, usuarios del portal. */
+async function viewOperator(v, id, flash = '') {
+  const o = await api(`/api/admin/operators/${encodeURIComponent(id)}`);
+  const rtpCell = (g) => {
+    if (!g.publishedVersion) return '<span class="muted">sin publicar</span>';
+    if (g.kind === 'table') return `<span class="muted">Mesa: RTP por pagos (${pct(g.defaultRtp)})</span>`;
+    const cur = g.rtpTarget;
+    const opts = [`<option value="" ${cur == null ? 'selected' : ''}>Por defecto (${pct(g.defaultRtp)})</option>`,
+      ...[...new Set([...RTP_CHOICES, ...(cur != null ? [cur] : [])])].sort().map((t) => `<option value="${t}" ${cur != null && Math.abs(cur - t) < 1e-6 ? 'selected' : ''}>${(t * 100).toFixed(2)} %</option>`),
+      '<option value="other">Otro…</option>'];
+    const st = g.variant ? (g.variant.status === 'ready' ? `<span class="badge ok">listo · real ${pct(g.rtp)}</span>` : g.variant.status === 'building' ? '<span class="badge warn">calculando…</span>' : '<span class="badge warn">pendiente</span>') : '';
+    return `<div class="row" style="gap:6px"><select data-rtp="${esc(g.id)}" style="width:215px">${opts.join('')}</select>${st}</div>`;
+  };
+  v.innerHTML = `<div class="stack">
+    <div class="row" style="justify-content:space-between"><div><h2 style="margin:0">${esc(o.name)}</h2>
+      <div class="muted"><code>${esc(o.id)}</code> · billetera ${esc(o.walletMode)} · ${esc(o.currency)} · portal: <a href="/operator" target="_blank">${esc(location.origin)}/operator</a></div></div>
+      <div class="row"><button class="ghost" data-back>← Operadores</button><button class="${o.active ? 'danger' : 'primary'}" id="opActive">${o.active ? 'Suspender operador' : 'Reactivar operador'}</button></div></div>
+    ${flash}
+    <div class="card stack"><h3 style="margin:0">Permisos</h3>
+      <div class="grid2">
+        <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="pCreate" style="width:auto" ${o.canCreateGames ? 'checked' : ''} /> Puede crear juegos propios</label>
+        <div><label>Máximo de juegos propios (usa ${o.usedGames})</label><input type="number" id="pMax" min="0" max="1000" value="${o.maxGames}" /></div>
+        <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="pAgents" style="width:auto" ${o.canUseAgents ? 'checked' : ''} /> Puede usar los agentes de IA en sus juegos</label>
+      </div>
+      <p class="muted">Sus juegos propios parten de un juego de tu catálogo con el RTP que le asignaste. Puede cambiar diseño, imágenes y sonidos; la matemática, el RTP y las apuestas quedan bloqueados.
+        Los agentes de IA consumen tus créditos de Claude, Venice y ElevenLabs, y nunca tocan la matemática.</p>
+      <div class="row"><button class="primary" id="pSave">Guardar permisos</button></div></div>
+    <div class="card stack" style="overflow:auto"><h3 style="margin:0">Juegos y RTP</h3>
+      <p class="muted">Desmarca los juegos que este operador no puede ofrecer. El RTP asignado se calcula con la misma matemática del juego (se ajustan los pagos) y se aplica a todas sus sesiones nuevas.
+        Mientras se calcula, ese juego no se abre para él (nunca juega con un RTP distinto al asignado).</p>
+      <table><thead><tr><th>Juego</th><th>Habilitado</th><th>RTP para este operador</th></tr></thead><tbody>
+      ${o.games.map((g) => `<tr><td><b>${esc(g.name)}</b> ${g.own ? '<span class="badge">propio</span>' : ''}<div class="muted">${esc(g.engine)}${g.status !== 'active' ? ' · desactivado' : ''}</div></td>
+        <td><input type="checkbox" data-en="${esc(g.id)}" style="width:auto" ${g.enabled ? 'checked' : ''} ${g.own ? 'disabled' : ''} /></td><td>${rtpCell(g)}</td></tr>`).join('')}
+      </tbody></table></div>
+    <div class="card stack" style="overflow:auto"><h3 style="margin:0">Usuarios del portal</h3>
+      <table><thead><tr><th>Email</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead><tbody>
+      ${o.users.map((u) => `<tr data-u="${esc(u.id)}"><td>${esc(u.email)}${u.name ? `<div class="muted">${esc(u.name)}</div>` : ''}</td>
+        <td><select data-role style="width:150px">${Object.entries(ROLE_NAMES).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+        <td>${u.active ? '<span class="badge ok">activo</span>' : '<span class="badge warn">desactivado</span>'}</td><td>${esc(u.lastLoginAt || '—')}</td>
+        <td class="row"><button class="small" data-reset>Nueva contraseña</button><button class="small ${u.active ? 'danger' : ''}" data-toggle>${u.active ? 'Desactivar' : 'Activar'}</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Todavía no tiene usuarios.</td></tr>'}
+      </tbody></table>
+      <div class="grid2"><div><label>Email</label><input id="uEmail" type="email" placeholder="admin@sucasino.com" /></div><div><label>Nombre</label><input id="uName" /></div>
+        <div><label>Rol</label><select id="uRole">${Object.entries(ROLE_NAMES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div></div>
+      <div class="row"><button class="primary" id="uCreate">Crear usuario</button><span class="muted">Administrador: todo · Finanzas: reportes, jugadores y saldo · Soporte: solo consulta.</span></div></div>
+  </div>`;
+  const reload = (msg = '') => viewOperator(v, id, msg);
+  $('[data-back]', v).addEventListener('click', () => openView('operators'));
+  $('#opActive').addEventListener('click', guard(async () => {
+    if (o.active && !confirm(`¿Suspender a ${o.name}? Sus jugadores no podrán abrir juegos nuevos y su portal quedará bloqueado.`)) return;
+    await api(`/api/admin/operators/${id}`, { method: 'PATCH', body: { active: !o.active } });
+    reload();
+  }));
+  $('#pSave').addEventListener('click', guard(async () => {
+    await api(`/api/admin/operators/${id}`, { method: 'PATCH', body: { canCreateGames: $('#pCreate').checked, maxGames: Number($('#pMax').value), canUseAgents: $('#pAgents').checked } });
+    toast('Permisos guardados');
+    reload();
+  }));
+  $$('[data-en]', v).forEach((c) => c.addEventListener('change', guard(async () => {
+    await api(`/api/admin/operators/${id}/games/${encodeURIComponent(c.dataset.en)}`, { method: 'PUT', body: { enabled: c.checked } });
+    toast(c.checked ? 'Juego habilitado' : 'Juego deshabilitado para este operador');
+  })));
+  $$('[data-rtp]', v).forEach((sel) => sel.addEventListener('change', guard(async () => {
+    let val = sel.value;
+    if (val === 'other') {
+      const t = prompt('RTP para este operador (entre 85 y 110, en %):', '95');
+      if (t == null) return reload();
+      val = Number(String(t).replace(',', '.')) / 100;
+    }
+    await api(`/api/admin/operators/${id}/games/${encodeURIComponent(sel.dataset.rtp)}`, { method: 'PUT', body: { rtpTarget: val === '' ? null : Number(val) } });
+    toast(val === '' ? 'Vuelve al RTP por defecto' : 'RTP asignado: se está calculando la tabla de pagos');
+    reload();
+  })));
+  $$('tr[data-u]', v).forEach((tr) => {
+    const uid = tr.dataset.u;
+    $('[data-role]', tr).addEventListener('change', guard(async (e) => { await api(`/api/admin/operators/${id}/users/${uid}`, { method: 'PATCH', body: { role: e.target.value } }); toast('Rol actualizado'); }));
+    $('[data-toggle]', tr).addEventListener('click', guard(async () => { const u = o.users.find((x) => x.id === uid); await api(`/api/admin/operators/${id}/users/${uid}`, { method: 'PATCH', body: { active: !u.active } }); reload(); }));
+    $('[data-reset]', tr).addEventListener('click', guard(async () => {
+      if (!confirm('Se generará una contraseña temporal y se cerrarán sus sesiones. ¿Continuar?')) return;
+      const r = await api(`/api/admin/operators/${id}/users/${uid}/reset-password`, { method: 'POST' });
+      reload(secretBox('Contraseña temporal', [`Usuario: ${o.users.find((x) => x.id === uid).email}`, `Contraseña: ${r.temporaryPassword}`, `Portal: ${location.origin}/operator`]));
+    }));
+  });
+  $('#uCreate').addEventListener('click', guard(async () => {
+    const r = await api(`/api/admin/operators/${id}/users`, { method: 'POST', body: { email: $('#uEmail').value, name: $('#uName').value, role: $('#uRole').value } });
+    reload(secretBox('Usuario creado: pásale estos datos al operador', [`Portal: ${location.origin}/operator`, `Usuario: ${r.email}`, `Contraseña temporal: ${r.temporaryPassword}`, 'Al entrar se le pedirá cambiarla.']));
+  }));
+  // Refresca solo mientras haya RTP calculándose
+  clearTimeout(S.opPoll);
+  if (o.games.some((g) => g.variant?.status === 'building')) S.opPoll = setTimeout(() => { if (S.platformView === 'operator' && $('#opActive')) viewOperator(v, id, flash); }, 4000);
 }
 
 async function viewRounds(v) {
@@ -901,6 +1113,313 @@ async function viewStats(v) {
     ${rows.map((r) => `<tr><td>${esc(r.game_id)}</td><td>${esc(r.mode)}</td><td>${r.rounds}</td><td>${r.players}</td><td>${money(r.wagered)}</td><td>${money(r.won)}</td><td>${pct(r.rtp)}</td><td>${money(r.wagered - r.won)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Sin datos.</td></tr>'}
     </tbody></table></div><p class="muted">El RTP real converge al teórico con volumen; con pocas rondas puede variar mucho.</p></div>`;
 }
+
+// ------------------------------------------------------------------ Portal del operador
+const day = (d) => d.toISOString().slice(0, 10);
+const daysAgo = (n) => day(new Date(Date.now() - n * 86400_000));
+
+function rangeBar(id, q) {
+  return `<div class="row" id="${id}" style="align-items:end">
+    <div><label>Desde</label><input type="date" data-from value="${esc(q.from)}" style="width:160px" /></div>
+    <div><label>Hasta</label><input type="date" data-to value="${esc(q.to)}" style="width:160px" /></div>
+    <div class="row" style="gap:4px">${[['Hoy', 0], ['7 días', 6], ['30 días', 29], ['90 días', 89]].map(([l, n]) => `<button class="small ghost" data-days="${n}">${l}</button>`).join('')}</div></div>`;
+}
+function bindRange(root, q, onChange) {
+  $('[data-from]', root).addEventListener('change', (e) => { q.from = e.target.value; onChange(); });
+  $('[data-to]', root).addEventListener('change', (e) => { q.to = e.target.value; onChange(); });
+  $$('[data-days]', root).forEach((b) => b.addEventListener('click', () => { q.from = daysAgo(Number(b.dataset.days)); q.to = day(new Date()); onChange(); }));
+}
+
+async function downloadCsv(kind, q = {}) {
+  const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v != null && v !== '')).toString();
+  const res = await fetch(`/api/portal/export/${kind}.csv${qs ? `?${qs}` : ''}`, { headers: { authorization: `Bearer ${S.token}` } });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: `${kind}-${q.from || ''}_${q.to || ''}.csv` });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+const S_Q = { from: daysAgo(29), to: day(new Date()) };
+
+VIEWS.summary = async function viewSummary(v) {
+  const q = S_Q;
+  const d = await api(`/api/portal/summary?from=${q.from}&to=${q.to}`);
+  const t = d.totals;
+  const max = Math.max(1, ...d.byDay.map((x) => Math.abs(x.ggr)));
+  v.innerHTML = `<div class="stack"><div class="row" style="justify-content:space-between;align-items:end"><h2 style="margin:0">Resumen · ${esc(S.me.operator.name)}</h2>${rangeBar('rg', q)}</div>
+    <div class="kpi">
+      <div><small>Apostado</small><b>${money(t.wagered)}</b></div><div><small>Pagado</small><b>${money(t.won)}</b></div>
+      <div><small>GGR (queda para el casino)</small><b style="color:${t.ggr >= 0 ? 'var(--ok)' : 'var(--danger, #e74c3c)'}">${money(t.ggr)}</b></div>
+      <div><small>RTP real</small><b>${pct(t.rtp)}</b></div><div><small>Rondas</small><b>${t.rounds.toLocaleString('es')}</b></div><div><small>Jugadores</small><b>${t.players}</b></div>
+      <div><small>Premios por acreditar</small><b>${d.pendingCredits.n ? `${d.pendingCredits.n} · ${money(d.pendingCredits.amount)}` : '0'}</b></div>
+    </div>
+    <div class="card stack"><div class="row" style="justify-content:space-between"><h3 style="margin:0">GGR por día</h3><button class="small" id="csvDay">⬇ CSV por día</button></div>
+      ${d.byDay.length ? `<div style="display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:10px">${d.byDay.map((x) => `<div title="${esc(x.day)} · GGR ${money(x.ggr)} · ${x.rounds} rondas"
+        style="flex:1;min-width:4px;max-width:48px;height:${Math.max(2, Math.abs(x.ggr) / max * 130)}px;border-radius:4px 4px 0 0;background:${x.ggr >= 0 ? 'var(--ok)' : '#e74c3c'};opacity:.85"></div>`).join('')}</div>
+      <div class="row muted" style="justify-content:space-between;font-size:11px"><span>${esc(d.byDay[0].day)}</span><span>${esc(d.byDay.at(-1).day)}</span></div>` : '<p class="muted">Sin jugadas con dinero real en este período.</p>'}</div>
+    <div class="card" style="overflow:auto"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Por juego</h3><button class="small" id="csvGame">⬇ CSV por juego</button></div>
+      <table><thead><tr><th>Juego</th><th>Rondas</th><th>Jugadores</th><th>Apostado</th><th>Pagado</th><th>GGR</th><th>RTP real</th></tr></thead><tbody>
+      ${d.byGame.map((g) => `<tr><td>${esc(g.game_name || g.game_id)}</td><td>${g.rounds}</td><td>${g.players}</td><td>${money(g.wagered)}</td><td>${money(g.won)}</td><td>${money(g.ggr)}</td><td>${pct(g.rtp)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin datos.</td></tr>'}
+      </tbody></table><p class="muted">Solo dinero real (sin demo). Fechas en UTC. El RTP real se acerca al teórico con volumen; con pocas rondas varía mucho.</p></div></div>`;
+  bindRange($('#rg', v), q, () => VIEWS.summary(v));
+  $('#csvDay').addEventListener('click', guard(() => downloadCsv('summary', q)));
+  $('#csvGame').addEventListener('click', guard(() => downloadCsv('games', q)));
+};
+
+const STATUS_NAMES = { completed: 'completada', pending_credit: 'premio por acreditar', pending_debit: 'cobrando', debit_failed: 'cobro rechazado', rolled_back: 'anulada' };
+
+VIEWS.plays = async function viewPlays(v, preset = {}) {
+  const q = { ...S_Q, player: '', game: '', status: '', mode: 'real', ...preset };
+  const games = (await api('/api/portal/games')).catalog;
+  let rows = [], offset = 0;
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Jugadas</h2>
+    <div class="card stack"><div class="row" style="align-items:end;flex-wrap:wrap">
+      <div><label>Jugador (tu id)</label><input id="fPlayer" value="${esc(q.player)}" placeholder="u-123" style="width:150px" /></div>
+      <div><label>Juego</label><select id="fGame" style="width:170px"><option value="">Todos</option>${games.map((g) => `<option value="${esc(g.id)}" ${q.game === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
+      <div><label>Estado</label><select id="fStatus" style="width:170px"><option value="">Todos</option>${Object.entries(STATUS_NAMES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+      <div><label>Modo</label><select id="fMode" style="width:110px"><option value="real">Real</option><option value="demo">Demo</option><option value="">Todos</option></select></div>
+      <div><label>Ronda</label><input id="fRound" placeholder="rd_…" style="width:150px" /></div>
+      ${rangeBar('rg', q)}</div>
+      <div class="row"><button class="primary" id="fGo">Buscar</button><button id="fCsv">⬇ Descargar CSV</button></div></div>
+    <div class="card" style="overflow:auto"><table><thead><tr><th>Fecha (UTC)</th><th>Jugador</th><th>Juego</th><th>Jugada</th><th>Apuesta</th><th>Cobrado</th><th>Premio</th><th>Saldo después</th><th>Estado</th></tr></thead><tbody id="pRows"></tbody></table>
+      <div class="row" style="margin-top:10px"><button id="pMore" hidden>Cargar más</button><span class="muted" id="pCount"></span></div>
+      <p class="muted">Toca una jugada para ver el detalle completo (resultado, números de la tirada) y verificarla: se recalcula con los números aleatorios grabados y la versión exacta del juego.</p></div></div>`;
+  $('#fMode').value = q.mode;
+  const read = () => Object.assign(q, { player: $('#fPlayer').value.trim(), game: $('#fGame').value, status: $('#fStatus').value, mode: $('#fMode').value, round: $('#fRound').value.trim() });
+  const qs = () => new URLSearchParams(Object.entries({ ...q, limit: 100, offset }).filter(([, x]) => x !== '' && x != null)).toString();
+  const draw = () => {
+    $('#pRows').innerHTML = rows.map((r) => `<tr data-r="${esc(r.id)}" style="cursor:pointer"><td>${esc(r.created_at)}</td><td>${esc(r.player)}</td><td>${esc(r.game_id)}</td><td>${esc(r.mode)}/${esc(r.play_mode)}</td>
+      <td>${money(r.bet)}</td><td>${money(r.cost)}</td><td>${r.win ? `<b style="color:var(--ok)">${money(r.win)}</b>` : money(0)}</td><td>${r.balance_after == null ? '—' : money(r.balance_after)}</td>
+      <td>${esc(STATUS_NAMES[r.status] || r.status)}${r.error ? `<div class="error">${esc(r.error)}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Sin jugadas con esos filtros.</td></tr>';
+    $$('#pRows tr[data-r]').forEach((tr) => tr.addEventListener('click', guard(() => showRound(tr.dataset.r))));
+    $('#pCount').textContent = rows.length ? `${rows.length} jugadas` : '';
+  };
+  const load = guard(async (more = false) => {
+    if (!more) { offset = 0; rows = []; }
+    const page = await api(`/api/portal/rounds?${qs()}`);
+    rows = rows.concat(page); offset += page.length;
+    $('#pMore').hidden = page.length < 100;
+    draw();
+  });
+  $('#fGo').addEventListener('click', () => { read(); load(); });
+  $('#pMore').addEventListener('click', () => load(true));
+  $('#fCsv').addEventListener('click', guard(() => { read(); return downloadCsv('rounds', q); }));
+  bindRange($('#rg', v), q, () => { read(); load(); });
+  load();
+};
+
+async function showRound(id) {
+  const r = await api(`/api/portal/rounds/${encodeURIComponent(id)}`);
+  openPicker(`Jugada ${r.id}`, `<div class="stack">
+    <div class="kpi"><div><small>Jugador</small><b>${esc(r.player)}</b></div><div><small>Juego</small><b>${esc(r.gameId)} v${r.version ?? '—'}</b></div>
+      <div><small>Cobrado</small><b>${money(r.cost)}</b></div><div><small>Premio</small><b>${money(r.win)}</b></div>
+      <div><small>Saldo antes → después</small><b>${r.balanceBefore == null ? '—' : money(r.balanceBefore)} → ${r.balanceAfter == null ? '—' : money(r.balanceAfter)}</b></div>
+      <div><small>Estado</small><b>${esc(STATUS_NAMES[r.status] || r.status)}</b></div></div>
+    <div class="muted">Fecha ${esc(r.createdAt)} UTC · modo ${esc(r.mode)}/${esc(r.playMode)}${r.clientRoundId ? ` · id del cliente ${esc(r.clientRoundId)}` : ''}</div>
+    ${r.result?.dice ? `<div><b>Dados:</b> ${r.result.dice.join(' + ')} = ${r.result.total}</div>` : ''}
+    <div class="row">${r.verifiable ? '<button class="primary" id="rVerify">✔ Verificar esta jugada</button>' : '<span class="muted">Esta operación no tiene números aleatorios que verificar.</span>'}<span id="rVerOut"></span></div>
+    <details><summary>Resultado completo (JSON)</summary><pre style="max-height:320px;overflow:auto;font-size:11px">${esc(JSON.stringify(r.result, null, 2))}</pre></details></div>`, (root) => {
+    $('#rVerify', root)?.addEventListener('click', guard(async () => {
+      const x = await api(`/api/portal/rounds/${encodeURIComponent(id)}/verify`);
+      $('#rVerOut', root).innerHTML = x.match ? `<span class="badge ok">Coincide: premio ${money(x.recomputed)} (${x.drawsUsed} números aleatorios)</span>` : `<span class="badge warn">NO coincide: guardado ${money(x.stored)} vs recalculado ${money(x.recomputed)}</span>`;
+    }));
+  });
+}
+
+VIEWS.players = async function viewPlayers(v) {
+  const internal = S.me.operator.walletMode === 'internal';
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Jugadores</h2>
+    <div class="row"><input id="plQ" placeholder="Buscar por id de jugador" style="max-width:280px" /><button id="plGo">Buscar</button><button id="plCsv">⬇ CSV</button></div>
+    <div class="card" style="overflow:auto"><table><thead><tr><th>Jugador</th><th>Moneda</th>${internal ? '<th>Saldo</th>' : ''}<th>Rondas</th><th>Apostado</th><th>Pagado</th><th>GGR</th><th>Última jugada</th></tr></thead><tbody id="plRows"></tbody></table>
+    ${internal ? '' : '<p class="muted">Tu billetera es seamless: el saldo de cada jugador está en tu sistema, no aquí.</p>'}</div></div>`;
+  const load = guard(async () => {
+    const list = await api(`/api/portal/players?q=${encodeURIComponent($('#plQ').value.trim())}`);
+    $('#plRows').innerHTML = list.map((p) => `<tr data-p="${esc(p.player)}" style="cursor:pointer"><td><b>${esc(p.player)}</b></td><td>${esc(p.currency)}</td>${internal ? `<td>${money(p.balance)}</td>` : ''}
+      <td>${p.rounds}</td><td>${money(p.wagered)}</td><td>${money(p.won)}</td><td>${money(p.wagered - p.won)}</td><td>${esc(p.last_play || '—')}</td></tr>`).join('') || `<tr><td colspan="8" class="muted">Sin jugadores todavía.</td></tr>`;
+    $$('#plRows tr[data-p]').forEach((tr) => tr.addEventListener('click', guard(() => showPlayer(tr.dataset.p, load))));
+  });
+  $('#plGo').addEventListener('click', load);
+  $('#plQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+  $('#plCsv').addEventListener('click', guard(() => downloadCsv('players', { q: $('#plQ').value.trim() })));
+  load();
+};
+
+async function showPlayer(id, onChange) {
+  const p = await api(`/api/portal/players/${encodeURIComponent(id)}`);
+  const canMove = p.walletMode === 'internal' && can('balance');
+  openPicker(`Jugador ${p.player}`, `<div class="stack">
+    <div class="kpi">${p.balance != null ? `<div><small>Saldo</small><b>${money(p.balance)}</b></div>` : ''}<div><small>Rondas</small><b>${p.totals.rounds}</b></div>
+      <div><small>Apostado</small><b>${money(p.totals.wagered)}</b></div><div><small>Pagado</small><b>${money(p.totals.won)}</b></div><div><small>GGR</small><b>${money(p.totals.ggr)}</b></div></div>
+    ${canMove ? `<div class="card stack"><b>Cargar o retirar saldo</b><div class="grid2"><div><label>Monto (negativo = retiro)</label><input id="bAmt" type="number" step="0.01" placeholder="50.00" /></div>
+      <div><label>Referencia (única, evita duplicados)</label><input id="bRef" placeholder="deposito-1234" /></div></div><div class="row"><button class="primary" id="bGo">Aplicar</button></div></div>` : ''}
+    <div class="row"><button id="pPlays">Ver sus jugadas →</button></div>
+    ${p.transactions.length ? `<details open><summary>Movimientos</summary><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Saldo</th><th>Referencia</th></tr></thead><tbody>
+      ${p.transactions.map((t) => `<tr><td>${esc(t.created_at)}</td><td>${esc({ bet: 'apuesta', win: 'premio', deposit: 'carga', withdrawal: 'retiro' }[t.type] || t.type)}</td><td>${money(t.amount)}</td><td>${t.balance_after == null ? '—' : money(t.balance_after)}</td><td>${esc(t.external_ref || t.round_id || '')}</td></tr>`).join('')}</tbody></table></details>` : ''}
+  </div>`, (root, close) => {
+    $('#pPlays', root).addEventListener('click', () => { close(); openView('plays', { player: p.player }); });
+    $('#bGo', root)?.addEventListener('click', guard(async () => {
+      const amount = Math.round(Number(String($('#bAmt', root).value).replace(',', '.')) * 100);
+      if (!amount) throw new Error('Indica un monto');
+      if (!confirm(`${amount > 0 ? 'Cargar' : 'Retirar'} ${money(Math.abs(amount))} ${amount > 0 ? 'a' : 'de'} ${p.player}?`)) return;
+      await api(`/api/portal/players/${encodeURIComponent(p.player)}/balance`, { method: 'POST', body: { amount, reference: $('#bRef', root).value.trim() || undefined } });
+      toast('Saldo actualizado');
+      close();
+      onChange?.();
+    }));
+  });
+}
+
+VIEWS.catalog = async function viewCatalog(v) {
+  const d = await api('/api/portal/games');
+  const card = (g) => `<div class="card stack" style="gap:6px"><div class="row" style="justify-content:space-between"><b>${esc(g.name)}</b>${g.own ? '<span class="badge">propio</span>' : ''}</div>
+    <div class="muted">${esc(g.engine)} · v${g.version}</div>
+    <div>RTP <b>${pct(g.rtp)}</b>${g.volatility ? ` · volatilidad ${esc(g.volatility)}` : ''}${g.variant && g.variant.status !== 'ready' ? ' <span class="badge warn">RTP en preparación</span>' : ''}</div>
+    <div class="row"><button class="small primary" data-demo="${esc(g.id)}">▶ Probar demo</button><button class="small" data-code="${esc(g.id)}">Código de integración</button></div></div>`;
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Catálogo de juegos</h2>
+    <p class="muted">Estos son los juegos que tu proveedor habilitó para tu casino, con el RTP que aplica a tus jugadores. Para abrir uno, tu servidor crea una sesión con <code>gameId</code>.</p>
+    <div class="grid2">${d.catalog.map(card).join('') || '<p class="muted">No tienes juegos habilitados. Contacta a tu proveedor.</p>'}</div></div>`;
+  $$('[data-demo]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const s = await api('/api/portal/demo-session', { method: 'POST', body: { gameId: b.dataset.demo } });
+    window.open(s.launchUrl, '_blank');
+  })));
+  $$('[data-code]', v).forEach((b) => b.addEventListener('click', () => {
+    const base = location.origin;
+    openPicker('Integración del juego', `<div class="stack"><p>Desde <b>tu servidor</b> (nunca desde el navegador), crea la sesión del jugador:</p>
+      <pre style="white-space:pre-wrap;font-size:12px">curl -X POST ${esc(base)}/api/v1/operator/sessions \\
+  -H "X-API-Key: TU_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"playerId":"ID_DE_TU_JUGADOR","gameId":"${esc(b.dataset.code)}","currency":"${esc(S.me.operator.currency)}","mode":"real","lobbyUrl":"https://tu-casino.com"}'</pre>
+      <p>La respuesta trae <code>launchUrl</code>. Ábrelo en tu sitio:</p>
+      <pre style="white-space:pre-wrap;font-size:12px">&lt;iframe src="LAUNCH_URL" style="width:100%;height:100vh;border:0" allow="autoplay; fullscreen"&gt;&lt;/iframe&gt;</pre>
+      <p class="muted">Documentación completa: <a href="/docs/API.md" target="_blank">docs/API.md</a></p></div>`);
+  }));
+};
+
+VIEWS.integration = async function viewIntegration(v, flash = '') {
+  const d = await api('/api/portal/integration');
+  const admin = can('integration');
+  const seamless = d.walletMode === 'seamless';
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Integración</h2>${flash}
+    <div class="card stack"><div class="kpi"><div><small>Id de operador</small><b style="font-size:14px"><code>${esc(d.operatorId)}</code></b></div>
+      <div><small>Billetera</small><b>${seamless ? 'Seamless (tu sistema)' : 'Interna'}</b></div><div><small>Moneda</small><b>${esc(d.currency)}</b></div>
+      <div><small>API</small><b style="font-size:13px">${esc(d.apiBase || location.origin)}</b></div></div>
+      <p class="muted">Guía paso a paso: <a href="/docs/API.md" target="_blank">docs/API.md</a>. Todas las cantidades van en centavos.</p></div>
+    <div class="card stack"><h3 style="margin:0">API key</h3><p class="muted">Tu servidor la envía en la cabecera <code>X-API-Key</code>. Por seguridad no se muestra; si la perdiste o se filtró, genera una nueva (la anterior deja de funcionar al instante).</p>
+      ${admin ? '<div class="row"><button class="danger" id="iKey">Generar nueva API key</button></div>' : '<p class="muted">Solo un usuario administrador puede cambiarla.</p>'}</div>
+    ${seamless ? `<div class="card stack"><h3 style="margin:0">Billetera seamless</h3>
+      <div class="grid2"><div><label>URL de tu billetera</label><input id="iUrl" value="${esc(d.walletUrl || '')}" placeholder="https://tu-casino.com/wallet" ${admin ? '' : 'disabled'} /></div></div>
+      ${admin ? `<div class="row"><button id="iUrlSave">Guardar URL</button><button class="danger" id="iSecret">Nuevo secreto de firma</button></div>` : ''}
+      <p class="muted">Cada pedido llega con <code>X-Signature</code> = HMAC-SHA256 del cuerpo con tu secreto. Acciones: balance, debit, credit, rollback. El <code>txId</code> es único: si llega repetido, no lo apliques dos veces.</p></div>
+    ${admin ? `<div class="card stack"><h3 style="margin:0">Probar mi billetera</h3><p class="muted">Enviamos a tu URL: balance, un débito de 0,01, el mismo débito repetido (debe ignorarse), un crédito de 0,01 y un rollback. Usa un jugador de prueba de tu sistema.</p>
+      <div class="row"><input id="iTestPlayer" placeholder="id de jugador de prueba" style="max-width:260px" /><button class="primary" id="iTest">Probar</button></div><div id="iTestOut"></div></div>` : ''}` : ''}
+  </div>`;
+  $('#iKey')?.addEventListener('click', guard(async () => {
+    if (!confirm('La API key actual dejará de funcionar de inmediato. ¿Generar una nueva?')) return;
+    const r = await api('/api/portal/integration/rotate-key', { method: 'POST' });
+    VIEWS.integration(v, secretBox('Nueva API key', [r.apiKey]));
+  }));
+  $('#iUrlSave')?.addEventListener('click', guard(async () => { await api('/api/portal/integration', { method: 'PUT', body: { walletUrl: $('#iUrl').value.trim() } }); toast('URL guardada'); }));
+  $('#iSecret')?.addEventListener('click', guard(async () => {
+    if (!confirm('El secreto actual dejará de ser válido: actualízalo en tu servidor enseguida. ¿Continuar?')) return;
+    const r = await api('/api/portal/integration/rotate-secret', { method: 'POST' });
+    VIEWS.integration(v, secretBox('Nuevo secreto de firma', [r.walletSecret]));
+  }));
+  $('#iTest')?.addEventListener('click', guard(async () => {
+    const btn = $('#iTest');
+    const r = await busy(btn, () => api('/api/portal/integration/test-wallet', { method: 'POST', body: { playerId: $('#iTestPlayer').value.trim() } }));
+    $('#iTestOut').innerHTML = `<p>${r.ok ? '<span class="badge ok">Todo correcto</span>' : '<span class="badge warn">Hay pasos con problemas</span>'}</p>
+      <table><thead><tr><th>Paso</th><th>HTTP</th><th>Tiempo</th><th>Respuesta</th><th></th></tr></thead><tbody>${r.steps.map((x) => `<tr><td>${esc(x.action)}</td><td>${x.status ?? '—'}</td><td>${x.ms} ms</td>
+        <td><code style="font-size:11px">${esc(typeof x.response === 'string' ? x.response : JSON.stringify(x.response)).slice(0, 160)}</code></td><td>${x.ok ? '✔' : `✖ <span class="error">${esc(x.hint || '')}</span>`}</td></tr>`).join('')}</tbody></table>`;
+  }));
+};
+
+VIEWS.users = async function viewUsers(v, flash = '') {
+  const { users, roles } = await api('/api/portal/users');
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Usuarios del portal</h2>${flash}
+    <div class="card" style="overflow:auto"><table><thead><tr><th>Email</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead><tbody>
+    ${users.map((u) => `<tr data-u="${esc(u.id)}"><td>${esc(u.email)}${u.name ? `<div class="muted">${esc(u.name)}</div>` : ''}</td>
+      <td><select data-role style="width:150px" ${u.id === S.me.user.id ? 'disabled' : ''}>${Object.keys(roles).map((k) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${ROLE_NAMES[k]}</option>`).join('')}</select></td>
+      <td>${u.active ? '<span class="badge ok">activo</span>' : '<span class="badge warn">desactivado</span>'}</td><td>${esc(u.lastLoginAt || '—')}</td>
+      <td class="row">${u.id === S.me.user.id ? '<span class="muted">tú</span>' : `<button class="small" data-reset>Nueva contraseña</button><button class="small ${u.active ? 'danger' : ''}" data-toggle>${u.active ? 'Desactivar' : 'Activar'}</button>`}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card stack"><h3 style="margin:0">Nuevo usuario</h3>
+      <div class="grid2"><div><label>Email</label><input id="uEmail" type="email" /></div><div><label>Nombre</label><input id="uName" /></div>
+      <div><label>Rol</label><select id="uRole">${Object.keys(roles).map((k) => `<option value="${k}">${ROLE_NAMES[k]}</option>`).join('')}</select></div></div>
+      <ul class="muted" style="margin:0">${Object.entries(roles).map(([k, l]) => `<li>${esc(l)}</li>`).join('')}</ul>
+      <div class="row"><button class="primary" id="uCreate">Crear usuario</button></div></div></div>`;
+  $$('tr[data-u]', v).forEach((tr) => {
+    const uid = tr.dataset.u, u = users.find((x) => x.id === uid);
+    $('[data-role]', tr).addEventListener('change', guard(async (e) => { await api(`/api/portal/users/${uid}`, { method: 'PATCH', body: { role: e.target.value } }); toast('Rol actualizado'); }));
+    $('[data-toggle]', tr)?.addEventListener('click', guard(async () => { await api(`/api/portal/users/${uid}`, { method: 'PATCH', body: { active: !u.active } }); VIEWS.users(v); }));
+    $('[data-reset]', tr)?.addEventListener('click', guard(async () => {
+      const r = await api(`/api/portal/users/${uid}/reset-password`, { method: 'POST' });
+      VIEWS.users(v, secretBox('Contraseña temporal', [`Usuario: ${u.email}`, `Contraseña: ${r.temporaryPassword}`]));
+    }));
+  });
+  $('#uCreate').addEventListener('click', guard(async () => {
+    const r = await api('/api/portal/users', { method: 'POST', body: { email: $('#uEmail').value, name: $('#uName').value, role: $('#uRole').value } });
+    VIEWS.users(v, secretBox('Usuario creado', [`Portal: ${location.origin}/operator`, `Usuario: ${r.email}`, `Contraseña temporal: ${r.temporaryPassword}`]));
+  }));
+};
+
+VIEWS.account = async function viewAccount(v) {
+  v.innerHTML = `<div class="stack" style="max-width:520px"><h2 style="margin:0">Mi cuenta</h2>
+    <div class="card stack"><div><b>${esc(S.me.user.email)}</b> · ${esc(ROLE_NAMES[S.me.user.role])} · ${esc(S.me.operator.name)}</div>
+      <div><label>Contraseña actual</label><input id="aCur" type="password" autocomplete="current-password" /></div>
+      <div><label>Nueva contraseña (mínimo 10 caracteres)</label><input id="aNew" type="password" autocomplete="new-password" /></div>
+      <div class="row"><button class="primary" id="aSave">Cambiar contraseña</button></div></div>
+    <button class="danger" id="aOut">Cerrar sesión</button></div>`;
+  $('#aSave').addEventListener('click', guard(async () => {
+    await api('/api/portal/password', { method: 'POST', body: { current: $('#aCur').value, next: $('#aNew').value } });
+    S.me.user.mustChangePassword = false;
+    toast('Contraseña cambiada');
+    $('#aCur').value = ''; $('#aNew').value = '';
+  }));
+  $('#aOut').addEventListener('click', () => { logout(); location.hash = ''; });
+};
+
+function askNewPassword() {
+  openPicker('Crea tu contraseña', `<div class="stack"><p>Estás usando una contraseña temporal. Elige una nueva para continuar.</p>
+    <div><label>Contraseña temporal</label><input id="npCur" type="password" /></div>
+    <div><label>Nueva contraseña (mínimo 10 caracteres)</label><input id="npNew" type="password" autocomplete="new-password" /></div>
+    <div class="row"><button class="primary" id="npGo">Guardar</button><span id="npErr" class="error"></span></div></div>`, (root, close) => {
+    $('#npGo', root).addEventListener('click', async () => {
+      try {
+        await api('/api/portal/password', { method: 'POST', body: { current: $('#npCur', root).value, next: $('#npNew', root).value } });
+        S.me.user.mustChangePassword = false;
+        close();
+        toast('Contraseña guardada');
+      } catch (e) { $('#npErr', root).textContent = e.message; }
+    });
+  });
+}
+
+async function newOwnGame() {
+  const d = await api('/api/portal/games');
+  const L = d.limits;
+  if (L.usedGames >= L.maxGames) throw new Error(`Llegaste al máximo de juegos propios (${L.maxGames}). Pídele a tu proveedor que lo amplíe.`);
+  const bases = d.catalog.filter((g) => !g.own);
+  openPicker('Nuevo juego', `<div class="stack">
+    <p class="muted">Tu juego parte de uno del catálogo: conserva su matemática y el RTP que te asignó tu proveedor. Tú cambias nombre, diseño, imágenes y sonidos. Te quedan ${L.maxGames - L.usedGames}.</p>
+    <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
+    <div><label>Basado en</label><select id="ngBase">${bases.map((g) => `<option value="${esc(g.id)}">${esc(g.name)} — ${esc(g.engine)} · RTP ${pct(g.rtp)}</option>`).join('')}</select></div>
+    <button class="primary" id="ngCreate">Crear</button></div>`, (root, close) => {
+    $('#ngCreate', root).addEventListener('click', guard(async () => {
+      const g = await api('/api/portal/games', { method: 'POST', body: { name: $('#ngName', root).value, baseGameId: $('#ngBase', root).value } });
+      close();
+      S.me = await api('/api/admin/me');
+      setupOperatorShell();
+      await loadGames();
+      selectGame(g.id);
+      toast('Juego creado como borrador. Personalízalo y publícalo cuando esté listo.');
+    }));
+  });
+}
+
+VIEWS.operators = viewOperators;
+VIEWS.operator = viewOperator;
+VIEWS.rounds = (v) => viewRounds(v);
+VIEWS.stats = (v) => viewStats(v);
 
 // ------------------------------------------------------------------ Arranque
 if (S.token) start().catch(() => logout());

@@ -94,7 +94,22 @@
       "text": "#ffffff",
       "reelBg": "#0f5132"
     },
-    "font": "Bungee"
+    "font": "Bungee",
+    "dice": {
+      "face": "#fbfbfb",
+      "pip": "#c0392b",
+      "edge": "#cccccc",
+      "radius": 18,
+      "scale": 1,
+      "faces": {
+        "1": null,
+        "2": null,
+        "3": null,
+        "4": null,
+        "5": null,
+        "6": null
+      }
+    }
   },
   "sounds": {
     "music": null,
