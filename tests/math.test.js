@@ -60,3 +60,55 @@ test('validación detecta errores habituales', () => {
   assert.ok(errs.some((e) => e.includes('no-existe')));
   assert.ok(errs.some((e) => e.includes('Pago inválido')));
 });
+
+// ---- Tamaños de cuadrícula configurables ----
+import { resizeGrid } from '../backend/math/index.js';
+import { generateLines, LINES_5x3 } from '../backend/math/common.js';
+
+test('5x3 conserva las 20 líneas clásicas (compatibilidad con versiones publicadas)', () => {
+  assert.deepEqual(generateLines(5, 3, 20), LINES_5x3);
+  assert.equal(generateLines(5, 3, 50).length, 50);
+});
+
+test('las líneas generadas son válidas y no se repiten', () => {
+  for (const [r, f] of [[3, 3], [4, 4], [6, 4], [7, 5], [8, 6]]) {
+    const L = generateLines(r, f, 100);
+    assert.ok(L.length >= 5);
+    assert.equal(new Set(L.map(String)).size, L.length);
+    for (const l of L) { assert.equal(l.length, r); assert.ok(l.every((x) => x >= 0 && x < f)); }
+  }
+});
+
+const SIZES = { 'reel-rush': [6, 4], megaways: [7], 'bonus-buy': [6, 4, 30], 'hold-win': [4, 4, 12], 'colossal-reels': [6, 5] };
+for (const [id, [reels, rows, lines]] of Object.entries(SIZES)) {
+  test(`${id}: se puede cambiar a ${reels}x${rows ?? 'variable'}${lines ? ` con ${lines} líneas` : ''}`, () => {
+    const { config } = resizeGrid(seeds[id], { reels, rows, lines });
+    assert.deepEqual(validateConfig(config), []);
+    assert.equal(config.reels.length, reels);
+    if (lines) assert.equal(config.rules.lines, lines);
+    const engine = ENGINES[id];
+    const base = seededRng(3);
+    for (let i = 0; i < 300; i++) {
+      const rec = recordingRng(base);
+      const r1 = engine.play(config, rec);
+      const grid = r1.steps?.[0].grid || r1.base?.grid || r1.grid;
+      assert.equal(grid.length, reels);
+      if (rows) assert.ok(grid.every((col) => col.length === rows));
+      assert.deepEqual(engine.play(config, replayRng(rec.draws)), r1);
+    }
+  });
+}
+
+test('resizeGrid rechaza tamaños fuera de límites', () => {
+  assert.throws(() => resizeGrid(seeds['reel-rush'], { reels: 9 }));
+  assert.throws(() => resizeGrid(seeds['reel-rush'], { rows: 2 }));
+  assert.throws(() => resizeGrid(seeds.megaways, { reels: 3 }));
+});
+
+test('RTP objetivo permitido de 85 % a 110 %', () => {
+  const c = structuredClone(seeds['reel-rush']);
+  for (const [t, ok] of [[0.85, true], [0.96, true], [1.1, true], [0.84, false], [1.11, false]]) {
+    c.rtpTarget = t;
+    assert.equal(validateConfig(c).length === 0, ok, `rtpTarget ${t}`);
+  }
+});

@@ -1,7 +1,7 @@
 // Motor 5 — COLOSSAL REELS: 5x4, 1024 formas. Aparecen símbolos gigantes (2x2 o 3x3)
 // que ocupan varias celdas. 3+ scatters = giros gratis donde SIEMPRE cae un colosal.
 import {
-  symbolMap, spinStrips, evaluateWays, sumPays, findSymbols, capWin, validateCommon, buildStrip, round6, weightedPick,
+  symbolMap, spinStrips, evaluateWays, sumPays, findSymbols, capWin, validateCommon, validateGrid, buildStrip, round6, weightedPick,
 } from './common.js';
 
 export const id = 'colossal-reels';
@@ -17,7 +17,7 @@ function colossalSpin(config, rng, syms, forceColossal) {
     const { size } = weightedPick(rng, R.colossalSizes);
     const symbol = weightedPick(rng, R.colossalSymbols).symbol;
     // Nunca en el rodillo 1: así el colosal "completa" formas en vez de crearlas solo.
-    const col = 1 + rng.int(5 - size); // 1..(5-size)
+    const col = 1 + rng.int(config.grid.reels - size); // 1..(reels-size)
     const row = rng.int(rows - size + 1);
     for (let c = col; c < col + size; c++) for (let r = row; r < row + size; r++) grid[c][r] = symbol;
     colossal = { symbol, size, col, row };
@@ -51,9 +51,12 @@ export function play(config, rng) {
 }
 
 export function validate(config) {
-  const errors = validateCommon(config, { reels: 5 });
+  const errors = [...validateCommon(config), ...validateGrid(config, { reels: [4, 8] })];
   const R = config.rules || {};
-  if (config.grid?.rows !== 4) errors.push('Colossal Reels usa 4 filas (grid.rows = 4)');
+  const g = config.grid || {};
+  for (const s of R.colossalSizes || []) {
+    if (s.size > g.rows || s.size > g.reels - 1) errors.push(`Un colosal de ${s.size}x${s.size} no entra en ${g.reels} rodillos x ${g.rows} filas`);
+  }
   if (!(R.colossalChance >= 0 && R.colossalChance <= 1)) errors.push('rules.colossalChance debe estar entre 0 y 1');
   if (!Array.isArray(R.colossalSizes) || R.colossalSizes.some((s) => ![2, 3].includes(s.size) || !(s.weight > 0))) {
     errors.push('rules.colossalSizes debe ser [{size: 2|3, weight > 0}]');

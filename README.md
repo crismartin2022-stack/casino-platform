@@ -63,6 +63,8 @@ ADMIN_TOKEN=secreto npm start
 3. Todo va al **borrador**. Pulsa **▶ Vista previa** para jugarlo.
 4. **Publicar** valida la configuración y, si cambió la matemática, simula 500.000 giros: si el RTP se aleja más de ±1 % del objetivo, no deja publicar.
 
+**Tamaño y botones:** en 📈 Matemática eliges rodillos (verticales, 3–8), filas (horizontales, 3–6) y, en Bonus Buy y Hold & Win, la cantidad de líneas de pago; el RTP se reajusta solo. En 🎨 Diseño → *Botones del juego* cambias forma, estilo, tamaño, colores, iconos o una imagen propia para cada botón (girar, auto, turbo, sonido, apuesta, info, comprar). Los agentes también pueden hacerlo: el Artista genera imágenes de botones y el Matemático cambia el tamaño de la cuadrícula.
+
 También puedes editar a mano: Diseño, Símbolos (imagen, nombre, pagos), Sonidos (volúmenes), Matemática (simular / ajustar RTP / reglas), JSON completo y Versiones (restaurar cualquier versión anterior).
 
 **Permisos de los agentes:** cada especialista solo puede tocar su parte (el Artista no puede cambiar pagos, el Diseñador no toca reglas…). Ningún agente puede publicar: siempre lo hace una persona.

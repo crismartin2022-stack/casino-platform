@@ -7,6 +7,11 @@ import { Hud, h } from './Hud.js';
 import { SoundManager } from './SoundManager.js';
 
 const DESIGN = { landscape: { w: 1280, h: 720 }, portrait: { w: 720, h: 1280 } };
+// Zonas en coordenadas de diseño: logo arriba, rodillos, espacio para la botonera (HTML) abajo.
+const ZONES = {
+  landscape: { logo: { y: 6, h: 118 }, grid: { x: 120, y: 132, w: 1040, h: 470 } },
+  portrait: { logo: { y: 70, h: 170 }, grid: { x: 12, y: 250, w: 696, h: 700 } },
+};
 
 function loadImage(url) {
   return new Promise((resolve, reject) => {
@@ -39,9 +44,6 @@ function loadFont(family) {
 }
 
 export class BaseEngine {
-  /** Nombre visible de las reglas; los motores lo sobrescriben. */
-  static rulesText = '';
-
   constructor({ container, hudRoot, api, session, lobbyUrl }) {
     this.container = container;
     this.hudRoot = hudRoot;
@@ -57,8 +59,9 @@ export class BaseEngine {
   // ---------------------------------------------------------------- Arranque
   async init(onProgress = () => {}) {
     const t = this.game.theme || {};
-    this.orientation = this.container.clientHeight > this.container.clientWidth * 1.1 ? 'portrait' : 'landscape';
+    this.orientation = this.detectOrientation();
     this.design = DESIGN[this.orientation];
+    this.applyBackground();
 
     this.app = new Application();
     await this.app.init({
@@ -82,12 +85,9 @@ export class BaseEngine {
       onProgress(0.2 + 0.6 * (++done / list.length), 'Cargando símbolos…');
     }));
     this.textures.set('__missing', await loadTexture('/gen/symbol.svg?label=%3F&color=%23555555'));
-    if (t.background) {
-      try { this.bgTexture = await loadTexture(t.background); } catch (e) { console.warn(e.message); }
-    }
-    if (t.logo) {
-      try { this.logoTexture = await loadTexture(t.logo); } catch (e) { console.warn(e.message); }
-    }
+    const optional = async (url) => { if (!url) return null; try { return await loadTexture(url); } catch (e) { console.warn(e.message); return null; } };
+    [this.logoTexture, this.cellTexture, this.reelsTexture, this.frameTexture] = await Promise.all(
+      [t.logo, t.cellImage, t.reelsBackground, t.frame].map(optional));
 
     onProgress(0.9, 'Preparando mesa…');
     this.sound = new SoundManager(this.game.sounds || {}, this.game.soundVolumes || {});
@@ -95,7 +95,7 @@ export class BaseEngine {
     this.buildHud();
     const { balance } = await this.api.balance();
     this.hud.setBalance(balance);
-    window.addEventListener('resize', () => this.fit());
+    window.addEventListener('resize', () => this.onResize());
     this.fit();
     const unlock = () => { this.sound.unlock(); this.sound.playMusic('music'); };
     window.addEventListener('pointerdown', unlock, { once: true });
@@ -103,10 +103,58 @@ export class BaseEngine {
     onProgress(1, 'Listo');
   }
 
+  detectOrientation() {
+    const w = this.container.clientWidth || window.innerWidth, h = this.container.clientHeight || window.innerHeight;
+    return h > w * 1.1 ? 'portrait' : 'landscape';
+  }
+
+  /** Fondo de pantalla completa por CSS: imagen de PC (theme.background) y de celular (theme.backgroundMobile). */
+  applyBackground() {
+    const t = this.game.theme || {};
+    const el = document.getElementById?.('bg');
+    if (!el) return;
+    const url = (u) => (u ? `url("${String(u).replace(/"/g, '%22')}")` : null);
+    if (url(t.background)) el.style.setProperty('--bg-desktop', url(t.background));
+    if (url(t.backgroundMobile)) el.style.setProperty('--bg-mobile', url(t.backgroundMobile));
+    if (t.backgroundColor) el.style.setProperty('--bg-color', t.backgroundColor);
+  }
+
+  onResize() {
+    const o = this.detectOrientation();
+    if (o !== this.orientation) {
+      // Al girar el teléfono se rearma la escena con el diseño de la nueva orientación.
+      if (this.busy) { this.pendingRelayout = true; return; }
+      this.relayout(o);
+    }
+    this.fit();
+  }
+
+  relayout(orientation) {
+    this.orientation = orientation;
+    this.design = DESIGN[orientation];
+    for (const ch of this.world.removeChildren()) ch.destroy({ children: true });
+    this.buildScene();
+    this.fit();
+  }
+
   /** Área de la cuadrícula en coordenadas de diseño. */
   gridArea() {
-    if (this.orientation === 'portrait') return { x: 30, y: 250, w: 660, h: 640 };
-    return { x: 190, y: 88, w: 900, h: 500 };
+    const box = ZONES[this.orientation].grid;
+    const rows = this.gridRows();
+    if (Array.isArray(rows)) return box; // Megaways: altura variable, ocupa todo el espacio
+    // Celdas casi cuadradas para cualquier cantidad de rodillos y filas, centradas en el espacio disponible.
+    const cols = this.gridCols();
+    const cell = Math.min(box.w / cols, box.h / rows, 210);
+    const w = cell * cols, h = cell * rows;
+    return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+  }
+
+  /** Texto de reglas con los números reales del juego (rodillos, filas, líneas). */
+  rulesText() { return ''; }
+
+  gridLabel() {
+    const g = this.game.grid;
+    return `${g.reels} rodillos × ${g.rows ?? `${g.rowsMin}–${g.rowsMax}`} filas`;
   }
 
   gridRows() { return this.game.grid.rows; }
@@ -118,32 +166,57 @@ export class BaseEngine {
 
   buildScene() {
     const w = this.design.w, hgt = this.design.h;
-    if (this.bgTexture) {
-      const bg = new Sprite(this.bgTexture);
-      const k = Math.max(w / bg.texture.width, hgt / bg.texture.height);
-      bg.scale.set(k);
-      bg.anchor.set(0.5);
-      bg.position.set(w / 2, hgt / 2);
-      this.world.addChild(bg);
-      this.bgSprite = bg;
-    }
+    const t = this.game.theme || {};
     const a = this.gridArea();
+    this.gridRect = a;
     this.grid = new GridView({
       textures: this.textures, fillerIds: this.fillerIds(), cols: this.gridCols(), rows: this.gridRows(),
-      width: a.w, height: a.h, ticker: this.app.ticker, palette: this.game.theme?.palette,
+      width: a.w, height: a.h, ticker: this.app.ticker, palette: t.palette,
+      look: {
+        gap: t.cellGap ?? 6, symbolScale: t.symbolScale ?? 0.92,
+        cellColor: t.cellColor, cellAlpha: t.cellAlpha, cellRadius: t.cellRadius,
+        cellBorder: t.cellBorder === 'none' ? null : t.cellBorder, frameColor: t.frameColor,
+        cellTexture: this.cellTexture, reelsTexture: this.reelsTexture, frameTexture: this.frameTexture,
+      },
     });
     this.grid.position.set(a.x, a.y);
     this.world.addChild(this.grid);
     this.grid.setGrid(this.randomGrid());
 
+    // Logo (imagen) o, si no hay, el título con la tipografía del juego.
+    const z = ZONES[this.orientation].logo;
+    const logoBottom = Math.min(z.y + z.h, a.y - 10);
     if (this.logoTexture) {
       const logo = new Sprite(this.logoTexture);
       logo.anchor.set(0.5, 1);
-      const k = Math.min(420 / logo.texture.width, (a.y - 8) / logo.texture.height, 1);
+      const k = Math.min((this.orientation === 'portrait' ? 640 : 560) / logo.texture.width, (logoBottom - z.y) / logo.texture.height);
       logo.scale.set(k);
-      logo.position.set(w / 2, a.y - 6);
+      logo.position.set(w / 2, logoBottom);
       this.world.addChild(logo);
+    } else {
+      const title = new Text({
+        text: t.title || this.game.name,
+        style: {
+          fontFamily: t.font || 'Arial', fontSize: this.orientation === 'portrait' ? 64 : 58, fontWeight: '700',
+          fill: t.palette?.accent || '#ffd460', stroke: { color: '#000000', width: 7 },
+          dropShadow: { color: '#000000', blur: 10, distance: 4, alpha: 0.7 }, align: 'center',
+          wordWrap: true, wordWrapWidth: w - 60,
+        },
+      });
+      title.anchor.set(0.5, 1);
+      const k = Math.min(1, (logoBottom - z.y) / Math.max(1, title.height));
+      title.scale.set(k);
+      title.position.set(w / 2, logoBottom);
+      this.world.addChild(title);
     }
+    // Frase bajo los rodillos (theme.tagline), en celular entre rodillos y botonera
+    if (t.tagline && this.orientation === 'portrait') {
+      const tag = new Text({ text: t.tagline, style: { fontFamily: t.font || 'Arial', fontSize: 30, fill: t.palette?.accent || '#ffd460', stroke: { color: '#000000', width: 5 } } });
+      tag.anchor.set(0.5, 0);
+      tag.position.set(w / 2, a.y + a.h + 16);
+      this.world.addChild(tag);
+      this.taglineH = 56;
+    } else this.taglineH = 0;
     // Texto de premio sobre la cuadrícula
     this.winText = new Text({
       text: '',
@@ -154,6 +227,7 @@ export class BaseEngine {
     });
     this.winText.anchor.set(0.5);
     this.winText.position.set(a.x + a.w / 2, a.y + a.h / 2);
+    this.onSceneBuilt?.();
     this.winText.alpha = 0;
     this.world.addChild(this.winText);
   }
@@ -182,10 +256,17 @@ export class BaseEngine {
   onSpinStart() {}
 
   fit() {
-    const W = this.container.clientWidth, H = this.container.clientHeight;
-    const k = Math.min(W / this.design.w, H / this.design.h);
+    const W = this.container.clientWidth || window.innerWidth, H = this.container.clientHeight || window.innerHeight;
+    // Reserva espacio para la botonera HTML debajo de los rodillos.
+    const barSpace = this.orientation === 'portrait' ? 250 : 110;
+    const usedH = this.gridRect.y + this.gridRect.h + barSpace + (this.taglineH || 0);
+    const k = Math.min(W / this.design.w, H / usedH);
     this.world.scale.set(k);
-    this.world.position.set((W - this.design.w * k) / 2, (H - this.design.h * k) / 2);
+    const ox = (W - this.design.w * k) / 2;
+    const oy = this.orientation === 'portrait' ? Math.max(0, (H - usedH * k) / 2) : Math.max(0, (H - usedH * k) / 2);
+    this.world.position.set(ox, oy);
+    const r = this.gridRect;
+    this.hud?.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
   }
 
   // ---------------------------------------------------------------- Ciclo de juego
@@ -197,6 +278,7 @@ export class BaseEngine {
     this.busy = true;
     this.hud.lock(true);
     this.hud.setWin(0);
+    this.roundWin = 0;
     this.hud.setBalance(this.hud.balance - cost); // visual: el servidor confirma el saldo real
     this.sound.unlock();
     this.sound.play('spin');
@@ -205,7 +287,7 @@ export class BaseEngine {
     this.grid.startSpin();
     let round;
     try {
-      [round] = await Promise.all([this.api.spin(bet, mode), wait(this.hud.turbo ? 200 : 550)]);
+      [round] = await Promise.all([this.api.spin(bet, mode), wait(this.hud.turbo ? 150 : 380)]);
     } catch (e) {
       await this.grid.stop(this.randomGrid());
       this.hud.setBalance(this.hud.balance + cost);
@@ -221,7 +303,7 @@ export class BaseEngine {
     } catch (e) {
       console.error('Error animando la ronda', e); // el dinero ya está resuelto en el servidor
     }
-    this.hud.setWin(round.win);
+    if (round.win > 0) this.hud.countWin(round.win, 400); else this.hud.setWin(0);
     if (round.win > 0) await this.presentTotal(round.win, bet);
     this.hud.setBalance(round.balance);
     // Aviso al sitio del operador cuando el juego va embebido en un iframe (client-sdk).
@@ -230,9 +312,10 @@ export class BaseEngine {
     }
     if (round.creditPending) this.hud.setStatus('Premio en proceso de acreditación por el operador…');
     this.busy = false;
+    if (this.pendingRelayout) { this.pendingRelayout = false; this.relayout(this.detectOrientation()); }
     this.hud.lock(false);
     if (this.hud.autoLeft > 0 && !(round.result.freeSpins || round.result.holdAndWin)) {
-      if (this.hud.consumeAuto()) setTimeout(() => this.spin('base'), 350);
+      if (this.hud.consumeAuto()) setTimeout(() => this.spin('base'), 220);
     } else if (round.result.freeSpins || round.result.holdAndWin) {
       this.hud.stopAuto();
     }
@@ -261,13 +344,20 @@ export class BaseEngine {
     if (!wins?.length) return;
     this.sound.play('win');
     const positions = wins.flatMap((w) => w.positions);
-    this.flashWinText(this.money(stepWinMult));
-    await this.grid.highlight(positions);
+    const lines = wins.filter((w) => w.line != null).map((w) => w.positions);
+    const cents = this.money(stepWinMult);
+    this.flashWinText(cents);
+    this.roundWin = (this.roundWin || 0) + cents;
+    this.hud.countWin(this.roundWin);
+    await this.grid.highlight(positions, { lines });
     this.grid.undim();
   }
 
   flashWinText(cents) {
-    this.winText.text = this.hud.fmt(cents);
+    // Cuenta hacia arriba el importe sobre los rodillos
+    const obj = { v: 0 };
+    gsap.to(obj, { v: cents, duration: this.hud.turbo ? 0.25 : 0.45, ease: 'power2.out', onUpdate: () => { this.winText.text = this.hud.fmt(Math.round(obj.v)); } });
+    this.winText.text = this.hud.fmt(0);
     gsap.killTweensOf(this.winText);
     gsap.killTweensOf(this.winText.scale);
     this.winText.alpha = 1;
@@ -324,7 +414,7 @@ export class BaseEngine {
     const rtp = this.game.math?.rtp ? `${(this.game.math.rtp * 100).toFixed(2)} %` : '—';
     this.hud.openModal(h('div', { class: 'info' },
       h('h2', {}, this.game.theme?.title || this.game.name),
-      h('p', {}, this.constructor.rulesText),
+      h('p', {}, this.rulesText()),
       h('p', {}, `Premios de la tabla calculados para la apuesta actual (${this.hud.fmt(bet)}). Premio máximo: ${this.game.rules?.maxWin ?? '—'}× la apuesta.`),
       h('div', { class: 'paytable' }, rows),
       h('p', { class: 'fine' }, `RTP teórico: ${rtp}. Versión ${this.game.version ?? 'borrador'}. Los resultados se determinan en el servidor con un generador de números aleatorios certificable; el mal funcionamiento anula pagos y jugadas. Juega con responsabilidad.`)));

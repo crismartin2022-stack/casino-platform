@@ -3,7 +3,11 @@ import { BaseEngine, wait } from '../../shared/BaseEngine.js';
 import { TumbleFeature } from './features/TumbleFeature.js';
 
 export class ReelRushEngine extends BaseEngine {
-  static rulesText = '243 formas de ganar: paga el mismo símbolo en rodillos consecutivos desde la izquierda. Los símbolos ganadores explotan y caen nuevos (cascada); cada cascada sube el multiplicador.';
+  rulesText() {
+    const g = this.game.grid;
+    const ways = g.rows ** g.reels;
+    return `${this.gridLabel()}, ${ways.toLocaleString('es')} formas de ganar: paga el mismo símbolo en rodillos consecutivos desde la izquierda. Los símbolos ganadores explotan y caen nuevos (cascada); cada cascada sube el multiplicador (${this.game.rules.cascadeMultipliers.map((m) => `×${m}`).join(', ')}).`;
+  }
 
   async init(p) {
     await super.init(p);

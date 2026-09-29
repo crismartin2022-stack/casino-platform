@@ -17,35 +17,106 @@
     :root { --primary:#e94560; --accent:#ffd460; --panel:#16213e; --text:#fff; --font: system-ui, sans-serif; }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: #0b0d17; color: var(--text); overflow: hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-    #stage { position: fixed; inset: 0 0 86px 0; }
-    #hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--font); color: var(--text); }
+
+    /* ---- Fondo: imagen distinta para PC (horizontal) y celular (vertical) ---- */
+    #bg { position: fixed; inset: 0; background-color: var(--bg-color, #05060c); background-size: cover; background-position: center;
+      background-image: var(--bg-desktop, radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 25%, #000) 0%, #05060c 75%)); }
+    @media (orientation: portrait) { #bg { background-image: var(--bg-mobile, var(--bg-desktop, radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 25%, #000) 0%, #05060c 75%))); } }
+    #bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55)); }
+
+    #stage { position: fixed; inset: 0; }
+    #hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--font); color: var(--text);
+      --btn: rgba(255,255,255,.12); --btn-text: var(--text); --btn-scale: 1; --bar: rgba(10,8,12,.82); --bar-border: color-mix(in srgb, var(--accent) 65%, transparent);
+      --spin-size: 84px; --ui: 1; --gx: 50vw; --gb: 80vh; --gw: 900px; }
     #hud > * { pointer-events: auto; }
-    #bg { position: fixed; inset: 0; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 25%, #000) 0%, #05060c 75%); }
-    .top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px; }
-    .title { flex: 1; font-size: clamp(16px, 2.6vw, 26px); letter-spacing: .04em; text-shadow: 0 2px 8px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #hud .top, #hud .status, #hud .banner { pointer-events: none; }
+    #hud .top > * { pointer-events: auto; }
+    .top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px; }
+    .top a { position: absolute; left: 14px; }
     .tag { background: #ff9f1c; color: #000; font: 700 11px system-ui; padding: 4px 8px; border-radius: 6px; }
-    .bottom { position: absolute; left: 0; right: 0; bottom: 0; height: calc(86px + env(safe-area-inset-bottom)); padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-      display: flex; align-items: center; gap: 10px; background: linear-gradient(to top, color-mix(in srgb, var(--panel) 96%, #000), color-mix(in srgb, var(--panel) 70%, transparent)); border-top: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
-    .stat { display: flex; flex-direction: column; min-width: 0; }
-    .stat small { font: 600 10px system-ui; opacity: .7; letter-spacing: .1em; }
-    .stat b { font-size: clamp(13px, 1.8vw, 20px); white-space: nowrap; }
-    .betbox { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-    button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
+    button { font-family: inherit; cursor: pointer; border: 0; color: inherit; -webkit-tap-highlight-color: transparent; }
     button:disabled { opacity: .4; cursor: not-allowed; }
-    .chip { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.12); font-size: 18px; display: grid; place-items: center; text-decoration: none; color: var(--text); flex: none; }
+
+    .stat { display: flex; flex-direction: column; align-items: center; min-width: 0; line-height: 1.15; }
+    .stat small { font: 600 10px system-ui; opacity: .75; letter-spacing: .12em; }
+    .stat b { font-size: calc(15px * var(--ui)); white-space: nowrap; }
+    .stat.flash b { color: var(--accent); text-shadow: 0 0 12px var(--accent); transition: color .2s; }
+
+    .chip { width: 38px; height: 38px; border-radius: 50%; background: var(--btn); color: var(--btn-text); font-size: 17px; display: grid; place-items: center; text-decoration: none; flex: none; transition: transform .1s; }
+    .chip:active { transform: scale(.9); }
     .chip.on { background: var(--accent); color: #000; }
-    .spin { width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 60%, #fff), var(--primary) 60%, color-mix(in srgb, var(--primary) 60%, #000));
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent), 0 6px 18px rgba(0,0,0,.6); font-size: 34px; flex: none; }
-    .spin.busy span { display: inline-block; animation: rot .6s linear infinite; }
+    .autos .chip { width: auto; min-width: 38px; padding: 0 12px; border-radius: 999px; font: 700 12px system-ui; border: 1px solid var(--bar-border); background: rgba(0,0,0,.35); }
+    .betbox { display: flex; align-items: center; gap: 8px; }
+    .betbtns { display: flex; gap: 6px; }
+    .spin { width: var(--spin-size); height: var(--spin-size); border-radius: 50%; flex: none; font-size: calc(var(--spin-size) * .45);
+      background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 55%, #fff), var(--primary) 58%, color-mix(in srgb, var(--primary) 55%, #000));
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 80%, transparent), 0 0 24px color-mix(in srgb, var(--primary) 70%, transparent), 0 8px 20px rgba(0,0,0,.6);
+      transition: transform .1s; }
+    .spin:active { transform: scale(.93); }
+    .spin.busy span { display: inline-block; animation: rot .5s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
-    .buy { background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 60%, #000)); color: #000; font-weight: 800; padding: 10px 14px; border-radius: 12px; font-size: 13px; flex: none; }
-    .banner { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; padding: 18px 34px; border-radius: 22px;
-      background: rgba(0,0,0,.72); border: 3px solid var(--accent); box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 50%, transparent); animation: pop .35s cubic-bezier(.2,1.6,.4,1); pointer-events: none; }
+
+    /* ---- Botonera PC: píldora centrada bajo los rodillos; GIRAR sobresale ---- */
+    .bar { position: absolute; display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      left: var(--gx); top: calc(var(--gb) + 22px * var(--ui)); transform: translateX(-50%);
+      width: min(96vw, max(620px, calc(var(--gw) + 60px))); height: 58px; padding: 0 16px;
+      background: var(--bar); border: 1.5px solid var(--bar-border); border-radius: 999px; backdrop-filter: blur(6px);
+      box-shadow: 0 8px 26px rgba(0,0,0,.55); }
+    .bar .spin { margin: -18px 0; }
+    .buybox { position: absolute; left: calc(var(--gx) - var(--gw) / 2 - 12px); top: calc(var(--gy) + 12px); transform: translateX(-100%); }
+    .buy { background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 60%, #000)); color: #000; font-weight: 800; padding: 12px 14px; border-radius: 14px; font-size: 13px; max-width: 120px; line-height: 1.1; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+
+    /* Botonera clásica (theme.hud.layout = "classic"): barra de ancho completo abajo */
+    #hud[data-layout="classic"] .bar { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; height: calc(80px + env(safe-area-inset-bottom));
+      border-radius: 0; border-width: 2px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+    #hud[data-layout="classic"] .bar .spin { margin: 0; }
+
+    /* ---- Celular (vertical): ☰ y 🔊 arriba en las esquinas; panel de 2 filas bajo los rodillos ---- */
+    #hud[data-orient="portrait"] .bar { top: calc(var(--gb) + 14px); bottom: auto; left: 10px; right: 10px; transform: none; width: auto; height: auto;
+      display: grid; grid-template-columns: 1fr auto 1fr; grid-template-areas: "saldo spin apuesta" "premio spin autos";
+      row-gap: 10px; column-gap: 12px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); border-radius: 22px; }
+    #hud[data-orient="portrait"][data-layout="classic"] .bar { top: auto; bottom: 0; left: 0; right: 0; border-radius: 22px 22px 0 0; }
+    #hud[data-orient="portrait"] .bar .spin { grid-area: spin; margin: 0; --spin-size: 92px; }
+    #hud[data-orient="portrait"] .saldo { grid-area: saldo; }
+    #hud[data-orient="portrait"] .premio { grid-area: premio; }
+    #hud[data-orient="portrait"] .betbox { grid-area: apuesta; flex-direction: column; gap: 4px; }
+    #hud[data-orient="portrait"] .autos { grid-area: autos; display: flex; justify-content: center; gap: 6px; }
+    #hud[data-orient="portrait"] .bar > .menu { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 12px; }
+    #hud[data-orient="portrait"] .bar > .chip:last-child { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; }
+    #hud[data-orient="portrait"] .buybox { left: 50%; top: calc(var(--gy) - 12px); transform: translate(-50%, -100%); }
+    #hud[data-orient="portrait"] .buy { max-width: none; padding: 8px 18px; }
+
+    /* ---- Botones personalizables (theme.buttons) ---- */
+    .chip { transform: scale(var(--btn-scale)); }
+    #hud[data-shape="rounded"] .chip, #hud[data-shape="rounded"] .spin:not(.img) { border-radius: 12px; }
+    #hud[data-shape="square"] .chip, #hud[data-shape="square"] .spin:not(.img) { border-radius: 4px; }
+    #hud[data-shape="pill"] .chip { border-radius: 999px; width: auto; min-width: 48px; padding: 0 12px; }
+    #hud[data-style="flat"] .spin:not(.img) { background: var(--primary); box-shadow: none; }
+    #hud[data-style="flat"] .chip { background: color-mix(in srgb, var(--primary) 35%, var(--panel)); }
+    #hud[data-style="glass"] .chip, #hud[data-style="glass"] .spin:not(.img) { background: rgba(255,255,255,.14); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.35); }
+    #hud[data-style="outline"] .chip, #hud[data-style="outline"] .spin:not(.img) { background: transparent; border: 2px solid var(--accent); box-shadow: none; color: var(--accent); }
+    .spin { transform: scale(var(--btn-scale)); }
+    button.img { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0; width: auto; height: auto; border-radius: 0; position: relative; }
+    button.img img { display: block; height: 38px; width: auto; max-width: 140px; object-fit: contain; pointer-events: none; }
+    .spin.img img { height: var(--spin-size); max-width: 200px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
+    .buy.img img { height: 56px; max-width: 170px; }
+    button.img:active img { transform: scale(.94); }
+    .spin.img.busy img { animation: pulse .6s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(.92); filter: brightness(.8); } }
+    button.img.on img { filter: drop-shadow(0 0 8px var(--accent)) brightness(1.2); }
+    button.img.muted img { filter: grayscale(1) opacity(.6); }
+    button.img .count { position: absolute; right: -6px; top: -6px; background: var(--accent); color: #000; font: 700 11px system-ui; padding: 1px 5px; border-radius: 99px; font-style: normal; }
+
+    /* ---- Mensajes ---- */
+    .banner { position: absolute; left: var(--gx); top: calc((var(--gy) + var(--gb)) / 2); transform: translate(-50%, -50%); text-align: center; padding: 16px 34px; border-radius: 22px;
+      background: rgba(0,0,0,.74); border: 3px solid var(--accent); box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 50%, transparent); animation: pop .3s cubic-bezier(.2,1.6,.4,1); }
     .banner small { display: block; font-size: clamp(14px, 2.4vw, 24px); letter-spacing: .1em; color: var(--accent); }
     .banner b { display: block; font-size: clamp(30px, 6vw, 68px); }
     .banner.big b { color: var(--accent); text-shadow: 0 0 18px var(--primary); }
+    .banner.big { animation: pop .3s cubic-bezier(.2,1.6,.4,1), glow 0.8s ease-in-out infinite alternate; }
     @keyframes pop { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
-    .status { position: absolute; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(0,0,0,.6); padding: 6px 14px; border-radius: 999px; font-size: clamp(12px, 1.6vw, 16px); white-space: nowrap; pointer-events: none; }
+    @keyframes glow { to { box-shadow: 0 0 70px var(--accent); } }
+    .status { position: absolute; left: var(--gx); top: calc(var(--gy) - 8px); transform: translate(-50%, -100%); background: rgba(0,0,0,.65); padding: 5px 14px; border-radius: 999px; font-size: clamp(12px, 1.6vw, 15px); white-space: nowrap; }
     .status:empty { display: none; }
     .modal { position: absolute; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; padding: 16px; z-index: 10; }
     .modal[hidden], .banner[hidden] { display: none; }
@@ -56,18 +127,18 @@
     .pay { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,.06); border-radius: 12px; padding: 8px; font-size: 13px; }
     .pay img { width: 56px; height: 56px; object-fit: contain; }
     .fine { font-size: 11px; opacity: .7; }
-    .confirm { text-align: center; } .confirm .buy { font-size: 16px; padding: 12px 22px; }
+    .confirm { text-align: center; } .confirm .buy { font-size: 16px; padding: 12px 22px; max-width: none; }
     #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; background: #05060c; font: 600 15px system-ui; }
-    #loader .bar { width: min(320px, 70vw); height: 8px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 12px; }
-    #loader .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-    @media (max-width: 560px) { .stat small { font-size: 9px; } .chip { width: 34px; height: 34px; font-size: 15px; } .spin { width: 60px; height: 60px; } .buy { padding: 8px; font-size: 11px; } }
+    #loader .bar2 { width: min(320px, 70vw); height: 8px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 12px; }
+    #loader .bar2 i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+    @media (max-width: 700px) and (orientation: landscape) { .bar { gap: 8px; padding: 0 10px; } .stat small { font-size: 9px; } .chip { width: 32px; height: 32px; font-size: 14px; } #hud { --spin-size: 66px; } }
   </style>
 </head>
 <body>
   <div id="bg"></div>
   <div id="stage"></div>
   <div id="hud"></div>
-  <div id="loader"><div><div id="loadText">Cargando…</div><div class="bar"><i id="loadBar"></i></div></div></div>
+  <div id="loader"><div><div id="loadText">Cargando…</div><div class="bar2"><i id="loadBar"></i></div></div></div>
 
   <script type="module">
     import { GameApi } from '/game-engines/shared/api.js';

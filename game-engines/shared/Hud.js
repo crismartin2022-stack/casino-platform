@@ -32,38 +32,117 @@ export class Hud {
     css.setProperty('--text', p.text || '#ffffff');
     css.setProperty('--font', `'${t.font || 'Bungee'}', system-ui, sans-serif`);
 
+    // Botones personalizables desde el tema (theme.buttons): forma, estilo, tamaño,
+    // y por cada botón una imagen, un icono o un texto propio.
+    const B = t.buttons || {};
+    root.dataset.shape = ['round', 'rounded', 'square', 'pill'].includes(B.shape) ? B.shape : 'round';
+    root.dataset.style = ['gradient', 'flat', 'glass', 'outline'].includes(B.style) ? B.style : 'gradient';
+    css.setProperty('--btn-scale', String(Math.min(1.4, Math.max(0.8, Number(B.size) || 1))));
+    if (B.color) css.setProperty('--btn', B.color);
+    if (B.textColor) css.setProperty('--btn-text', B.textColor);
+    const spec = (key) => ({ ...(B[key] || {}), ...(key === 'spin' && !B.spin?.image && t.spinButton ? { image: t.spinButton } : {}) });
+    this.btnSpec = spec;
+
     this.balanceEl = h('b', {}, '—');
     this.betEl = h('b', {}, '');
     this.winEl = h('b', {}, formatMoney(0, currency));
-    this.spinBtn = h('button', { class: 'spin', 'aria-label': 'Girar', onclick: () => onSpin() }, h('span', {}, '↻'));
-    this.autoBtn = h('button', { class: 'chip', onclick: () => this.toggleAuto(onSpin), title: 'Juego automático' }, 'AUTO');
-    this.turboBtn = h('button', { class: 'chip', onclick: () => this.toggleTurbo(), title: 'Turbo' }, '⚡');
-    this.soundBtn = h('button', { class: 'chip', onclick: () => { this.soundBtn.textContent = onToggleSound() ? '🔇' : '🔊'; } }, '🔊');
-    this.minus = h('button', { class: 'chip', onclick: () => this.changeBet(-1), 'aria-label': 'Bajar apuesta' }, '−');
-    this.plus = h('button', { class: 'chip', onclick: () => this.changeBet(1), 'aria-label': 'Subir apuesta' }, '+');
-    this.buyBtn = onBuy ? h('button', { class: 'buy', onclick: () => onBuy() }, 'COMPRAR BONUS') : null;
+    this.spinBtn = this.makeButton('spin', 'spin', '↻', 'Girar', () => onSpin());
+    this.autoBtn = this.makeButton('auto', 'chip', 'AUTO', 'Juego automático', () => this.toggleAuto(onSpin));
+    this.turboBtn = this.makeButton('turbo', 'chip', '⚡', 'Turbo', () => this.toggleTurbo());
+    this.soundBtn = this.makeButton('sound', 'chip', '🔊', 'Sonido', () => {
+      const muted = onToggleSound();
+      this.soundBtn.classList.toggle('muted', muted);
+      if (!this.soundBtn.classList.contains('img')) this.soundBtn.firstChild.textContent = muted ? (spec('sound').iconOff || '🔇') : (spec('sound').icon || '🔊');
+    });
+    this.minus = this.makeButton('minus', 'chip', '−', 'Bajar apuesta', () => this.changeBet(-1));
+    this.plus = this.makeButton('plus', 'chip', '+', 'Subir apuesta', () => this.changeBet(1));
+    this.buyBtn = onBuy ? this.makeButton('buy', 'buy', 'COMPRAR BONUS', 'Comprar bonus', () => onBuy()) : null;
+    this.infoBtn = this.makeButton('info', 'chip menu', '☰', 'Menú: reglas y pagos', () => onInfo());
     this.banner = h('div', { class: 'banner', hidden: true });
     this.status = h('div', { class: 'status' });
     this.modal = h('div', { class: 'modal', hidden: true, onclick: (e) => { if (e.target === this.modal) this.closeModal(); } });
 
+    // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior.
+    const HUD = t.hud || {};
+    root.dataset.layout = HUD.layout === 'classic' ? 'classic' : 'pill';
+    if (HUD.barColor) css.setProperty('--bar', HUD.barColor);
+    if (HUD.barBorder) css.setProperty('--bar-border', HUD.barBorder);
+    if (HUD.spinSize) css.setProperty('--spin-size', `${Math.min(130, Math.max(56, Number(HUD.spinSize)))}px`);
+
+    const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, label), el);
+    this.bar = h('div', { class: 'bar' },
+      this.infoBtn,
+      stat('SALDO', this.balanceEl, 'saldo'),
+      h('div', { class: 'betbox' }, stat('APUESTA', this.betEl, 'apuesta'), h('div', { class: 'betbtns' }, this.minus, this.plus)),
+      this.spinBtn,
+      h('div', { class: 'autos' }, this.autoBtn, this.turboBtn),
+      stat('PREMIO', this.winEl, 'premio'),
+      this.soundBtn);
+
     root.append(
       h('div', { class: 'top' },
-        lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl }, '⟵') : null,
-        h('div', { class: 'title' }, t.title || game.name),
-        preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null,
-        h('button', { class: 'chip', onclick: () => onInfo(), 'aria-label': 'Reglas y pagos' }, 'i')),
+        lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl, 'aria-label': 'Volver' }, '⟵') : null,
+        preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null),
       this.banner, this.status,
-      h('div', { class: 'bottom' },
-        h('div', { class: 'stat' }, h('small', {}, 'SALDO'), this.balanceEl),
-        h('div', { class: 'stat' }, h('small', {}, 'PREMIO'), this.winEl),
-        h('div', { class: 'betbox' }, this.minus, h('div', { class: 'stat' }, h('small', {}, 'APUESTA'), this.betEl), this.plus),
-        this.buyBtn, this.autoBtn, this.turboBtn, this.soundBtn, this.spinBtn),
+      this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null,
+      this.bar,
       this.modal,
     );
     this.renderBet();
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && this.modal.hidden && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); onSpin(); }
     });
+  }
+
+  /** Crea un botón usando la imagen, el icono o el texto definidos en theme.buttons[key]. */
+  makeButton(key, cls, defaultIcon, label, onclick) {
+    const s = this.btnSpec(key);
+    const content = s.image
+      ? h('img', { src: s.image, alt: '', draggable: 'false' })
+      : h('span', {}, s.icon || s.label || defaultIcon);
+    return h('button', { class: `${cls}${s.image ? ' img' : ''}`, 'aria-label': s.label || label, title: s.label || label, onclick }, content);
+  }
+
+  /** Muestra el contador del juego automático sin borrar una imagen personalizada. */
+  setAutoLabel(text) {
+    const s = this.btnSpec('auto');
+    if (this.autoBtn.classList.contains('img')) {
+      let badge = this.autoBtn.querySelector?.('.count');
+      if (!badge) { badge = h('em', { class: 'count' }); this.autoBtn.append(badge); }
+      badge.textContent = text || '';
+      badge.hidden = !text;
+    } else {
+      this.autoBtn.firstChild.textContent = text ?? (s.icon || s.label || 'AUTO');
+    }
+  }
+
+  /**
+   * Coloca la botonera según dónde quedó la cuadrícula en pantalla (px) y la orientación.
+   * rect: { x, y, w, h } de la cuadrícula; scale: escala del mundo de juego.
+   */
+  setLayout(rect, orientation, scale) {
+    const css = this.root.style;
+    this.root.dataset.orient = orientation;
+    css.setProperty('--gx', `${rect.x + rect.w / 2}px`);
+    css.setProperty('--gy', `${rect.y}px`);
+    css.setProperty('--gw', `${rect.w}px`);
+    css.setProperty('--gb', `${rect.y + rect.h}px`);
+    css.setProperty('--ui', String(Math.min(1.25, Math.max(0.7, scale))));
+  }
+
+  /** Cuenta hacia arriba el premio en la botonera. */
+  countWin(toCents, ms = 500) {
+    const from = this.shownWin || 0;
+    this.shownWin = toCents;
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / (this.turbo ? ms / 2 : ms));
+      this.winEl.textContent = this.fmt(Math.round(from + (toCents - from) * (1 - (1 - k) ** 3)));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(step); else this.winEl.textContent = this.fmt(toCents);
+    this.winEl.parentElement?.classList?.add('flash');
+    setTimeout(() => this.winEl.parentElement?.classList?.remove('flash'), 700);
   }
 
   get bet() { return this.levels[this.betIndex]; }
@@ -82,7 +161,7 @@ export class Hud {
 
   setBalance(cents) { this.balance = cents; this.balanceEl.textContent = this.fmt(cents); }
 
-  setWin(cents) { this.winEl.textContent = this.fmt(cents); }
+  setWin(cents) { this.shownWin = cents; this.winEl.textContent = this.fmt(cents); }
 
   lock(v) {
     this.locked = v;
@@ -100,20 +179,20 @@ export class Hud {
     if (this.autoLeft > 0) { this.stopAuto(); return; }
     this.autoLeft = 25;
     this.autoBtn.classList.add('on');
-    this.autoBtn.textContent = String(this.autoLeft);
+    this.setAutoLabel(String(this.autoLeft));
     if (!this.locked) onSpin();
   }
 
   stopAuto() {
     this.autoLeft = 0;
     this.autoBtn.classList.remove('on');
-    this.autoBtn.textContent = 'AUTO';
+    this.setAutoLabel(null);
   }
 
   consumeAuto() {
     if (this.autoLeft <= 0) return false;
     this.autoLeft--;
-    this.autoBtn.textContent = this.autoLeft ? String(this.autoLeft) : 'AUTO';
+    this.setAutoLabel(this.autoLeft ? String(this.autoLeft) : null);
     if (!this.autoLeft) this.autoBtn.classList.remove('on');
     return true;
   }

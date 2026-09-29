@@ -1,7 +1,7 @@
 // Motor 3 — BONUS BUY: 5x3, 20 líneas. 3+ scatters = giros gratis con multiplicador fijo.
 // El jugador puede COMPRAR los giros gratis pagando rules.buyCost × apuesta.
 import {
-  symbolMap, spinStrips, evaluateLines, sumPays, findSymbols, capWin, validateCommon, buildStrip, round6, LINES_5x3,
+  symbolMap, spinStrips, evaluateLines, sumPays, findSymbols, capWin, validateCommon, validateGrid, buildStrip, round6, linesFor, maxLines,
 } from './common.js';
 
 export const id = 'bonus-buy';
@@ -11,8 +11,8 @@ export const description = '20 líneas con giros gratis multiplicados; los giros
 export const modes = ['base', 'buy'];
 
 function lineSpin(config, rng, syms, strips) {
-  const lines = LINES_5x3.slice(0, config.rules.lines);
-  const { stops, grid } = spinStrips(rng, strips, 3);
+  const lines = linesFor(config.grid.reels, config.grid.rows, config.rules.lines);
+  const { stops, grid } = spinStrips(rng, strips, config.grid.rows);
   const wins = evaluateLines(grid, lines, syms);
   const scatters = findSymbols(grid, (s) => syms.get(s)?.type === 'scatter');
   return { stops, grid, wins, scatters, win: sumPays(wins) };
@@ -60,9 +60,10 @@ export function costMultiplier(config, mode) {
 }
 
 export function validate(config) {
-  const errors = validateCommon(config, { reels: 5 });
+  const errors = [...validateCommon(config), ...validateGrid(config)];
   const R = config.rules || {};
-  if (!(R.lines >= 1 && R.lines <= 20)) errors.push('rules.lines debe estar entre 1 y 20');
+  const maxL = config.grid ? maxLines(config.grid.reels, config.grid.rows) : 20;
+  if (!Number.isInteger(R.lines) || R.lines < 1 || R.lines > maxL) errors.push(`rules.lines (líneas de pago) debe estar entre 1 y ${maxL} para esta cuadrícula`);
   if (!(R.buyCost >= 10)) errors.push('rules.buyCost debe ser >= 10 (múltiplo de la apuesta)');
   if (!(R.fsMultiplier >= 1)) errors.push('rules.fsMultiplier debe ser >= 1');
   if (!R.freeSpins?.['3']) errors.push('rules.freeSpins debe definir al menos "3"');

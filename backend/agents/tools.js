@@ -3,19 +3,19 @@
 import { getDraft, patchDraft, saveDraft } from '../services/games.js';
 import { saveAsset, readAssetBytes, listAssets } from '../services/assets.js';
 import { veniceGenerate, veniceEdit, veniceRemoveBackground, veniceUpscale, elevenSoundEffect, elevenMusic } from '../ai/providers.js';
-import { simulateAsync, tuneAsync } from '../math/worker.js';
+import { simulateAsync, tuneAsync, resizeAsync } from '../math/worker.js';
 import { ENGINES, validateConfig } from '../math/index.js';
 import { HttpError } from '../lib/http.js';
 
 // ---- Permisos de edición por agente (patrones de ruta; * = cualquier id de símbolo) ----
 export const EDIT_SCOPES = {
   designer: ['name', 'theme', 'theme.*', 'symbols.*.name', 'symbols.*.image', 'symbols.*.color'],
-  artist: ['theme.background', 'theme.logo', 'theme.spinButton', 'theme.frame', 'symbols.*.image'],
+  artist: ['theme.background', 'theme.backgroundMobile', 'theme.reelsBackground', 'theme.cellImage', 'theme.logo', 'theme.spinButton', 'theme.frame', 'theme.buttons.*.image', 'symbols.*.image'],
   sound: ['sounds', 'sounds.*', 'soundVolumes', 'soundVolumes.*'],
-  math: ['symbols.*.pays', 'symbols.*.pays.*', 'reels', 'freeSpinReels', 'rules', 'rules.*', 'rtpTarget', 'bet', 'bet.*'],
+  math: ['symbols.*.pays', 'symbols.*.pays.*', 'reels', 'freeSpinReels', 'rules', 'rules.*', 'rtpTarget', 'bet', 'bet.*', 'grid'],
 };
 
-function pathAllowed(agent, path) {
+export function pathAllowed(agent, path) {
   const segs = path.split('.');
   // Un patrón cubre la ruta si coincide como prefijo ("theme" cubre "theme.palette.primary").
   return EDIT_SCOPES[agent].some((pattern) => {
@@ -24,11 +24,13 @@ function pathAllowed(agent, path) {
   });
 }
 
+export const BUTTON_KEYS = ['spin', 'auto', 'turbo', 'sound', 'minus', 'plus', 'info', 'buy'];
+
 const symbolsSummary = (c) => c.symbols.map((s) => ({ id: s.id, name: s.name, type: s.type, image: s.image, pays: s.pays }));
 
 function configView(c, section) {
   switch (section) {
-    case 'theme': return { name: c.name, theme: c.theme };
+    case 'theme': return { name: c.name, theme: c.theme, buttonKeys: BUTTON_KEYS };
     case 'symbols': return symbolsSummary(c);
     case 'sounds': return { sounds: c.sounds, soundVolumes: c.soundVolumes || null };
     case 'math': return {
@@ -50,7 +52,7 @@ function assign(ctx, agent, path, url, reason) {
   return path;
 }
 
-const PURPOSE_SIZES = { symbol: [1024, 1024], background: [1280, 720], ui: [1024, 512], logo: [1280, 640] };
+const PURPOSE_SIZES = { symbol: [1024, 1024], button: [1024, 1024], tile: [1024, 1024], background: [1280, 720], backgroundMobile: [720, 1280], reels: [1280, 720], frame: [1280, 720], ui: [1024, 512], logo: [1280, 640] };
 
 // ---------------- Definiciones (JSON Schema para Claude) ----------------
 const T = {
@@ -77,13 +79,13 @@ const T = {
     input_schema: { type: 'object', required: ['assetId'], properties: { assetId: { type: 'string' } } },
   },
   generate_image: {
-    description: 'Genera una imagen con Venice. purpose define el tamaño: symbol (cuadrado), background (16:9), ui, logo. Para símbolos usa removeBackground=true. assignTo asigna la imagen al juego (ej. "symbols.cherry.image" o "theme.background").',
+    description: 'Genera una imagen con Venice. purpose define el tamaño: symbol (cuadrado), button (cuadrado, botón del juego), tile (cuadrado, fondo de cada celda), background (16:9, fondo de PC), backgroundMobile (9:16, fondo de celular), reels (fondo detrás de los rodillos), frame (marco decorativo), ui (2:1, p. ej. botón de compra), logo. Para símbolos y botones usa removeBackground=true. assignTo asigna la imagen al juego (ej. "symbols.cherry.image", "theme.background", "theme.buttons.spin.image").',
     input_schema: {
       type: 'object', required: ['prompt', 'purpose'],
       properties: {
         prompt: { type: 'string', description: 'Prompt detallado en inglés: sujeto, estilo, iluminación, colores, "centered, isolated, game icon"' },
         negativePrompt: { type: 'string' },
-        purpose: { type: 'string', enum: ['symbol', 'background', 'ui', 'logo'] },
+        purpose: { type: 'string', enum: ['symbol', 'button', 'tile', 'background', 'backgroundMobile', 'reels', 'frame', 'ui', 'logo'] },
         removeBackground: { type: 'boolean' },
         assignTo: { type: 'string' },
         seed: { type: 'integer' },
@@ -130,6 +132,10 @@ const T = {
     description: 'Escala la tabla de pagos para alcanzar el RTP objetivo y lo guarda en el borrador. En Bonus Buy también recalcula el precio de compra.',
     input_schema: { type: 'object', properties: { target: { type: 'number', description: 'Ej. 0.96' } } },
   },
+  resize_grid: {
+    description: 'Cambia la cantidad de rodillos (reels, verticales), filas (rows, horizontales) y/o líneas de pago (lines, solo Bonus Buy y Hold & Win). Reconstruye tiras y tabla de pagos y reajusta el RTP al objetivo automáticamente. Límites: rodillos 3-8 (Megaways y Colossal 4-8), filas 3-6 (Megaways no usa filas fijas).',
+    input_schema: { type: 'object', properties: { reels: { type: 'integer' }, rows: { type: 'integer' }, lines: { type: 'integer' } } },
+  },
   engine_info: {
     description: 'Explica las reglas y parámetros del motor de este juego.',
     input_schema: { type: 'object', properties: {} },
@@ -148,7 +154,7 @@ export const AGENT_TOOLS = {
   designer: ['get_game_config', 'update_config', 'list_assets', 'view_asset'],
   artist: ['get_game_config', 'list_assets', 'view_asset', 'generate_image', 'edit_image', 'remove_background', 'upscale_image', 'update_config'],
   sound: ['get_game_config', 'list_assets', 'generate_sound', 'generate_music', 'update_config'],
-  math: ['get_game_config', 'engine_info', 'simulate_rtp', 'tune_rtp', 'update_config'],
+  math: ['get_game_config', 'engine_info', 'simulate_rtp', 'tune_rtp', 'resize_grid', 'update_config'],
 };
 
 export function toolDefs(agent) {
@@ -253,12 +259,25 @@ export async function runTool(name, input, ctx, agent) {
       if (errs.length) return { error: 'Configuración inválida', details: errs };
       ctx.emit('progress', { agent, message: 'Ajustando la tabla de pagos al RTP objetivo…' });
       const target = input.target || c.rtpTarget;
-      if (!(target >= 0.85 && target <= 0.985)) return { error: 'El objetivo debe estar entre 0.85 y 0.985' };
+      if (!(target >= 0.85 && target <= 1.10)) return { error: 'El objetivo debe estar entre 0.85 y 1.10 (85 % a 110 %)' };
       c.rtpTarget = target;
       const { config: tuned, history, final, buy } = await tuneAsync(c, { target, spins: 400_000 });
       saveDraft(ctx.gameId, tuned, `agent:${agent}`);
       ctx.emit('config_changed', { agent, ops: [{ path: 'symbols.*.pays', value: '(escalado)' }], reason: `RTP ajustado a ${target}` });
       return { history, final: { rtp: final.rtp, ci: [final.rtpLow, final.rtpHigh], hitFrequency: final.hitFrequency, featureEvery: final.featureEvery, volatility: final.volatility }, buy };
+    }
+
+    case 'resize_grid': {
+      const c = getDraft(ctx.gameId);
+      ctx.emit('progress', { agent, message: 'Cambiando el tamaño y reajustando el RTP…' });
+      try {
+        const t = await resizeAsync(c, { reels: input.reels, rows: input.rows, lines: input.lines, spins: 300_000 });
+        saveDraft(ctx.gameId, t.config, `agent:${agent}`);
+        ctx.emit('config_changed', { agent, ops: [{ path: 'grid', value: t.config.grid }, { path: 'rules.lines', value: t.config.rules.lines }], reason: 'Cambio de cuadrícula' });
+        return { grid: t.config.grid, lines: t.config.rules.lines ?? null, maxLines: t.maxLines, rtp: t.final.rtp, ci: [t.final.rtpLow, t.final.rtpHigh], hitFrequency: t.final.hitFrequency, volatility: t.final.volatility, buy: t.buy };
+      } catch (e) {
+        return { error: e.message };
+      }
     }
 
     case 'engine_info': {
