@@ -189,6 +189,7 @@ for (const [table, col, def] of [
   ['operators', 'can_create_games', 'INTEGER NOT NULL DEFAULT 0'],
   ['operators', 'max_games', 'INTEGER NOT NULL DEFAULT 0'],
   ['operators', 'can_use_agents', 'INTEGER NOT NULL DEFAULT 0'],
+  ['operators', 'bet_limits', 'TEXT'],
   ['games', 'owner_operator_id', 'TEXT'],
   ['sessions', 'variant_id', 'TEXT'],
   ['rounds', 'variant_id', 'TEXT'],

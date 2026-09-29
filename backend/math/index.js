@@ -1,4 +1,5 @@
 // Registro de motores + simulador de RTP + ajuste automático de la tabla de pagos.
+import { validateBets } from './currency.js';
 import * as reelRush from './reel-rush.js';
 import * as megaways from './megaways.js';
 import * as bonusBuy from './bonus-buy.js';
@@ -70,7 +71,7 @@ export function validateConfig(config) {
   if (!config?.engine) return ['Falta el campo engine'];
   const e = ENGINES[config.engine];
   if (!e) return [`Motor desconocido: ${config.engine}`];
-  const errs = e.validate(config);
+  const errs = [...e.validate(config), ...validateBets(config)];
   if (e.kind === 'table') { if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme'); return errs; }
   if (!(config.rtpTarget >= RTP_RANGE[0] && config.rtpTarget <= RTP_RANGE[1])) errs.push(`rtpTarget debe estar entre ${RTP_RANGE[0]} y ${RTP_RANGE[1]} (85 % a 110 %)`);
   if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme');

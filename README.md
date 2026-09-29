@@ -77,6 +77,20 @@ También puedes editar a mano: Diseño, Símbolos (imagen, nombre, pagos), Sonid
 
 **Permisos de los agentes:** cada especialista solo puede tocar su parte (el Artista no puede cambiar pagos, el Diseñador no toca reglas…). Ningún agente puede publicar: siempre lo hace una persona.
 
+## Interfaces del juego
+
+Cada tragamonedas puede usar una de 7 interfaces (Diseño → Interfaz del juego, o al crear el juego):
+**Píldora** y **Clásica** (botoneras simples) y cinco interfaces completas con barra superior, panel lateral
+(reglas, sonido, pantalla completa, historial), fichas de apuesta directas y efectos de premio propios:
+**Neón** (tubos de luz), **Cristal** (vidrio esmerilado), **Brasa** (metal y fuego, GIRAR hexagonal),
+**Real** (oro, fichas de casino y lluvia de monedas) y **Arcade** (gabinete retro con LED).
+Todas toman los colores de la paleta del juego y funcionan en PC y celular; los agentes también pueden elegirlas.
+
+## Monedas
+
+Las fichas de cada juego se definen por moneda (Matemática → Apuestas por moneda, con sugerencia automática a partir de un tipo de cambio)
+y cada operador puede tener mínimo y máximo propios. El RTP no cambia con la moneda.
+
 ## Portal del operador
 
 Cada casino que integra tus juegos tiene su propio panel en **`/operator`** (email y contraseña, roles administrador, finanzas y soporte):
