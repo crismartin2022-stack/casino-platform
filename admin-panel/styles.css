@@ -102,9 +102,27 @@ td input { padding: 5px 7px; }
 .secret { background: #0b0e16; border: 1px dashed var(--warn); padding: 10px; border-radius: 8px; word-break: break-all; font-family: ui-monospace, monospace; }
 
 @media (max-width: 1100px) {
-  .app { grid-template-columns: 1fr; }
-  .side { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
-  .side nav { display: flex; flex-wrap: wrap; } .side-section, .side-foot { display: none; }
+  /* Celular y tablet: una sola columna que scrollea entera */
+  html, body { height: auto; }
+  .app { display: block; height: auto; min-height: 100vh; }
+  .main { overflow: visible; }
+  /* Lista de juegos en UNA fila deslizable (no ocupa media pantalla) */
+  .side { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line);
+    padding: 8px 10px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .side .brand { padding: 4px 6px; font-size: 16px; flex: none; }
+  .side nav { display: flex; flex-wrap: nowrap; gap: 4px; flex: none; }
+  .side nav a { white-space: nowrap; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .side nav a small { display: none; }
+  .side nav a.on { border-color: var(--primary2); }
+  .side #newGameBtn { flex: none; white-space: nowrap; padding: 6px 10px; }
+  .side-section, .side-foot { display: none; }
+  /* El encabezado del juego ya no queda fijo (tapaba las pestañas); las pestañas sí quedan fijas arriba */
+  .bar { position: static; flex-wrap: wrap; padding: 12px 14px; }
+  .bar h1 { font-size: 17px; }
+  .tabs { position: sticky; top: 0; z-index: 5; background: var(--panel); padding: 6px 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+  .tabs button { padding: 10px 12px; font-size: 14px; flex: none; }
+  .view { padding: 14px 12px; }
+  .chat { height: calc(100dvh - 90px); min-height: 380px; }
   .preview { position: fixed; inset: 0; width: 100%; z-index: 20; }
   .composer { grid-template-columns: 1fr; }
 }
