@@ -450,3 +450,19 @@ test('moneda: fichas por moneda, límites del operador y validación en el servi
   assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: ca, body: { type: 'pass', amount: 200000 } })).status, 400);
   assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: ca, body: { type: 'pass', amount: 100000 } })).status, 200);
 });
+
+test('forzar bonus: solo en la vista previa del borrador', async () => {
+  const { body: pv } = await req('/api/admin/games/expanding-symbol/preview-session', { method: 'POST', headers: ADMIN });
+  const auth = { authorization: `Bearer ${pv.token}` };
+  const r = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, force: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.result.freeSpins?.awarded > 0);
+  // En sesiones normales (publicado) está prohibido
+  const { body: demo } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'expanding-symbol' } });
+  const no = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${demo.token}` }, body: { bet: 100, force: true } });
+  assert.equal(no.status, 403);
+  // Un juego sin bonus avisa
+  const { body: pv2 } = await req('/api/admin/games/cluster-pays/preview-session', { method: 'POST', headers: ADMIN });
+  const nb = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv2.token}` }, body: { bet: 100, force: true } });
+  assert.equal(nb.status, 409);
+});

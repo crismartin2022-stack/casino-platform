@@ -15,7 +15,7 @@ export const MIME = {
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
-  '.woff2': 'font/woff2',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf', '.mp4': 'video/mp4', '.webm': 'video/webm',
 };
 
 export class Router {
@@ -86,7 +86,19 @@ export function serveFile(req, res, filePath, { cache = 'public, max-age=300' } 
   const type = MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
   const etag = `W/"${st.size}-${st.mtimeMs}"`;
   if (req.headers['if-none-match'] === etag) { res.writeHead(304); res.end(); return true; }
-  res.writeHead(200, { 'content-type': type, 'content-length': st.size, 'cache-control': cache, etag });
+  // Rangos (necesarios para reproducir videos en iPhone/Safari y para adelantar)
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (m && (m[1] || m[2])) {
+    let start = m[1] ? Number(m[1]) : st.size - Number(m[2]);
+    let end = m[1] && m[2] ? Math.min(Number(m[2]), st.size - 1) : st.size - 1;
+    if (!m[1]) start = Math.max(0, start);
+    if (start > end || start >= st.size) { res.writeHead(416, { 'content-range': `bytes */${st.size}` }); res.end(); return true; }
+    res.writeHead(206, { 'content-type': type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${st.size}`, 'accept-ranges': 'bytes', 'cache-control': cache, etag });
+    if (req.method === 'HEAD') { res.end(); return true; }
+    createReadStream(filePath, { start, end }).pipe(res);
+    return true;
+  }
+  res.writeHead(200, { 'content-type': type, 'content-length': st.size, 'cache-control': cache, etag, 'accept-ranges': 'bytes' });
   if (req.method === 'HEAD') { res.end(); return true; }
   createReadStream(filePath).pipe(res);
   return true;

@@ -186,7 +186,7 @@ function renderTab() {
   const v = $('#view');
   const fn = { agents: tabAgents, design: tabDesign, symbols: tabSymbols, sounds: tabSounds, math: tabMath, assets: tabAssets, json: tabJson, versions: tabVersions }[S.tab];
   v.innerHTML = '';
-  guard(async (el) => { await fn(el); if (S.tab === 'math' && !isOp()) currencyCard(el); })(v);
+  guard(async (el) => { await fn(el); if (S.tab === 'math' && !isOp()) { featureCard(el); currencyCard(el); } })(v);
 }
 
 // ------------------------------------------------------------------ Vista previa
@@ -242,6 +242,81 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
   });
 }));
 
+// ---- Diseño libre: tablero de la botonera y editor visual ----
+function customHudCard(t) {
+  const C = t.hud?.custom || {};
+  const B = C.board || {};
+  return `<div class="card stack" id="chCard"><h3 style="margin:0">✥ Diseño libre de la botonera</h3>
+    <p class="muted">Arrastra cada botón, el saldo, la apuesta, el premio y el tablero adonde quieras (también dentro del recuadro de los rodillos) y cambia su tamaño.
+      PC y celular se diseñan por separado y se adaptan solos a cualquier pantalla. Los logos de los botones mantienen su proporción: nunca se estiran.</p>
+    <div class="row"><button class="primary" data-hedit="landscape">✏️ Editar en PC</button><button class="primary" data-hedit="portrait">✏️ Editar en celular</button>
+      <button class="ghost" data-hreset="landscape">↺ Restablecer PC</button><button class="ghost" data-hreset="portrait">↺ Restablecer celular</button></div>
+    <div class="grid2">
+      <div><label>Imagen del tablero</label><div class="row">${B.image ? `<img src="${esc(B.image)}" style="height:48px;max-width:220px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">Sin imagen (tablero de color)</span>'}
+        <button class="small" id="chImg">Elegir…</button>${B.image ? '<button class="small danger" id="chImgClear">Quitar</button>' : ''}</div></div>
+      <div><label>Ajuste de la imagen</label><select id="chFit"><option value="fill" ${B.fit !== 'contain' ? 'selected' : ''}>Ocupa todo el tablero</option><option value="contain" ${B.fit === 'contain' ? 'selected' : ''}>Mantener proporción</option></select></div>
+      <div><label>Color del tablero (sin imagen)</label><input type="color" id="chColor" value="${esc(B.color && B.color.startsWith('#') ? B.color : '#0f2a1d')}" /></div>
+      <div><label>Redondeo (${B.radius ?? 26} px)</label><input type="range" id="chRadius" min="0" max="80" value="${B.radius ?? 26}" /></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="chBorder" style="width:auto" ${B.border !== false ? 'checked' : ''} /> Borde y sombra del tablero</label>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="chHide" style="width:auto" ${C.landscape?.board?.hidden && C.portrait?.board?.hidden ? 'checked' : ''} /> Sin tablero (botones sueltos)</label>
+    </div>
+    <div class="row"><button id="chSave">Guardar tablero</button><span class="muted">Consejo: con el tablero sin imagen y sin borde, los botones flotan sobre el fondo del juego.</span></div></div>`;
+}
+
+function bindCustomHudCard(v) {
+  if (!$('#chCard', v)) return;
+  $$('[data-hedit]', v).forEach((b) => b.addEventListener('click', guard(() => openHudEditor(b.dataset.hedit))));
+  $$('[data-hreset]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    if (!confirm(`¿Volver a la disposición por defecto en ${b.dataset.hreset === 'portrait' ? 'celular' : 'PC'}?`)) return;
+    await patchDraft([{ op: 'set', path: `theme.hud.custom.${b.dataset.hreset}`, value: null }], 'Disposición restablecida');
+  })));
+  $('#chImg', v).addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (url) { await patchDraft([{ op: 'set', path: 'theme.hud.custom.board.image', value: url }], 'Imagen del tablero aplicada'); renderTab(); }
+  }));
+  $('#chImgClear', v)?.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hud.custom.board.image', value: null }], 'Imagen del tablero quitada'); renderTab(); }));
+  $('#chSave', v).addEventListener('click', guard(async () => {
+    const hide = $('#chHide', v).checked;
+    await patchDraft([
+      { op: 'merge', path: 'theme.hud.custom.board', value: { fit: $('#chFit', v).value, color: $('#chColor', v).value, radius: Number($('#chRadius', v).value), border: $('#chBorder', v).checked } },
+      { op: 'merge', path: 'theme.hud.custom.landscape.board', value: { hidden: hide } },
+      { op: 'merge', path: 'theme.hud.custom.portrait.board', value: { hidden: hide } },
+    ], 'Tablero guardado');
+  }));
+}
+
+/** Editor visual: abre el borrador en modo edición (PC 1280×720 o celular 390×844) y guarda lo que llega del juego. */
+async function openHudEditor(orientation) {
+  const s = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/preview-session`, { method: 'POST' });
+  const W = orientation === 'portrait' ? 390 : 1280, H = orientation === 'portrait' ? 844 : 720;
+  const wrap = document.createElement('div');
+  wrap.className = 'heditor';
+  wrap.innerHTML = `<div class="hebar"><b>Editor de botonera · ${orientation === 'portrait' ? 'Celular' : 'PC'}</b>
+      <span class="muted">Arrastra, usa la rueda o − / + para el tamaño, flechas para mover fino. «💾 Guardar» (arriba en el juego) guarda en el borrador.</span>
+      <button class="ghost" data-close>Cerrar</button></div>
+    <div class="hestage"><div class="heframe" style="width:${W}px;height:${H}px"><iframe src="/play/${encodeURIComponent(S.gameId)}?token=${encodeURIComponent(s.token)}&edit=1" style="width:${W}px;height:${H}px;border:0" allow="autoplay"></iframe></div></div>`;
+  document.body.appendChild(wrap);
+  const fit = () => {
+    const st = $('.hestage', wrap);
+    const k = Math.min((st.clientWidth - 20) / W, (st.clientHeight - 20) / H, 1);
+    $('.heframe', wrap).style.transform = `scale(${k})`;
+    $('.heframe', wrap).style.margin = `${Math.max(0, (st.clientHeight - H * k) / 2)}px auto 0`;
+    $('.heframe', wrap).style.width = `${W}px`;
+    $('.heframe', wrap).style.transformOrigin = 'top left';
+    $('.heframe', wrap).style.marginLeft = `${Math.max(0, (st.clientWidth - W * k) / 2)}px`;
+  };
+  fit();
+  window.addEventListener('resize', fit);
+  const onMsg = async (e) => {
+    if (e.data?.type !== 'hud-layout' || e.source !== $('iframe', wrap)?.contentWindow) return;
+    try {
+      await patchDraft([{ op: 'set', path: `theme.hud.custom.${e.data.orientation}`, value: e.data.layout }], `Botonera guardada (${e.data.orientation === 'portrait' ? 'celular' : 'PC'})`);
+    } catch (err) { toast(err.message, true); }
+  };
+  window.addEventListener('message', onMsg);
+  $('[data-close]', wrap).addEventListener('click', () => { window.removeEventListener('message', onMsg); window.removeEventListener('resize', fit); wrap.remove(); renderTab(); });
+}
+
 // ---- Selector de interfaz al crear un juego ----
 function uiPicker() {
   return `<div><label>Interfaz</label><div class="ui-grid small">${UIS.map(([k, n, , pal], i) => `<button type="button" class="ui-tile ${i === 0 ? 'on' : ''}" data-pick="${k}">${uiMock(k, pal)}<b>${n}</b></button>`).join('')}</div>
@@ -268,17 +343,21 @@ function openPicker(title, html, onMount) {
   onMount?.(wrap, close);
 }
 
-async function pickAsset(kind) {
-  const list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=${kind}`);
+/** Elegir o subir un asset. kind: image | sound | font; con { animated: true } también acepta GIF y video (fondos). */
+async function pickAsset(kind, { animated = false } = {}) {
+  let list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=${kind}`);
+  if (animated) list = [...list, ...(await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=video`))];
+  const accept = { image: `image/png,image/jpeg,image/webp,image/svg+xml,image/gif${animated ? ',video/mp4,video/webm' : ''}`, sound: 'audio/mpeg,audio/wav,audio/ogg', font: '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf' }[kind];
+  const title = { image: animated ? 'Elegir imagen, GIF o video' : 'Elegir imagen', sound: 'Elegir sonido', font: 'Elegir tipografía' }[kind];
   return new Promise((resolve) => {
-    openPicker(kind === 'image' ? 'Elegir imagen' : 'Elegir sonido', `
-      <div class="row" style="margin-bottom:12px"><input type="file" id="pkUpload" accept="${kind === 'image' ? 'image/png,image/jpeg,image/webp,image/svg+xml' : 'audio/mpeg,audio/wav,audio/ogg'}" /></div>
+    openPicker(title, `
+      <div class="row" style="margin-bottom:12px"><input type="file" id="pkUpload" accept="${accept}" />${animated ? '<span class="muted">GIF animado o video MP4/WebM (hasta 60 MB; mejor cortos y livianos, en bucle).</span>' : ''}</div>
       <div class="gallery">${list.map((a) => assetTile(a, true)).join('') || '<p class="muted">Aún no hay assets. Sube uno o pídeselo a los agentes.</p>'}</div>`, (root, close) => {
-      $$('.tile', root).forEach((t) => t.addEventListener('click', (e) => { if (e.target.tagName === 'AUDIO') return; close(); resolve(t.dataset.url); }));
+      $$('.tile', root).forEach((t) => t.addEventListener('click', (e) => { if (e.target.tagName === 'AUDIO') return; close(); resolve(kind === 'font' ? list.find((x) => x.url === t.dataset.url) : t.dataset.url); }));
       $('#pkUpload', root).addEventListener('change', guard(async (e) => {
         const a = await uploadFile(e.target.files[0], kind);
         close();
-        resolve(a.url);
+        resolve(kind === 'font' ? a : a.url);
       }));
     });
   });
@@ -292,10 +371,18 @@ async function uploadFile(file, kind) {
 }
 
 function assetTile(a, selectable = false) {
-  const media = a.kind === 'image' ? `<img src="${esc(a.url)}" loading="lazy" alt="" />` : `<audio controls preload="none" src="${esc(a.url)}"></audio>`;
+  const media = a.kind === 'image' ? `<img src="${esc(a.url)}" loading="lazy" alt="" />`
+    : a.kind === 'video' ? `<video src="${esc(a.url)}" muted loop autoplay playsinline style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px"></video>`
+      : a.kind === 'font' ? `<div style="font:28px '${esc(fontFamilyOf(a))}';padding:18px 6px;text-align:center"><style>@font-face{font-family:'${esc(fontFamilyOf(a))}';src:url('${esc(a.url)}')}</style>Aa Bb 123</div>`
+        : `<audio controls preload="none" src="${esc(a.url)}"></audio>`;
   return `<div class="tile" data-url="${esc(a.url)}" data-id="${esc(a.id)}">${media}
     <div class="p" title="${esc(a.prompt)}">${esc(a.prompt || a.filename)}</div>
     <div class="muted">${esc(a.provider)} · ${esc(a.created_at?.slice(0, 16))}${selectable ? '' : ` · <code>${esc(a.id)}</code>`}</div></div>`;
+}
+
+/** Nombre de familia para una tipografía subida (a partir del nombre del archivo). */
+function fontFamilyOf(a) {
+  return String(a.prompt || a.filename || 'Fuente').replace(/\.(woff2?|ttf|otf)$/i, '').replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Fuente propia';
 }
 
 // ------------------------------------------------------------------ Pestaña: Agentes
@@ -514,6 +601,7 @@ const UIS = [
   ['brasa', 'Brasa', 'Metal forjado y fuego', { primary: '#ff5a1f', accent: '#ffc247', panel: '#1a0805', text: '#fff4e6' }],
   ['real', 'Real', 'Oro, fichas de casino y monedas', { primary: '#b8860b', accent: '#ffd873', panel: '#120d05', text: '#fff8e1' }],
   ['arcade', 'Arcade', 'Gabinete retro, LED y botones gordos', { primary: '#ff3b3b', accent: '#39ff88', panel: '#0a0a12', text: '#ffffff' }],
+  ['custom', 'Diseño libre', 'Mueve y escala cada botón y el tablero (PC y celular)', null],
 ];
 
 /** Miniatura dibujada con CSS de cada interfaz (para elegir de un vistazo). */
@@ -525,6 +613,14 @@ function uiMock(key, pal) {
     background:${key === 'cristal' ? 'rgba(255,255,255,.14)' : key === 'arcade' ? '#07070d' : 'rgba(0,0,0,.7)'};border-radius:${key === 'cristal' ? 6 : 0}px;${key === 'neon' ? `border-bottom:1px solid ${P.primary};box-shadow:0 0 6px ${P.primary}` : key === 'arcade' ? `border-bottom:2px solid ${P.primary}` : ''}"></div>`;
   const side = ['pill', 'classic'].includes(key) ? '' : `<div style="position:absolute;${key === 'cristal' ? 'left:3%' : 'right:3%'};top:24%;width:${key === 'cristal' ? 7 : 13}%;display:flex;flex-direction:column;gap:3px">
     ${'<i style="height:8px;border-radius:2px;background:rgba(255,255,255,.18)"></i>'.repeat(4)}</div>`;
+  if (key === 'custom') {
+    const bs = (x, y, d, r = '50%', c = P.primary) => `<i style="position:absolute;left:${x}%;top:${y}%;width:${d}px;height:${d}px;transform:translate(-50%,-50%);border-radius:${r};background:${c};box-shadow:0 0 0 1px ${P.accent}88"></i>`;
+    return `<div style="position:relative;width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:radial-gradient(#1d3b2a,#06120b)">${grid}
+      <div style="position:absolute;left:5%;right:5%;bottom:5%;height:17%;border-radius:8px;background:linear-gradient(#0f3d28,#062014);border:1px solid ${P.accent}88"></div>
+      ${bs(10, 86, 8, '50%', '#888')}${bs(26, 86, 12)}${bs(35, 86, 12)}<i style="position:absolute;left:44%;top:86%;width:16px;height:10px;transform:translate(-50%,-50%);border-radius:99px;background:${P.accent}"></i>
+      ${bs(50, 84, 22, '50%', P.accent)}${bs(62, 86, 12)}${bs(71, 86, 12)}${bs(90, 86, 8, '50%', '#888')}
+      <i style="position:absolute;left:18%;top:24%;font:700 9px system-ui;color:#9fe3ff;font-style:normal">✥ mover</i></div>`;
+  }
   const spinStyle = {
     neon: `border-radius:50%;background:${P.primary};box-shadow:0 0 8px ${P.primary},0 0 0 2px ${P.accent}`,
     cristal: `border-radius:50%;background:rgba(255,255,255,.3);box-shadow:0 0 0 2px ${P.accent}`,
@@ -548,8 +644,10 @@ async function tabDesign(v) {
   const p = t.palette || {};
   const B = t.buttons || {};
   const color = (k, label) => `<div><label>${label}</label><input type="color" data-pal="${k}" value="${esc(p[k] || '#000000')}" /></div>`;
-  const imgField = (k, label) => `<div><label>${label}</label><div class="row">
-    ${t[k] ? `<img src="${esc(t[k])}" style="height:54px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
+  const ANIM = ['background', 'backgroundMobile', 'reelsBackground'];
+  const thumb = (u) => (/\.(mp4|webm)(\?|$)/i.test(u) ? `<video src="${esc(u)}" muted loop autoplay playsinline style="height:54px;border-radius:6px;background:#0006"></video>` : `<img src="${esc(u)}" style="height:54px;border-radius:6px;background:#0006" />`);
+  const imgField = (k, label) => `<div><label>${label}${ANIM.includes(k) ? ' <span class="muted">(imagen, GIF o video)</span>' : ''}</label><div class="row">
+    ${t[k] ? thumb(t[k]) : '<span class="muted">Sin imagen</span>'}
     <button class="small" data-img="${k}">Elegir…</button>${t[k] ? `<button class="small danger" data-clear="${k}">Quitar</button>` : ''}</div></div>`;
   const curUi = t.hud?.layout || 'pill';
   const isTableGame = engineInfo(S.game.engine).kind === 'table';
@@ -558,11 +656,13 @@ async function tabDesign(v) {
       <p class="muted">Elige cómo se ve y se ordena todo alrededor de los rodillos: saldo, fichas de apuesta, botón GIRAR, menú y efectos de premio. Funciona en PC y celular.</p>
       <div class="ui-grid">${UIS.map(([k, n, d, pal]) => `<button class="ui-tile ${curUi === k ? 'on' : ''}" data-ui="${k}">${uiMock(k, curUi === k ? (t.palette || pal) : pal)}<b>${n}</b><span class="muted">${d}</span></button>`).join('')}</div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="uiPal" style="width:auto" checked /> Aplicar también los colores sugeridos de la interfaz (luego puedes cambiarlos en Paleta)</label></div>`}
+    ${!isTableGame && curUi === 'custom' ? customHudCard(t) : ''}
     <div class="card stack"><h3 style="margin:0">Identidad</h3>
       <div class="grid2">
         <div><label>Nombre del juego</label><input id="dName" value="${esc(S.game.draft.name)}" /></div>
         <div><label>Título visible</label><input id="dTitle" value="${esc(t.title)}" /></div>
-        <div><label>Tipografía (Google Fonts)</label><input id="dFont" value="${esc(t.font)}" placeholder="Bungee, Cinzel Decorative, Orbitron…" /></div>
+        <div><label>Tipografía del juego ${t.fontUrl ? '<span class="badge ok">archivo propio</span>' : '(Google Fonts)'}</label><input id="dFont" value="${esc(t.font)}" placeholder="Bungee, Cinzel Decorative, Orbitron…" ${t.fontUrl ? 'readonly' : ''} />
+          <div class="row" style="margin-top:6px"><button class="small" data-fontup="theme">Subir tipografía…</button>${t.fontUrl ? '<button class="small danger" data-fontclear="theme">Quitar archivo</button>' : ''}</div></div>
         <div><label>Color de fondo</label><input type="color" id="dBg" value="${esc(t.backgroundColor || '#000000')}" /></div>
       </div></div>
     <div class="card stack"><h3 style="margin:0">Paleta</h3><div class="grid2">
@@ -581,6 +681,9 @@ async function tabDesign(v) {
       <div><label>Opacidad de las celdas</label><input id="lAlpha" type="range" min="0" max="1" step="0.05" value="${t.cellAlpha ?? 0.82}" /></div>
       <div><label>Borde de las celdas</label><div class="row"><input id="lBorder" type="color" value="${esc(t.cellBorder && t.cellBorder !== 'none' ? t.cellBorder : (p.accent || '#ffd460'))}" style="width:70px" /><label style="margin:0"><input id="lNoBorder" type="checkbox" style="width:auto" ${t.cellBorder === 'none' ? 'checked' : ''} /> sin borde</label></div></div>
       <div><label>Color del marco</label><input id="lFrame" type="color" value="${esc(t.frameColor || p.accent || '#ffd460')}" /></div>
+      <div><label>Marco (imagen)</label><select id="lFrameLayer"><option value="back" ${t.frameLayer !== 'front' ? 'selected' : ''}>Detrás de los rodillos</option><option value="front" ${t.frameLayer === 'front' ? 'selected' : ''}>Delante de los rodillos</option></select>
+        <label class="row" style="gap:6px;margin:6px 0 0;color:var(--text)"><input type="checkbox" id="lFrameCut" style="width:auto" ${t.frameCut !== false ? 'checked' : ''} /> Recortar el centro del marco (si la imagen no es transparente)</label></div>
+      <div><label>Tamaño del marco (<span id="lFrameScaleV">${Math.round((t.frameScale ?? 1.12) * 100)}</span> %)</label><input id="lFrameScale" type="range" min="0.9" max="1.6" step="0.01" value="${t.frameScale ?? 1.12}" /></div>
       <div><label>Frase bajo los rodillos (celular)</label><input id="lTag" value="${esc(t.tagline || '')}" placeholder="Ej.: ¡El golpe continúa!" /></div>
     </div></div>
     <div class="card stack"><h3 style="margin:0">Botonera</h3><div class="grid2">
@@ -588,6 +691,8 @@ async function tabDesign(v) {
       <div><label>Color de la botonera</label><input id="hBar" type="color" value="${esc((t.hud?.barColor || '').startsWith('#') ? t.hud.barColor : '#0a080c')}" /></div>
       <div><label>Borde de la botonera</label><input id="hBorder" type="color" value="${esc(t.hud?.barBorder || p.accent || '#ffd460')}" /></div>
       <div><label>Tamaño del botón GIRAR (<span id="hSpinV">${t.hud?.spinSize || 84}</span> px)</label><input id="hSpin" type="range" min="56" max="130" step="2" value="${t.hud?.spinSize || 84}" /></div>
+      <div><label>Tipografía de la botonera ${t.hud?.fontUrl ? '<span class="badge ok">archivo propio</span>' : ''}</label><input id="hFont" value="${esc(t.hud?.font || '')}" placeholder="La del juego" ${t.hud?.fontUrl ? 'readonly' : ''} />
+        <div class="row" style="margin-top:6px"><button class="small" data-fontup="hud">Subir tipografía…</button>${t.hud?.fontUrl ? '<button class="small danger" data-fontclear="hud">Quitar archivo</button>' : ''}</div></div>
       <div><label>Tamaño general de la interfaz (<span id="hScaleV">${Math.round((t.hud?.scale || 1) * 100)}</span> %)</label><input id="hScale" type="range" min="0.8" max="1.4" step="0.05" value="${t.hud?.scale || 1}" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
     </div></div>
@@ -621,7 +726,7 @@ async function tabDesign(v) {
     await patchDraft(ops, `Interfaz: ${UIS.find((x) => x[0] === k)[1]}. Mírala en ▶ Vista previa`);
     renderTab();
   })));
-  for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x], ['#hScale', '#hScaleV', (x) => Math.round(x * 100)]]) {
+  for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x], ['#hScale', '#hScaleV', (x) => Math.round(x * 100)], ['#lFrameScale', '#lFrameScaleV', (x) => Math.round(x * 100)]]) {
     $(inp, v).addEventListener('input', (e) => { $(out, v).textContent = fmt(Number(e.target.value)); });
   }
   $$('[data-bimg]', v).forEach((b) => b.addEventListener('click', guard(async () => {
@@ -635,13 +740,29 @@ async function tabDesign(v) {
     await patchDraft(ops); renderTab();
   })));
   $$('[data-img]', v).forEach((b) => b.addEventListener('click', guard(async () => {
-    const url = await pickAsset('image');
+    const url = await pickAsset('image', { animated: ANIM.includes(b.dataset.img) });
     if (url) { await patchDraft([{ op: 'set', path: `theme.${b.dataset.img}`, value: url }]); renderTab(); }
   })));
   $$('[data-clear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     await patchDraft([{ op: 'set', path: `theme.${b.dataset.clear}`, value: null }]); renderTab();
   })));
   bindDiceCard(v);
+  bindCustomHudCard(v);
+  $$('[data-fontup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const a = await pickAsset('font');
+    if (!a) return;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=font`)).find((x) => x.url === a) : a;
+    const fam = fontFamilyOf(asset || { filename: 'Fuente propia' });
+    const url = asset?.url || a;
+    const base = b.dataset.fontup === 'hud' ? 'theme.hud' : 'theme';
+    await patchDraft([{ op: 'set', path: `${base}.font`, value: fam }, { op: 'set', path: `${base}.fontUrl`, value: url }], `Tipografía «${fam}» aplicada`);
+    renderTab();
+  })));
+  $$('[data-fontclear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const base = b.dataset.fontclear === 'hud' ? 'theme.hud' : 'theme';
+    await patchDraft([{ op: 'set', path: `${base}.fontUrl`, value: null }, ...(base === 'theme.hud' ? [{ op: 'set', path: 'theme.hud.font', value: null }] : [])], 'Tipografía quitada');
+    renderTab();
+  })));
   $('#dSave').addEventListener('click', guard(async () => {
     const palette = Object.fromEntries($$('[data-pal]', v).map((i) => [i.dataset.pal, i.value]));
     await patchDraft([
@@ -656,8 +777,11 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.cellAlpha', value: Number($('#lAlpha').value) },
       { op: 'set', path: 'theme.cellBorder', value: $('#lNoBorder').checked ? 'none' : $('#lBorder').value },
       { op: 'set', path: 'theme.frameColor', value: $('#lFrame').value },
+      { op: 'set', path: 'theme.frameLayer', value: $('#lFrameLayer').value },
+      { op: 'set', path: 'theme.frameScale', value: Number($('#lFrameScale').value) },
+      { op: 'set', path: 'theme.frameCut', value: $('#lFrameCut').checked },
       { op: 'set', path: 'theme.tagline', value: $('#lTag').value.trim() || null },
-      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value) } },
+      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
       ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
@@ -966,6 +1090,33 @@ async function tabMath(v) {
   }));
 }
 
+// ---- Frecuencia del bonus ----
+function featureCard(v) {
+  const d = S.game.draft;
+  if (engineInfo(d.engine).kind === 'table') return;
+  const hasTrigger = (d.symbols || []).some((x) => ['scatter', 'wildscatter', 'coin'].includes(x.type));
+  if (!hasTrigger) return;
+  const fe = S.game.math?.featureEvery;
+  const el = document.createElement('div');
+  el.className = 'card stack';
+  el.innerHTML = `<h3 style="margin:0">🎁 Frecuencia del bonus</h3>
+    <p class="muted">Hoy el bonus sale en promedio cada <b>${fe ? `~${fe.toLocaleString('es')} giros` : '— giros (simula para verlo)'}</b>.
+      Referencia de mercado: volatilidad media 100–200 giros, alta 200–400. Más frecuente = más entretenido; los pagos se reajustan solos para mantener el RTP.</p>
+    <div class="row" style="align-items:end"><div><label>Bonus cada ~</label><input id="feEvery" type="number" min="20" max="5000" step="10" value="${fe && fe < 400 ? fe : 150}" style="width:130px" /></div>
+      <span class="muted" style="margin-bottom:10px">giros</span><button class="primary" id="feGo">Calibrar</button><span id="feOut" class="muted"></span></div>
+    <p class="muted" style="margin:0">Tarda alrededor de un minuto. Cambia el borrador: revisa en ▶ Vista previa y publica.</p>`;
+  v.appendChild(el);
+  $('#feGo', el).addEventListener('click', guard(async () => {
+    const btn = $('#feGo', el);
+    $('#feOut', el).textContent = 'Calibrando… (≈1 minuto)';
+    const r = await busy(btn, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/feature-frequency`, { method: 'POST', body: { every: Number($('#feEvery', el).value) } }));
+    $('#feOut', el).textContent = `Listo: bonus cada ~${r.featureEvery} giros · RTP ${pct(r.final.rtp)}`;
+    await refreshGame();
+    toast(`Bonus cada ~${r.featureEvery} giros con RTP ${pct(r.final.rtp)}. Publica para aplicarlo.`);
+    reloadPreview();
+  }));
+}
+
 // ---- Apuestas por moneda (bet.byCurrency) ----
 const CURRENCY_LIST = ['USD', 'EUR', 'GBP', 'CAD', 'ARS', 'BRL', 'MXN', 'CLP', 'COP', 'PEN', 'UYU', 'PYG', 'BOB', 'VES', 'DOP', 'CRC', 'GTQ', 'TRY', 'INR', 'JPY', 'CNY', 'KRW', 'PHP', 'ZAR', 'NGN', 'KES', 'AUD', 'NZD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'USDT'];
 const niceRound = (x) => { if (!(x > 0)) return 1; const p = 10 ** Math.floor(Math.log10(x)); const m = x / p; return Math.max(1, Math.round((m < 1.5 ? 1 : m < 2.25 ? 2 : m < 3.5 ? 2.5 : m < 7.5 ? 5 : 10) * p)); };
@@ -1037,10 +1188,10 @@ function currencyCard(v) {
 // ------------------------------------------------------------------ Pestaña: Assets
 async function tabAssets(v) {
   const list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}`);
-  v.innerHTML = `<div class="stack"><div class="row"><label style="margin:0">Subir:</label><input type="file" id="aUp" multiple style="max-width:340px" accept="image/*,audio/*" /></div>
+  v.innerHTML = `<div class="stack"><div class="row"><label style="margin:0">Subir:</label><input type="file" id="aUp" multiple style="max-width:340px" accept="image/*,audio/*,video/mp4,video/webm,.woff2,.woff,.ttf,.otf" /></div>
     <div class="gallery">${list.map((a) => assetTile(a)).join('') || '<p class="muted">Sin assets todavía.</p>'}</div></div>`;
   $('#aUp').addEventListener('change', guard(async (e) => {
-    for (const f of e.target.files) await uploadFile(f, f.type.startsWith('audio/') ? 'sound' : 'image');
+    for (const f of e.target.files) await uploadFile(f, f.type.startsWith('audio/') ? 'sound' : f.type.startsWith('video/') ? 'video' : /\.(woff2?|ttf|otf)$/i.test(f.name) ? 'font' : 'image');
     toast('Archivos subidos');
     renderTab();
   }));

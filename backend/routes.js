@@ -11,7 +11,7 @@ import * as agents from './agents/runner.js';
 import * as operators from './services/operators.js';
 import { ensureAssignedVariants, buildVariant, listVariants } from './services/variants.js';
 import { engineList, getEngine, LINE_ENGINES } from './math/index.js';
-import { simulateAsync, tuneAsync, resizeAsync } from './math/worker.js';
+import { simulateAsync, tuneAsync, resizeAsync, featureAsync } from './math/worker.js';
 import { maxLines } from './math/common.js';
 import { all, one } from './db.js';
 
@@ -81,7 +81,7 @@ export function registerRoutes(r) {
     spinLimit(token || clientIp(req));
     const body = await readJson(req);
     const out = await rounds.playRound(token, {
-      bet: Number(body.bet), mode: body.mode || 'base', clientRoundId: body.clientRoundId ? String(body.clientRoundId).slice(0, 64) : null,
+      bet: Number(body.bet), mode: body.mode || 'base', clientRoundId: body.clientRoundId ? String(body.clientRoundId).slice(0, 64) : null, force: body.force === true,
     });
     json(res, out);
   });
@@ -197,6 +197,14 @@ export function registerRoutes(r) {
     games.saveDraft(params.id, t.config, actor);
     json(res, { history: t.history, final: t.final, buy: t.buy, buyOptions: t.buyOptions });
   }));
+  // Frecuencia del bonus: activadores en las tiras + reajuste del RTP (en el borrador).
+  r.post('/api/admin/games/:id/feature-frequency', A(async (req, res, { params, actor }) => {
+    const body = await readJson(req);
+    const c = games.getDraft(params.id);
+    const t = await featureAsync(c, { every: Number(body.every), spins: 200_000 });
+    games.saveDraft(params.id, t.config, actor);
+    json(res, { featureEvery: t.featureEvery, history: t.history, final: t.final, buy: t.buy, buyOptions: t.buyOptions });
+  }));
   // Tamaño de la cuadrícula y líneas de pago (reajusta pagos y RTP en el borrador).
   r.get('/api/admin/games/:id/grid', A((req, res, { params }) => {
     const c = games.getDraft(params.id);
@@ -226,7 +234,7 @@ export function registerRoutes(r) {
   r.get('/api/admin/assets', (req, res) => { assetScope(req); json(res, assets.listAssets({ gameId: req.query.gameId, kind: req.query.kind, limit: Number(req.query.limit) || 100 })); });
   r.post('/api/admin/assets', async (req, res) => {
     const actor = assetScope(req);
-    const buf = await readBody(req, 20 * 1024 * 1024);
+    const buf = await readBody(req, 60 * 1024 * 1024); // videos de fondo hasta 60 MB
     if (!buf.length) throw new HttpError(400, 'Archivo vacío');
     const a = assets.saveAsset(buf, { gameId: req.query.gameId || null, kind: req.query.kind, mime: req.headers['content-type'], provider: req.query.reference ? 'referencia' : 'upload', prompt: req.query.name || null, meta: req.query.reference ? { reference: true } : null, actor });
     json(res, a, 201);

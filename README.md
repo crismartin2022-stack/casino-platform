@@ -86,6 +86,14 @@ Cada tragamonedas puede usar una de 7 interfaces (Diseño → Interfaz del juego
 **Real** (oro, fichas de casino y lluvia de monedas) y **Arcade** (gabinete retro con LED).
 Todas toman los colores de la paleta del juego y funcionan en PC y celular; los agentes también pueden elegirlas.
 
+### Diseño libre, medios y pruebas del bonus
+
+- **Diseño libre** (Diseño → Interfaz → Diseño libre): editor visual para arrastrar y escalar cada botón, marcador y el tablero de la botonera, por separado en PC y celular. Los logos conservan su proporción; el tablero admite imagen (se puede quitar), color, redondeo y borde.
+- **Marcos** delante o detrás de los rodillos, con tamaño ajustable y recorte automático del centro.
+- **Fondos animados**: GIF o video (MP4/WebM) para el fondo de PC, de celular y detrás de los rodillos. **Tipografías propias** (.ttf, .otf, .woff, .woff2) para el juego y para la botonera.
+- **Forzar bonus** en la vista previa (solo borradores) para probar sonidos y animaciones del bonus.
+- **Frecuencia del bonus** (Matemática): "bonus cada ~N giros" recalibra los activadores y reajusta el RTP.
+
 ## Monedas
 
 Las fichas de cada juego se definen por moneda (Matemática → Apuestas por moneda, con sugerencia automática a partir de un tipo de cambio)

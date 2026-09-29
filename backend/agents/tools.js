@@ -3,7 +3,7 @@
 import { getDraft, patchDraft, saveDraft } from '../services/games.js';
 import { saveAsset, readAssetBytes, listAssets } from '../services/assets.js';
 import { veniceGenerate, veniceEdit, veniceRemoveBackground, veniceUpscale, elevenSoundEffect, elevenMusic } from '../ai/providers.js';
-import { simulateAsync, tuneAsync, resizeAsync } from '../math/worker.js';
+import { simulateAsync, tuneAsync, resizeAsync, featureAsync } from '../math/worker.js';
 import { ENGINES, validateConfig } from '../math/index.js';
 import { HttpError } from '../lib/http.js';
 
@@ -132,6 +132,10 @@ const T = {
     description: 'Escala la tabla de pagos para alcanzar el RTP objetivo y lo guarda en el borrador. En Bonus Buy también recalcula el precio de compra.',
     input_schema: { type: 'object', properties: { target: { type: 'number', description: 'Ej. 0.96' } } },
   },
+  set_feature_frequency: {
+    description: 'Hace que el bonus (giros gratis / Hold & Win) salga en promedio cada N giros: cambia cuántos activadores (scatter, libro, moneda) hay en las tiras y reajusta los pagos al RTP objetivo. Referencia de mercado: volatilidad media 100-200, alta 200-400. Tarda ~1 minuto.',
+    input_schema: { type: 'object', properties: { every: { type: 'integer', description: 'Giros promedio entre bonus, 20-5000. Ej. 150' } }, required: ['every'] },
+  },
   resize_grid: {
     description: 'Cambia la cantidad de rodillos (reels, verticales), filas (rows, horizontales) y/o líneas de pago (lines, solo Bonus Buy y Hold & Win). Reconstruye tiras y tabla de pagos y reajusta el RTP al objetivo automáticamente. Límites: rodillos 3-8 (Megaways y Colossal 4-8), filas 3-6 (Megaways no usa filas fijas).',
     input_schema: { type: 'object', properties: { reels: { type: 'integer' }, rows: { type: 'integer' }, lines: { type: 'integer' } } },
@@ -158,7 +162,7 @@ export const AGENT_TOOLS = {
   designer: ['get_game_config', 'update_config', 'list_assets', 'view_asset'],
   artist: ['get_game_config', 'list_assets', 'view_asset', 'generate_image', 'edit_image', 'remove_background', 'upscale_image', 'update_config'],
   sound: ['get_game_config', 'list_assets', 'generate_sound', 'generate_music', 'update_config'],
-  math: ['get_game_config', 'engine_info', 'simulate_rtp', 'tune_rtp', 'resize_grid', 'update_config'],
+  math: ['get_game_config', 'engine_info', 'simulate_rtp', 'tune_rtp', 'set_feature_frequency', 'resize_grid', 'update_config'],
 };
 
 export function toolDefs(agent) {
@@ -270,6 +274,17 @@ export async function runTool(name, input, ctx, agent) {
       saveDraft(ctx.gameId, tuned, `agent:${agent}`);
       ctx.emit('config_changed', { agent, ops: [{ path: 'symbols.*.pays', value: '(escalado)' }], reason: `RTP ajustado a ${target}` });
       return { history, final: { rtp: final.rtp, ci: [final.rtpLow, final.rtpHigh], hitFrequency: final.hitFrequency, featureEvery: final.featureEvery, volatility: final.volatility }, buy };
+    }
+
+    case 'set_feature_frequency': {
+      const c = getDraft(ctx.gameId);
+      const errs = validateConfig(c);
+      if (errs.length) return { error: 'Configuración inválida', details: errs };
+      ctx.emit('progress', { agent, message: `Calibrando el bonus para que salga cada ~${input.every} giros…` });
+      const r = await featureAsync(c, { every: input.every, spins: 200_000 });
+      saveDraft(ctx.gameId, r.config, `agent:${agent}`);
+      ctx.emit('config_changed', { agent, ops: [{ path: 'reels', value: '(activadores)' }, { path: 'symbols.*.pays', value: '(escalado)' }], reason: `Bonus cada ~${r.featureEvery} giros` });
+      return { featureEvery: r.featureEvery, history: r.history, final: { rtp: r.final.rtp, ci: [r.final.rtpLow, r.final.rtpHigh], hitFrequency: r.final.hitFrequency, volatility: r.final.volatility }, buy: r.buy };
     }
 
     case 'resize_grid': {
