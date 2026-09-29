@@ -8,7 +8,8 @@ import * as rounds from './services/rounds.js';
 import * as assets from './services/assets.js';
 import * as agents from './agents/runner.js';
 import { engineList, getEngine } from './math/index.js';
-import { simulateAsync, tuneAsync } from './math/worker.js';
+import { simulateAsync, tuneAsync, resizeAsync } from './math/worker.js';
+import { maxLines } from './math/common.js';
 import { all } from './db.js';
 
 const spinLimit = rateLimiter({ windowMs: 60_000, max: 240 });
@@ -145,6 +146,20 @@ export function registerRoutes(r) {
     const t = await tuneAsync(c, { target: c.rtpTarget, spins: 400_000 });
     games.saveDraft(params.id, t.config, actor);
     json(res, { history: t.history, final: t.final, buy: t.buy });
+  }));
+  // Tamaño de la cuadrícula y líneas de pago (reajusta pagos y RTP en el borrador).
+  r.get('/api/admin/games/:id/grid', A((req, res, { params }) => {
+    const c = games.getDraft(params.id);
+    const lined = ['bonus-buy', 'hold-win'].includes(c.engine);
+    const q = { reels: Number(req.query.reels) || c.grid.reels, rows: Number(req.query.rows) || c.grid.rows };
+    json(res, { grid: c.grid, lines: c.rules.lines ?? null, paysBy: lined ? 'lines' : 'ways', maxLines: lined ? maxLines(q.reels, q.rows) : null });
+  }));
+  r.post('/api/admin/games/:id/resize', A(async (req, res, { params, actor }) => {
+    const body = await readJson(req);
+    const c = games.getDraft(params.id);
+    const t = await resizeAsync(c, { reels: body.reels != null ? Number(body.reels) : undefined, rows: body.rows != null ? Number(body.rows) : undefined, lines: body.lines != null ? Number(body.lines) : undefined, spins: 300_000 });
+    games.saveDraft(params.id, t.config, actor);
+    json(res, { grid: t.config.grid, lines: t.config.rules.lines ?? null, maxLines: t.maxLines, history: t.history, final: t.final, buy: t.buy });
   }));
   // Vista previa: sesión demo que juega el BORRADOR.
   r.post('/api/admin/games/:id/preview-session', A((req, res, { params }) => json(res, wallets.createDemoSession(params.id, { source: 'draft' }), 201)));

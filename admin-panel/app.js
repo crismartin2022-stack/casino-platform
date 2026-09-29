@@ -379,9 +379,13 @@ function showUsage(u) {
 }
 
 // ------------------------------------------------------------------ Pestaña: Diseño
+const BUTTONS = [['spin', 'Girar', '↻'], ['auto', 'Automático', 'AUTO'], ['turbo', 'Turbo', '⚡'], ['sound', 'Sonido', '🔊'],
+  ['minus', 'Bajar apuesta', '−'], ['plus', 'Subir apuesta', '+'], ['info', 'Reglas', 'i'], ['buy', 'Comprar bonus', 'COMPRAR BONUS']];
+
 async function tabDesign(v) {
   const t = S.game.draft.theme || {};
   const p = t.palette || {};
+  const B = t.buttons || {};
   const color = (k, label) => `<div><label>${label}</label><input type="color" data-pal="${k}" value="${esc(p[k] || '#000000')}" /></div>`;
   const imgField = (k, label) => `<div><label>${label}</label><div class="row">
     ${t[k] ? `<img src="${esc(t[k])}" style="height:54px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
@@ -398,10 +402,60 @@ async function tabDesign(v) {
       ${color('primary', 'Principal (botón girar)')}${color('accent', 'Acento (marcos, premios)')}${color('panel', 'Panel inferior')}${color('text', 'Texto')}${color('reelBg', 'Fondo de rodillos')}
     </div></div>
     <div class="card stack"><h3 style="margin:0">Imágenes</h3><div class="grid2">
-      ${imgField('background', 'Fondo (16:9)')}${imgField('logo', 'Logo')}
+      ${imgField('background', 'Fondo PC (horizontal 16:9)')}${imgField('backgroundMobile', 'Fondo celular (vertical 9:16)')}
+      ${imgField('logo', 'Logo')}${imgField('reelsBackground', 'Fondo detrás de los rodillos')}
+      ${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}
     </div></div>
+    <div class="card stack"><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
+      <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
+      <div><label>Separación entre celdas (<span id="lGapV">${t.cellGap ?? 6}</span> px)</label><input id="lGap" type="range" min="0" max="16" step="1" value="${t.cellGap ?? 6}" /></div>
+      <div><label>Color de las celdas</label><input id="lCell" type="color" value="${esc(t.cellColor || p.reelBg || '#0f3460')}" /></div>
+      <div><label>Opacidad de las celdas</label><input id="lAlpha" type="range" min="0" max="1" step="0.05" value="${t.cellAlpha ?? 0.82}" /></div>
+      <div><label>Borde de las celdas</label><div class="row"><input id="lBorder" type="color" value="${esc(t.cellBorder && t.cellBorder !== 'none' ? t.cellBorder : (p.accent || '#ffd460'))}" style="width:70px" /><label style="margin:0"><input id="lNoBorder" type="checkbox" style="width:auto" ${t.cellBorder === 'none' ? 'checked' : ''} /> sin borde</label></div></div>
+      <div><label>Color del marco</label><input id="lFrame" type="color" value="${esc(t.frameColor || p.accent || '#ffd460')}" /></div>
+      <div><label>Frase bajo los rodillos (celular)</label><input id="lTag" value="${esc(t.tagline || '')}" placeholder="Ej.: ¡El golpe continúa!" /></div>
+    </div></div>
+    <div class="card stack"><h3 style="margin:0">Botonera</h3><div class="grid2">
+      <div><label>Disposición</label><select id="hLayout"><option value="pill" ${(t.hud?.layout || 'pill') === 'pill' ? 'selected' : ''}>Píldora centrada bajo los rodillos</option><option value="classic" ${t.hud?.layout === 'classic' ? 'selected' : ''}>Barra de ancho completo abajo</option></select></div>
+      <div><label>Color de la botonera</label><input id="hBar" type="color" value="${esc((t.hud?.barColor || '').startsWith('#') ? t.hud.barColor : '#0a080c')}" /></div>
+      <div><label>Borde de la botonera</label><input id="hBorder" type="color" value="${esc(t.hud?.barBorder || p.accent || '#ffd460')}" /></div>
+      <div><label>Tamaño del botón GIRAR (<span id="hSpinV">${t.hud?.spinSize || 84}</span> px)</label><input id="hSpin" type="range" min="56" max="130" step="2" value="${t.hud?.spinSize || 84}" /></div>
+    </div></div>
+    <div class="card stack"><h3 style="margin:0">Botones del juego</h3>
+      <div class="grid2">
+        <div><label>Forma</label><select id="bShape">${[['round', 'Redondos'], ['rounded', 'Esquinas suaves'], ['square', 'Cuadrados'], ['pill', 'Píldora']].map(([v, l]) => `<option value="${v}" ${(B.shape || 'round') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label>Estilo</label><select id="bStyle">${[['gradient', 'Degradado'], ['flat', 'Plano'], ['glass', 'Vidrio'], ['outline', 'Solo borde']].map(([v, l]) => `<option value="${v}" ${(B.style || 'gradient') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label>Tamaño (${Number(B.size || 1).toFixed(2)}×)</label><input id="bSize" type="range" min="0.8" max="1.4" step="0.05" value="${B.size || 1}" /></div>
+        <div><label>Color de botones pequeños</label><input id="bColor" type="color" value="${esc(B.color || '#333a55')}" /></div>
+        <div><label>Color del texto/icono</label><input id="bText" type="color" value="${esc(B.textColor || p.text || '#ffffff')}" /></div>
+      </div>
+      <table><thead><tr><th>Botón</th><th>Imagen</th><th>Icono o texto</th><th></th></tr></thead><tbody>
+      ${BUTTONS.filter(([k]) => k !== 'buy' || S.game.engine === 'bonus-buy').map(([k, l, def]) => {
+    const s = B[k] || {};
+    const img = s.image || (k === 'spin' ? t.spinButton : null);
+    return `<tr data-btn="${k}"><td>${l}</td>
+          <td>${img ? `<img src="${esc(img)}" style="height:40px;max-width:110px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">—</span>'}</td>
+          <td><input data-icon value="${esc(s.icon || '')}" placeholder="${esc(def)}" style="max-width:140px" /></td>
+          <td class="row"><button class="small" data-bimg>Imagen…</button>${img ? '<button class="small danger" data-bclear>Quitar imagen</button>' : ''}</td></tr>`;
+  }).join('')}
+      </tbody></table>
+      <p class="muted">Con imagen, el botón muestra la imagen tal cual. Sin imagen, usa la forma, el estilo, los colores y el icono. Pídele al agente 🖌 Artista “crea botones dorados estilo egipcio para todo el juego”.</p>
+    </div>
     <div class="row"><button class="primary" id="dSave">Guardar diseño</button><span class="muted">Consejo: en 🤖 Agentes puedes pedir “cambia el fondo por una selva de noche” y lo genera el Artista.</span></div>
   </div>`;
+  for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x]]) {
+    $(inp, v).addEventListener('input', (e) => { $(out, v).textContent = fmt(Number(e.target.value)); });
+  }
+  $$('[data-bimg]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (url) { await patchDraft([{ op: 'set', path: `theme.buttons.${b.closest('tr').dataset.btn}.image`, value: url }]); renderTab(); }
+  })));
+  $$('[data-bclear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.closest('tr').dataset.btn;
+    const ops = [{ op: 'set', path: `theme.buttons.${k}.image`, value: null }];
+    if (k === 'spin') ops.push({ op: 'set', path: 'theme.spinButton', value: null });
+    await patchDraft(ops); renderTab();
+  })));
   $$('[data-img]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const url = await pickAsset('image');
     if (url) { await patchDraft([{ op: 'set', path: `theme.${b.dataset.img}`, value: url }]); renderTab(); }
@@ -417,6 +471,16 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.font', value: $('#dFont').value },
       { op: 'set', path: 'theme.backgroundColor', value: $('#dBg').value },
       { op: 'merge', path: 'theme.palette', value: palette },
+      { op: 'set', path: 'theme.symbolScale', value: Number($('#lScale').value) },
+      { op: 'set', path: 'theme.cellGap', value: Number($('#lGap').value) },
+      { op: 'set', path: 'theme.cellColor', value: $('#lCell').value },
+      { op: 'set', path: 'theme.cellAlpha', value: Number($('#lAlpha').value) },
+      { op: 'set', path: 'theme.cellBorder', value: $('#lNoBorder').checked ? 'none' : $('#lBorder').value },
+      { op: 'set', path: 'theme.frameColor', value: $('#lFrame').value },
+      { op: 'set', path: 'theme.tagline', value: $('#lTag').value.trim() || null },
+      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value) } },
+      { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
+      ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
     loadGames();
   }));
@@ -492,9 +556,21 @@ async function tabMath(v) {
       <div><small>Frecuencia de premio</small><b>${pct(m.hitFrequency)}</b></div><div><small>Bonus cada</small><b>${m.featureEvery ? `1/${m.featureEvery}` : '—'}</b></div>
       <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${m.buy ? `<div><small>Compra</small><b>${m.buy.buyCost}× · ${pct(m.buy.rtp)}</b></div>` : ''}</div>` : '<p class="muted">Sin publicar.</p>'}
     </div>
+    <div class="card stack"><h3 style="margin:0">Tamaño de la cuadrícula${d.rules.lines != null ? ' y líneas' : ''}</h3>
+      <div class="row">
+        <div style="width:150px"><label>Rodillos (verticales)</label><input id="gReels" type="number" min="${['megaways', 'colossal-reels'].includes(d.engine) ? 4 : 3}" max="8" value="${d.grid.reels}" /></div>
+        ${d.engine === 'megaways' ? '<div class="muted" style="max-width:260px">En Megaways cada rodillo muestra de 2 a 7 filas al azar en cada giro.</div>'
+    : `<div style="width:150px"><label>Filas (horizontales)</label><input id="gRows" type="number" min="3" max="6" value="${d.grid.rows}" /></div>`}
+        ${d.rules.lines != null ? `<div style="width:170px"><label>Líneas de pago <span id="gMax" class="muted"></span></label><input id="gLines" type="number" min="1" max="100" value="${d.rules.lines}" /></div>` : ''}
+        <button class="primary" id="gApply">Aplicar y ajustar RTP</button>
+      </div>
+      <p class="muted">Ahora: <b>${d.grid.reels} × ${d.grid.rows ?? `${d.grid.rowsMin}–${d.grid.rowsMax}`}</b>${d.rules.lines != null ? ` · <b>${d.rules.lines} líneas</b>` : ` · paga por formas (${d.engine === 'megaways' ? 'hasta ' + (7 ** d.grid.reels).toLocaleString('es') : (d.grid.rows ** d.grid.reels).toLocaleString('es')} formas), sin líneas`}.
+      Al aplicar se reconstruyen los rodillos, se completa la tabla de pagos y se reajusta el RTP al objetivo (tarda entre 10 s y 1 min). Revisa la vista previa y publica.</p>
+    </div>
     <div class="card stack"><h3 style="margin:0">Borrador</h3>
       <div class="row">
-        <div style="width:160px"><label>RTP objetivo</label><input id="mTarget" type="number" step="0.001" min="0.85" max="0.985" value="${d.rtpTarget}" /></div>
+        <div style="width:160px"><label>RTP objetivo</label><input id="mTarget" type="number" step="0.001" min="0.85" max="1.10" value="${d.rtpTarget}" /><div class="muted">0.85 a 1.10 (85 %–110 %)</div></div>
+        <div id="rtpWarn" class="error" style="max-width:330px" ${d.rtpTarget > 1 ? '' : 'hidden'}>⚠ Por encima de 100 % el juego paga más de lo que recauda: pierdes dinero con cada apuesta. Úsalo solo para promociones o demo.</div>
         <div style="width:170px"><label>Giros a simular</label><select id="mSpins"><option>200000</option><option selected>500000</option><option>1000000</option><option>3000000</option></select></div>
         ${d.engine === 'bonus-buy' ? '<div style="width:150px"><label>Modo</label><select id="mMode"><option value="base">Juego base</option><option value="buy">Compra de bonus</option></select></div>' : ''}
         <button id="mSim">Simular</button><button class="primary" id="mTune">Ajustar RTP al objetivo</button>
@@ -513,6 +589,27 @@ async function tabMath(v) {
       <div><small>Giros</small><b>${s.spins.toLocaleString('es')}</b></div><div><small>Tiempo</small><b>${(s.ms / 1000).toFixed(1)} s</b></div></div>
       <p class="muted">Distribución: ${Object.entries(s.distribution).map(([k, x]) => `${k}: ${pct(x)}`).join(' · ')}</p>`;
   };
+  const updateMax = guard(async () => {
+    if (!$('#gLines')) return;
+    const q = new URLSearchParams({ reels: $('#gReels').value, rows: $('#gRows')?.value || '' });
+    const info = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/grid?${q}`);
+    $('#gMax').textContent = `(máx. ${info.maxLines})`;
+    $('#gLines').max = info.maxLines;
+  });
+  $('#gReels').addEventListener('change', updateMax);
+  $('#gRows')?.addEventListener('change', updateMax);
+  updateMax();
+  $('#gApply').addEventListener('click', guard(async (e) => {
+    const body = { reels: Number($('#gReels').value) };
+    if ($('#gRows')) body.rows = Number($('#gRows').value);
+    if ($('#gLines')) body.lines = Number($('#gLines').value);
+    const r = await busy(e.target, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/resize`, { method: 'POST', body }));
+    await refreshGame();
+    toast(`Cuadrícula ${r.grid.reels}×${r.grid.rows ?? 'variable'}${r.lines ? ` · ${r.lines} líneas` : ''} · RTP ${pct(r.final.rtp)}`);
+    reloadPreview();
+    renderTab();
+  }));
+  $('#mTarget').addEventListener('input', () => { $('#rtpWarn').hidden = !(Number($('#mTarget').value) > 1); });
   $('#mSim').addEventListener('click', guard(async (e) => {
     const s = await busy(e.target, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/simulate`, { method: 'POST', body: { spins: Number($('#mSpins').value), mode: $('#mMode')?.value || 'base' } }));
     showSim(s, 'Simulación del borrador');

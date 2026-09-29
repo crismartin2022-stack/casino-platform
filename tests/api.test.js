@@ -137,6 +137,35 @@ test('publicar rechaza un RTP fuera de tolerancia', async () => {
   assert.match(pub.body.error, /RTP simulado/);
 });
 
+test('cuadrícula: cambiar rodillos, filas y líneas reajusta el RTP del borrador', async () => {
+  const r = await req('/api/admin/games/bonus-buy/resize', { method: 'POST', headers: ADMIN, body: { reels: 6, rows: 4, lines: 30 } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.grid.reels, r.body.grid.rows, r.body.lines], [6, 4, 30]);
+  assert.ok(Math.abs(r.body.final.rtp - 0.96) < 0.03, `RTP ${r.body.final.rtp}`);
+  const { body: g } = await req('/api/admin/games/bonus-buy', { headers: ADMIN });
+  assert.equal(g.draft.reels.length, 6);
+  // La vista previa juega el borrador en 6x4
+  const { body: pv } = await req('/api/admin/games/bonus-buy/preview-session', { method: 'POST', headers: ADMIN });
+  const spin = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv.token}` }, body: { bet: 100 } });
+  assert.equal(spin.body.result.base.grid.length, 6);
+  assert.equal(spin.body.result.base.grid[0].length, 4);
+  const bad = await req('/api/admin/games/bonus-buy/resize', { method: 'POST', headers: ADMIN, body: { reels: 12 } });
+  assert.equal(bad.status, 400);
+});
+
+test('botones: el tema acepta forma, estilo e imágenes por botón', async () => {
+  const ops = [
+    { op: 'merge', path: 'theme.buttons', value: { shape: 'square', style: 'glass', size: 1.2 } },
+    { op: 'set', path: 'theme.buttons.spin.image', value: '/gen/symbol.svg?label=GO' },
+    { op: 'set', path: 'theme.buttons.auto.icon', value: '▶▶' },
+  ];
+  const r = await req('/api/admin/games/hold-win/draft', { method: 'PATCH', headers: ADMIN, body: { ops } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const { body: g } = await req('/api/admin/games/hold-win', { headers: ADMIN });
+  assert.equal(g.draft.theme.buttons.shape, 'square');
+  assert.equal(g.draft.theme.buttons.spin.image, '/gen/symbol.svg?label=GO');
+});
+
 test('operador seamless: firma HMAC, débito/crédito y reintento de créditos', async () => {
   const op = await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino X', walletMode: 'seamless', walletUrl: `http://127.0.0.1:${walletPort}/wallet` } });
   assert.equal(op.status, 201);

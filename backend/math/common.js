@@ -124,6 +124,80 @@ export const LINES_5x3 = [
   [1, 1, 0, 1, 1], [1, 1, 2, 1, 1], [0, 2, 0, 2, 0], [2, 0, 2, 0, 2], [0, 2, 2, 2, 0],
 ];
 
+/**
+ * Líneas de pago para cualquier cuadrícula. Para 5x3 devuelve exactamente las líneas clásicas
+ * (así las versiones ya publicadas siguen dando los mismos resultados).
+ * Para otros tamaños genera, en orden: filas rectas, V, V invertida, zigzags, escalones y ondas.
+ */
+export function generateLines(reels, rows, count = Infinity) {
+  const out = [];
+  const seen = new Set();
+  const add = (l) => {
+    const line = l.map((r) => Math.max(0, Math.min(rows - 1, r)));
+    const k = line.join(',');
+    if (!seen.has(k)) { seen.add(k); out.push(line); }
+  };
+  // En 5x3 las 20 primeras son siempre las clásicas (compatibilidad con versiones publicadas).
+  if (reels === 5 && rows === 3) for (const l of LINES_5x3) add(l);
+  const mid = Math.floor((rows - 1) / 2);
+  const tri = (c, amp) => amp * (1 - Math.abs((2 * c) / (reels - 1) - 1)); // 0 → amp → 0
+  // 1. Filas rectas, empezando por la central
+  const order = [mid, ...Array.from({ length: rows }, (_, i) => i).filter((r) => r !== mid)];
+  for (const r of order) add(Array(reels).fill(r));
+  // 2. V y V invertida desde cada fila
+  for (let r = 0; r < rows; r++) {
+    add(Array.from({ length: reels }, (_, c) => r + Math.round(tri(c, rows - 1 - r))));
+    add(Array.from({ length: reels }, (_, c) => r - Math.round(tri(c, r))));
+  }
+  // 3. Zigzags entre filas vecinas
+  for (let r = 0; r < rows - 1; r++) {
+    add(Array.from({ length: reels }, (_, c) => r + (c % 2)));
+    add(Array.from({ length: reels }, (_, c) => r + 1 - (c % 2)));
+  }
+  // 4. Escalones diagonales
+  for (let r = 0; r < rows; r++) {
+    add(Array.from({ length: reels }, (_, c) => r + Math.floor((c * (rows - 1 - r)) / (reels - 1) + 0.5)));
+    add(Array.from({ length: reels }, (_, c) => r - Math.floor((c * r) / (reels - 1) + 0.5)));
+  }
+  // 5. Ondas con desplazamiento de un rodillo
+  for (let r = 0; r < rows; r++) for (const d of [1, -1]) {
+    add(Array.from({ length: reels }, (_, c) => r + (c % 4 === 1 || c % 4 === 2 ? d : 0)));
+    add(Array.from({ length: reels }, (_, c) => r + (c === 0 || c === reels - 1 ? 0 : d)));
+  }
+  // 6. Relleno pseudoaleatorio determinista si se piden muchas
+  let seed = reels * 131 + rows * 7;
+  const rnd = (n) => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) % n);
+  for (let i = 0; out.length < Math.min(count, 100) && i < 5000; i++) {
+    let r = rnd(rows);
+    add(Array.from({ length: reels }, () => { r = Math.max(0, Math.min(rows - 1, r + rnd(3) - 1)); return r; }));
+  }
+  return out.slice(0, count);
+}
+
+export const maxLines = (reels, rows) => linesFor(reels, rows, 100).length;
+
+const lineCache = new Map();
+/** Versión con caché de generateLines (se llama en cada giro). */
+export function linesFor(reels, rows, count) {
+  const k = `${reels}x${rows}:${count}`;
+  let v = lineCache.get(k);
+  if (!v) { v = generateLines(reels, rows, count); if (lineCache.size > 500) lineCache.clear(); lineCache.set(k, v); }
+  return v;
+}
+
+export const GRID_LIMITS = { reels: [3, 8], rows: [3, 6] };
+
+/** Valida grid.reels / grid.rows y que haya una tira por rodillo. */
+export function validateGrid(config, { reels = GRID_LIMITS.reels, rows = GRID_LIMITS.rows, fixedRows = false } = {}) {
+  const e = [];
+  const g = config.grid || {};
+  if (!Number.isInteger(g.reels) || g.reels < reels[0] || g.reels > reels[1]) e.push(`grid.reels (rodillos) debe estar entre ${reels[0]} y ${reels[1]}`);
+  if (!fixedRows && (!Number.isInteger(g.rows) || g.rows < rows[0] || g.rows > rows[1])) e.push(`grid.rows (filas) debe estar entre ${rows[0]} y ${rows[1]}`);
+  if (Array.isArray(config.reels) && config.reels.length !== g.reels) e.push(`Hay ${config.reels.length} tiras pero grid.reels = ${g.reels}`);
+  if (Array.isArray(config.freeSpinReels) && config.freeSpinReels.length !== g.reels) e.push(`Hay ${config.freeSpinReels.length} tiras de giros gratis pero grid.reels = ${g.reels}`);
+  return e;
+}
+
 /** Construye una tira de rodillo a partir de pesos {symbolId: cantidad}, mezclada de forma determinista. */
 export function buildStrip(weights, seed = 1) {
   const strip = [];

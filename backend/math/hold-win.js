@@ -2,7 +2,7 @@
 // las monedas quedan fijas, hay 3 re-giros y cada moneda nueva los reinicia a 3.
 // Llenar las 15 posiciones paga el jackpot GRAND.
 import {
-  symbolMap, spinStrips, evaluateLines, sumPays, findSymbols, capWin, validateCommon, buildStrip, round6, weightedPick, LINES_5x3,
+  symbolMap, spinStrips, evaluateLines, sumPays, findSymbols, capWin, validateCommon, validateGrid, buildStrip, round6, weightedPick, linesFor, maxLines,
 } from './common.js';
 
 export const id = 'hold-win';
@@ -18,23 +18,24 @@ function coinValue(rng, R) {
 export function play(config, rng) {
   const syms = symbolMap(config);
   const R = config.rules;
-  const lines = LINES_5x3.slice(0, R.lines);
-  const { stops, grid } = spinStrips(rng, config.reels, 3);
+  const { reels: RC, rows: RR } = config.grid;
+  const lines = linesFor(RC, RR, R.lines);
+  const { stops, grid } = spinStrips(rng, config.reels, RR);
   const wins = evaluateLines(grid, lines, syms);
   const coinPos = findSymbols(grid, (s) => syms.get(s)?.type === 'coin');
   const coins = coinPos.map(([c, r]) => ({ c, r, ...coinValue(rng, R) }));
   let total = sumPays(wins);
   let holdAndWin = null;
   if (coins.length >= R.triggerCount) {
-    const cells = 5 * 3;
+    const cells = RC * RR;
     const held = new Map(coins.map((k) => [`${k.c},${k.r}`, k]));
     const respins = [];
     let left = R.respins;
     while (left > 0 && held.size < cells) {
       left--;
       const landed = [];
-      for (let c = 0; c < 5; c++) {
-        for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < RC; c++) {
+        for (let r = 0; r < RR; r++) {
           const key = `${c},${r}`;
           if (held.has(key)) continue;
           if (rng.int(1_000_000) < R.landChance * 1_000_000) {
@@ -58,11 +59,15 @@ export function play(config, rng) {
 }
 
 export function validate(config) {
-  const errors = validateCommon(config, { reels: 5 });
+  const errors = [...validateCommon(config), ...validateGrid(config)];
   const R = config.rules || {};
+  const g = config.grid || {};
+  const maxL = g.reels ? maxLines(g.reels, g.rows) : 20;
+  if (!Number.isInteger(R.lines) || R.lines < 1 || R.lines > maxL) errors.push(`rules.lines (líneas de pago) debe estar entre 1 y ${maxL} para esta cuadrícula`);
+  if (g.reels && R.triggerCount >= g.reels * g.rows) errors.push('rules.triggerCount debe ser menor que el total de celdas');
   if (!config.symbols?.some((s) => s.type === 'coin')) errors.push('Hold & Win necesita un símbolo de tipo "coin"');
   if (!(R.landChance > 0 && R.landChance < 0.5)) errors.push('rules.landChance debe estar entre 0 y 0.5');
-  if (!(R.triggerCount >= 3 && R.triggerCount <= 10)) errors.push('rules.triggerCount debe estar entre 3 y 10');
+  if (!(R.triggerCount >= 3 && R.triggerCount <= 30)) errors.push('rules.triggerCount debe estar entre 3 y 30');
   if (!Array.isArray(R.coinValues) || !R.coinValues.length) errors.push('rules.coinValues no puede estar vacío');
   for (const cv of R.coinValues || []) {
     if (cv.jackpot && !(cv.jackpot in (R.jackpots || {}))) errors.push(`Jackpot desconocido: ${cv.jackpot}`);

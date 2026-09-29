@@ -121,6 +121,8 @@ Tiempo máximo de respuesta: 8 s.
 | POST | `/api/admin/games/:id/publish` | Valida, simula RTP (si cambió la matemática) y crea versión inmutable |
 | GET / POST | `/api/admin/games/:id/versions` · `/restore/:version` | Historial y restaurar |
 | POST | `/api/admin/games/:id/simulate` · `/tune` | Simulación Monte Carlo · ajuste automático del RTP |
+| GET | `/api/admin/games/:id/grid?reels=&rows=` | Tamaño actual, tipo de pago (líneas/formas) y máximo de líneas posible |
+| POST | `/api/admin/games/:id/resize` | `{ reels?, rows?, lines? }` cambia rodillos (3–8), filas (3–6) y líneas; reconstruye rodillos y pagos y reajusta el RTP |
 | POST | `/api/admin/games/:id/preview-session` | Sesión demo que juega el **borrador** |
 | GET / POST | `/api/admin/assets` | Listar / subir imagen o sonido (cuerpo binario, `?gameId=&kind=`) |
 | POST | `/api/admin/agents/runs` | `{ gameId, prompt, agent?: director\|designer\|artist\|sound\|math, runId? }` |

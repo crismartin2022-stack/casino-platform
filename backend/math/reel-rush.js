@@ -1,6 +1,6 @@
 // Motor 1 — REEL RUSH: 5x3, 243 ways, cascadas (tumble) con multiplicador creciente.
 import {
-  symbolMap, spinStrips, evaluateWays, sumPays, cloneGrid, capWin, validateCommon, buildStrip, round6,
+  symbolMap, spinStrips, evaluateWays, sumPays, cloneGrid, capWin, validateCommon, validateGrid, buildStrip, round6,
 } from './common.js';
 
 export const id = 'reel-rush';
@@ -45,12 +45,11 @@ export function play(config, rng) {
 }
 
 export function validate(config) {
-  const errors = validateCommon(config, { reels: 5 });
+  const errors = [...validateCommon(config), ...validateGrid(config)];
   const m = config.rules?.cascadeMultipliers;
   if (!Array.isArray(m) || !m.length || m.some((x) => typeof x !== 'number' || x < 1)) {
     errors.push('rules.cascadeMultipliers debe ser una lista de números >= 1');
   }
-  if (config.grid?.rows < 3 || config.grid?.rows > 6) errors.push('grid.rows debe estar entre 3 y 6');
   return errors;
 }
 

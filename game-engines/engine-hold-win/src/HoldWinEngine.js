@@ -4,7 +4,10 @@ import { BaseEngine, wait, gsap } from '../../shared/BaseEngine.js';
 import { HoldFeature } from './features/HoldFeature.js';
 
 export class HoldWinEngine extends BaseEngine {
-  static rulesText = '10 líneas fijas. Las monedas muestran un premio. Con 6 o más monedas empieza el bonus: las monedas quedan fijas y tienes 3 re-giros; cada moneda nueva reinicia los re-giros a 3. Llena las 15 posiciones para ganar el jackpot GRAND.';
+  rulesText() {
+    const R = this.game.rules, g = this.game.grid;
+    return `${this.gridLabel()}, ${R.lines} líneas fijas. Las monedas muestran un premio. Con ${R.triggerCount} o más monedas empieza el bonus: las monedas quedan fijas y tienes ${R.respins} re-giros; cada moneda nueva los reinicia. Llena las ${g.reels * g.rows} posiciones para ganar el jackpot GRAND.`;
+  }
 
   payUnit() { return 1 / (this.game.rules?.lines || 10); }
   coinId() { return this.game.symbols.find((s) => s.type === 'coin')?.id; }

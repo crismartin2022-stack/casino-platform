@@ -2,7 +2,10 @@
 import { BaseEngine, wait } from '../../shared/BaseEngine.js';
 
 export class BonusBuyEngine extends BaseEngine {
-  static rulesText = '20 líneas fijas; paga de izquierda a derecha. 3, 4 o 5 scatters activan 10, 12 o 15 giros gratis con todos los premios multiplicados. También puedes comprar los giros gratis directamente.';
+  rulesText() {
+    const R = this.game.rules;
+    return `${this.gridLabel()}, ${R.lines} líneas fijas; paga de izquierda a derecha. 3, 4 o 5 scatters activan ${R.freeSpins['3']}, ${R.freeSpins['4'] ?? R.freeSpins['3']} o ${R.freeSpins['5'] ?? R.freeSpins['3']} giros gratis con todos los premios ×${R.fsMultiplier}. También puedes comprar los giros gratis por ${R.buyCost}× la apuesta.`;
+  }
 
   supportsBuy() { return Boolean(this.game.rules?.buyCost); }
   payUnit() { return 1 / (this.game.rules?.lines || 20); }
@@ -24,7 +27,7 @@ export class BonusBuyEngine extends BaseEngine {
       this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length} · ×${fs.multiplier}`);
       this.grid.undim();
       this.grid.startSpin();
-      await wait(this.hud.turbo ? 150 : 380);
+      await wait(this.hud.turbo ? 100 : 260);
       await this.stopReels(s.grid, { scatterId: this.scatterId() });
       await this.presentWins(s.wins, s.win);
     }

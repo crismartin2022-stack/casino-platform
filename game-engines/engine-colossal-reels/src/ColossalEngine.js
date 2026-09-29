@@ -4,7 +4,11 @@ import { Sprite, Graphics, Container } from 'pixi.js';
 import { BaseEngine, wait, gsap } from '../../shared/BaseEngine.js';
 
 export class ColossalEngine extends BaseEngine {
-  static rulesText = '5 rodillos × 4 filas, 1.024 formas de ganar. En cualquier giro pueden caer símbolos COLOSALES de 2×2 o 3×3 que cuentan como un bloque de símbolos iguales. 3 o más rayos dan giros gratis con un colosal garantizado en cada giro.';
+  rulesText() {
+    const g = this.game.grid;
+    const sizes = [...new Set((this.game.rules.colossalSizes || []).map((s) => `${s.size}×${s.size}`))].join(' o ');
+    return `${this.gridLabel()}, ${(g.rows ** g.reels).toLocaleString('es')} formas de ganar. En cualquier giro pueden caer símbolos COLOSALES de ${sizes} que cuentan como un bloque de símbolos iguales. 3 o más rayos dan giros gratis con un colosal garantizado en cada giro.`;
+  }
 
   scatterId() { return this.game.symbols.find((s) => s.type === 'scatter')?.id; }
 
@@ -101,7 +105,7 @@ export class ColossalEngine extends BaseEngine {
       this.clearColossal();
       this.grid.undim();
       this.grid.startSpin();
-      await wait(this.hud.turbo ? 150 : 380);
+      await wait(this.hud.turbo ? 100 : 260);
       await this.showSpin(s);
     }
     this.hud.setStatus('');

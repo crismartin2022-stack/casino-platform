@@ -1,7 +1,7 @@
 // Motor 2 — MEGAWAYS: 6 rodillos con 2 a 7 filas aleatorias por giro (hasta 117.649 formas).
 // 4+ scatters activan giros gratis con multiplicador global que sube en cada giro ganador.
 import {
-  symbolMap, stripWindow, evaluateWays, sumPays, findSymbols, capWin, validateCommon, buildStrip, round6, weightedPick,
+  symbolMap, stripWindow, evaluateWays, sumPays, findSymbols, capWin, validateCommon, validateGrid, buildStrip, round6, weightedPick,
 } from './common.js';
 
 export const id = 'megaways';
@@ -45,7 +45,7 @@ export function play(config, rng) {
 }
 
 export function validate(config) {
-  const errors = validateCommon(config, { reels: 6 });
+  const errors = [...validateCommon(config), ...validateGrid(config, { reels: [4, 8], fixedRows: true })];
   const R = config.rules || {};
   if (!Array.isArray(R.rowWeights) || R.rowWeights.some((w) => w.rows < 2 || w.rows > 7 || !(w.weight > 0))) {
     errors.push('rules.rowWeights debe ser [{rows: 2..7, weight > 0}]');

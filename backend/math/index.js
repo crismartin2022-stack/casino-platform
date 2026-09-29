@@ -5,6 +5,10 @@ import * as bonusBuy from './bonus-buy.js';
 import * as holdWin from './hold-win.js';
 import * as colossal from './colossal-reels.js';
 import { seededRng } from './rng.js';
+import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
+
+/** RTP permitido: 85 % a 110 %. Por encima de 100 % el juego paga más de lo que recauda (solo promociones o demo). */
+export const RTP_RANGE = [0.85, 1.10];
 
 export const ENGINES = {
   [reelRush.id]: reelRush,
@@ -33,7 +37,7 @@ export function validateConfig(config) {
   const e = ENGINES[config.engine];
   if (!e) return [`Motor desconocido: ${config.engine}`];
   const errs = e.validate(config);
-  if (!(config.rtpTarget > 0.8 && config.rtpTarget < 0.995)) errs.push('rtpTarget debe estar entre 0.80 y 0.995');
+  if (!(config.rtpTarget >= RTP_RANGE[0] && config.rtpTarget <= RTP_RANGE[1])) errs.push(`rtpTarget debe estar entre ${RTP_RANGE[0]} y ${RTP_RANGE[1]} (85 % a 110 %)`);
   if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme');
   return errs;
 }
@@ -76,6 +80,64 @@ export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345,
     distribution: Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, r(v / n, 5)])),
     costMultiplier: cost,
   };
+}
+
+/**
+ * Cambia el tamaño de la cuadrícula (rodillos × filas) y/o las líneas de pago.
+ * Reconstruye tiras de rodillos, completa la tabla de pagos para las nuevas cantidades
+ * y ajusta reglas dependientes. El RTP queda desajustado: después hay que llamar a tuneRtp.
+ */
+export function resizeGrid(config, { reels, rows, lines } = {}) {
+  const c = structuredClone(config);
+  const g = c.grid;
+  const R = c.rules || {};
+  const newReels = reels ?? g.reels;
+  const newRows = rows ?? g.rows;
+  const errors = [];
+  const [minR, maxR] = c.engine === 'megaways' || c.engine === 'colossal-reels' ? [4, 8] : GRID_LIMITS.reels;
+  if (!Number.isInteger(newReels) || newReels < minR || newReels > maxR) errors.push(`Rodillos: entre ${minR} y ${maxR}`);
+  if (c.engine !== 'megaways' && (!Number.isInteger(newRows) || newRows < GRID_LIMITS.rows[0] || newRows > GRID_LIMITS.rows[1])) {
+    errors.push(`Filas: entre ${GRID_LIMITS.rows[0]} y ${GRID_LIMITS.rows[1]}`);
+  }
+  if (errors.length) throw Object.assign(new Error(errors.join('. ')), { status: 400, details: errors });
+
+  // Tiras: se conservan las existentes; las nuevas copian la composición de un rodillo existente, mezclada.
+  const rebuild = (strips, seedBase) => Array.from({ length: newReels }, (_, i) => {
+    if (i < strips.length) return strips[i];
+    const src = strips[i % strips.length];
+    const counts = src.reduce((a, x) => ((a[x] = (a[x] || 0) + 1), a), {});
+    return buildStrip(counts, seedBase + i * 97);
+  });
+  c.reels = rebuild(c.reels, 9100);
+  if (c.freeSpinReels) c.freeSpinReels = rebuild(c.freeSpinReels, 9300);
+  g.reels = newReels;
+  if (c.engine !== 'megaways') g.rows = newRows;
+
+  // Pagos: quitar cantidades imposibles y extrapolar las nuevas (cada paso ×2,5 aprox., como en slots típicos).
+  for (const s of c.symbols) {
+    if (!s.pays || !Object.keys(s.pays).length) continue;
+    for (const k of Object.keys(s.pays)) if (Number(k) > newReels) delete s.pays[k];
+    const keys = Object.keys(s.pays).map(Number).sort((a, b) => a - b);
+    if (!keys.length) continue;
+    for (let n = keys[keys.length - 1] + 1; n <= newReels; n++) {
+      const prev = s.pays[n - 1], prev2 = s.pays[n - 2];
+      const ratio = prev2 ? Math.min(4, Math.max(1.5, prev / prev2)) : 2.5;
+      s.pays[n] = round6(prev * ratio);
+    }
+  }
+
+  // Reglas que dependen del tamaño
+  const maxL = ['bonus-buy', 'hold-win'].includes(c.engine) ? maxLines(newReels, g.rows) : null;
+  if (maxL) R.lines = Math.max(1, Math.min(maxL, lines ?? R.lines));
+  if (c.engine === 'hold-win') {
+    const cells = newReels * g.rows;
+    R.triggerCount = Math.max(3, Math.min(cells - 2, Math.round((6 * cells) / 15)));
+  }
+  if (c.engine === 'colossal-reels') {
+    R.colossalSizes = R.colossalSizes.filter((s) => s.size <= g.rows && s.size <= newReels - 1);
+    if (!R.colossalSizes.length) R.colossalSizes = [{ size: 2, weight: 1 }];
+  }
+  return { config: c, maxLines: maxL };
 }
 
 /**
