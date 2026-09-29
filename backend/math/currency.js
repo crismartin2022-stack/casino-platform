@@ -12,6 +12,9 @@ export function validateBets(config) {
   const errs = [];
   const b = config.bet;
   if (!b) return [];
+  if (b.autoSpins != null && !(Array.isArray(b.autoSpins) && b.autoSpins.length && b.autoSpins.length <= 8 && b.autoSpins.every((n) => Number.isInteger(n) && n > 0 && n <= 1000))) {
+    errs.push('bet.autoSpins: de 1 a 8 cantidades de giros automáticos (enteros entre 1 y 1000)');
+  }
   for (const [cur, x] of Object.entries(b.byCurrency || {})) {
     if (!/^[A-Z]{3,4}$/.test(cur)) { errs.push(`bet.byCurrency: código de moneda inválido "${cur}"`); continue; }
     if (!isLevels(x?.levels)) errs.push(`bet.byCurrency.${cur}.levels: lista de enteros positivos en centavos, de menor a mayor`);

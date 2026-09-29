@@ -503,7 +503,7 @@ function showUsage(u) {
 
 // ------------------------------------------------------------------ Pestaña: Diseño
 const BUTTONS = [['spin', 'Girar', '↻'], ['auto', 'Automático', 'AUTO'], ['turbo', 'Turbo', '⚡'], ['sound', 'Sonido', '🔊'],
-  ['minus', 'Bajar apuesta', '−'], ['plus', 'Subir apuesta', '+'], ['info', 'Reglas', 'i'], ['buy', 'Comprar bonus', 'COMPRAR BONUS']];
+  ['minus', 'Bajar apuesta', '−'], ['plus', 'Subir apuesta', '+'], ['max', 'Apuesta máxima', 'MÁX'], ['fullscreen', 'Pantalla completa', '⛶'], ['rotate', 'Girar pantalla (celular)', '⟳'], ['info', 'Reglas', 'i'], ['buy', 'Comprar bonus', 'COMPRAR BONUS']];
 
 // ---- Interfaces del juego (theme.hud.layout) con miniatura y colores sugeridos ----
 const UIS = [
@@ -588,6 +588,8 @@ async function tabDesign(v) {
       <div><label>Color de la botonera</label><input id="hBar" type="color" value="${esc((t.hud?.barColor || '').startsWith('#') ? t.hud.barColor : '#0a080c')}" /></div>
       <div><label>Borde de la botonera</label><input id="hBorder" type="color" value="${esc(t.hud?.barBorder || p.accent || '#ffd460')}" /></div>
       <div><label>Tamaño del botón GIRAR (<span id="hSpinV">${t.hud?.spinSize || 84}</span> px)</label><input id="hSpin" type="range" min="56" max="130" step="2" value="${t.hud?.spinSize || 84}" /></div>
+      <div><label>Tamaño general de la interfaz (<span id="hScaleV">${Math.round((t.hud?.scale || 1) * 100)}</span> %)</label><input id="hScale" type="range" min="0.8" max="1.4" step="0.05" value="${t.hud?.scale || 1}" /></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
     </div></div>
     <div class="card stack"><h3 style="margin:0">Botones del juego</h3>
       <div class="grid2">
@@ -619,7 +621,7 @@ async function tabDesign(v) {
     await patchDraft(ops, `Interfaz: ${UIS.find((x) => x[0] === k)[1]}. Mírala en ▶ Vista previa`);
     renderTab();
   })));
-  for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x]]) {
+  for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x], ['#hScale', '#hScaleV', (x) => Math.round(x * 100)]]) {
     $(inp, v).addEventListener('input', (e) => { $(out, v).textContent = fmt(Number(e.target.value)); });
   }
   $$('[data-bimg]', v).forEach((b) => b.addEventListener('click', guard(async () => {
@@ -655,7 +657,7 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.cellBorder', value: $('#lNoBorder').checked ? 'none' : $('#lBorder').value },
       { op: 'set', path: 'theme.frameColor', value: $('#lFrame').value },
       { op: 'set', path: 'theme.tagline', value: $('#lTag').value.trim() || null },
-      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value) } },
+      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value) } },
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
       ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
@@ -901,7 +903,7 @@ async function tabMath(v) {
       ${d.rules.specialCoins ? 'Monedas especiales: <code>specialChance</code> y <code>specialCoins</code> (multiplicador o +1 re-giro).' : ''}
       ${d.rules.wildMode ? 'Modo de comodines: <code>wildMode</code> = "sticky" (fijos en giros gratis) o "walking" (caminan y dan re-giros).' : ''}</p>
       <textarea id="mRules" rows="14">${esc(JSON.stringify(d.rules, null, 2))}</textarea>
-      <div class="row"><button id="mRulesSave">Guardar reglas</button><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button></div>
+      <div class="row"><button id="mRulesSave">Guardar reglas</button><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button><button id="mAutoSave" class="ghost">Giros automáticos (${esc((d.bet.autoSpins || [10, 25, 50, 100]).join(' · '))})…</button></div>
     </div></div>`;
   const showSim = (s, title) => {
     $('#mOut').innerHTML = `<h4>${title}</h4><div class="kpi">
@@ -946,6 +948,14 @@ async function tabMath(v) {
     let rules;
     try { rules = JSON.parse($('#mRules').value); } catch { throw new Error('JSON de reglas inválido'); }
     await patchDraft([{ op: 'set', path: 'rules', value: rules }, { op: 'set', path: 'rtpTarget', value: Number($('#mTarget').value) }], 'Reglas guardadas');
+  }));
+  $('#mAutoSave')?.addEventListener('click', guard(async () => {
+    const cur = (d.bet.autoSpins || [10, 25, 50, 100]).join(', ');
+    const val = prompt('Cantidades de giros automáticos que puede elegir el jugador (hasta 8, separadas por coma):', cur);
+    if (val == null) return;
+    const list = [...new Set(val.split(',').map((x) => Number(x.trim())).filter((x) => Number.isInteger(x) && x > 0 && x <= 1000))].sort((a, b) => a - b).slice(0, 8);
+    if (!list.length) throw new Error('Pon al menos una cantidad');
+    await patchDraft([{ op: 'set', path: 'bet.autoSpins', value: list }], `Giros automáticos: ${list.join(', ')}. Publica para aplicarlo`);
   }));
   $('#mBetSave').addEventListener('click', guard(async () => {
     const cur = d.bet.levels.join(', ');
