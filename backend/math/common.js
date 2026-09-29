@@ -229,7 +229,7 @@ export function validateCommon(config, { reels, specialTypes = [] } = {}) {
     if (ids.has(s.id)) errors.push(`Símbolo duplicado: ${s.id}`);
     ids.add(s.id);
     const t = s.type || 'regular';
-    if (!['regular', 'wild', 'scatter', 'coin', ...specialTypes].includes(t)) errors.push(`Tipo de símbolo desconocido: ${t}`);
+    if (!['regular', 'wild', 'scatter', 'coin', 'multiplier', 'wildscatter', 'mystery', ...specialTypes].includes(t)) errors.push(`Tipo de símbolo desconocido: ${t}`);
     for (const [k, v] of Object.entries(s.pays || {})) {
       if (!/^\d+$/.test(k) || typeof v !== 'number' || v < 0 || !Number.isFinite(v)) errors.push(`Pago inválido en ${s.id}: ${k}=${v}`);
     }
@@ -248,3 +248,45 @@ export function validateCommon(config, { reels, specialTypes = [] } = {}) {
   }
   return errors;
 }
+
+// ---------------------------------------------------------------- Ayudas para motores de cascada
+/** Pago por niveles: usa la mayor clave ≤ n (ej. {8: .., 10: .., 12: ..}; 14 iguales → nivel 12). */
+export function tierPay(pays, n) {
+  let best = 0, bestK = -1;
+  for (const [k, v] of Object.entries(pays || {})) {
+    const kk = Number(k);
+    if (kk <= n && kk > bestK) { bestK = kk; best = v; }
+  }
+  return best;
+}
+
+export const minTier = (pays) => Math.min(...Object.keys(pays || {}).map(Number));
+
+/**
+ * Quita las celdas marcadas y rellena desde arriba con la tira de cada rodillo (cascada).
+ * removed[c]: Set de filas a quitar. ptr[c]: índice superior actual en la tira (se actualiza).
+ * extra: matriz paralela opcional (p. ej. valores de multiplicador) que se reordena igual;
+ * onNew(id, c) da el valor extra de cada símbolo nuevo.
+ */
+export function tumble(grid, removed, ptr, strips, extra = null, onNew = null) {
+  const nextExtra = extra ? [] : null;
+  const next = grid.map((col, c) => {
+    const keepIdx = col.map((_, r) => r).filter((r) => !removed[c].has(r));
+    const need = col.length - keepIdx.length;
+    const fresh = [];
+    for (let i = 0; i < need; i++) {
+      ptr[c] = (ptr[c] - 1 + strips[c].length) % strips[c].length;
+      fresh.unshift(strips[c][ptr[c]]);
+    }
+    if (extra) nextExtra[c] = [...fresh.map((id) => (onNew ? onNew(id, c) : null)), ...keepIdx.map((r) => extra[c][r])];
+    return [...fresh, ...keepIdx.map((r) => col[r])];
+  });
+  return { grid: next, extra: nextExtra };
+}
+
+export const removedSets = (grid, positions) => {
+  const sets = grid.map(() => new Set());
+  for (const [c, r] of positions) sets[c].add(r);
+  return sets;
+};
+export const setsToArrays = (sets) => sets.map((s) => [...s].sort((a, b) => a - b));

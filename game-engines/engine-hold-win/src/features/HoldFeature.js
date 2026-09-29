@@ -48,6 +48,7 @@ export class HoldFeature {
       }
       await wait(e.hud.turbo ? 150 : 350);
     }
+    if (hw.multiplier > 1) await e.hud.showBanner(`<small>MONEDAS MULTIPLICADORAS</small><b>×${hw.multiplier}</b>`, { kind: 'big', ms: 1500 });
     if (hw.full) await e.hud.showBanner('<small>¡PANTALLA COMPLETA!</small><b>GRAND</b>', { kind: 'big', ms: 2500 });
     e.hud.setStatus('');
     this.frames.clear();

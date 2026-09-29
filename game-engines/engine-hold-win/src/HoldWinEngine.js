@@ -6,7 +6,7 @@ import { HoldFeature } from './features/HoldFeature.js';
 export class HoldWinEngine extends BaseEngine {
   rulesText() {
     const R = this.game.rules, g = this.game.grid;
-    return `${this.gridLabel()}, ${R.lines} líneas fijas. Las monedas muestran un premio. Con ${R.triggerCount} o más monedas empieza el bonus: las monedas quedan fijas y tienes ${R.respins} re-giros; cada moneda nueva los reinicia. Llena las ${g.reels * g.rows} posiciones para ganar el jackpot GRAND.`;
+    return `${this.gridLabel()}, ${R.lines} líneas fijas. Las monedas muestran un premio. Con ${R.triggerCount} o más monedas empieza el bonus: las monedas quedan fijas y tienes ${R.respins} re-giros; cada moneda nueva los reinicia. Llena las ${g.reels * g.rows} posiciones para ganar el jackpot GRAND.${R.specialCoins?.length ? ' Durante el bonus pueden caer monedas especiales: MULTIPLICADORAS (multiplican el total de monedas) y +1 GIRO (dan un re-giro extra).' : ''}`;
   }
 
   payUnit() { return 1 / (this.game.rules?.lines || 10); }
@@ -21,8 +21,9 @@ export class HoldWinEngine extends BaseEngine {
 
   coinLabel(coin) {
     const t = new Text({
-      text: coin.jackpot ? coin.jackpot.toUpperCase() : this.hud.fmt(this.money(coin.value)),
-      style: { fontFamily: this.game.theme?.font || 'Arial', fontSize: coin.jackpot ? 30 : 26, fill: coin.jackpot ? '#ff4d6d' : '#ffffff', stroke: { color: '#000000', width: 6 } },
+      text: coin.special === 'multiplier' ? `×${coin.mult}` : coin.jackpot ? coin.jackpot.toUpperCase()
+        : `${this.hud.fmt(this.money(coin.value))}${coin.special === 'respin' ? '\n+1 GIRO' : ''}`,
+      style: { fontFamily: this.game.theme?.font || 'Arial', fontSize: coin.jackpot ? 30 : 26, fill: coin.special === 'multiplier' ? '#7bed9f' : coin.special === 'respin' ? '#70a1ff' : coin.jackpot ? '#ff4d6d' : '#ffffff', align: 'center', stroke: { color: '#000000', width: 6 } },
     });
     t.anchor.set(0.5);
     const p = this.grid.cellCenter(coin.c, coin.r);

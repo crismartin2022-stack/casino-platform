@@ -223,6 +223,16 @@ export class Hud {
     });
   }
 
+  /** Menú de opciones (p. ej. bonos a comprar). Devuelve el value elegido o null. */
+  choose(title, options) {
+    return new Promise((resolve) => {
+      this.modalResolve = () => resolve(null);
+      this.openModal(h('div', { class: 'confirm choose' }, h('h2', {}, title),
+        ...options.map((o) => h('button', { class: 'buy option', onclick: () => { this.modalResolve = null; this.modal.hidden = true; resolve(o.value); } },
+          h('span', {}, o.label), h('b', {}, o.sub || '')))));
+    });
+  }
+
   error(msg) {
     this.stopAuto();
     this.openModal(h('div', { class: 'confirm' }, h('h2', {}, 'Aviso'), h('p', {}, msg)));

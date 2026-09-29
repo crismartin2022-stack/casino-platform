@@ -27,7 +27,8 @@
   <main><div class="grid" id="games"><p>Cargando juegos…</p></div></main>
   <footer>Modo demo con créditos de prueba. Juega con responsabilidad. +18.</footer>
   <script type="module">
-    const ICON = { 'reel-rush': '🍒', megaways: '🗿', 'bonus-buy': '🐉', 'hold-win': '🪙', 'colossal-reels': '⚔️' };
+    const ICON = { 'reel-rush': '🍒', megaways: '🗿', 'bonus-buy': '🐉', 'hold-win': '🪙', 'colossal-reels': '⚔️',
+      'cluster-pays': '💎', 'scatter-pays': '⚡', 'expanding-symbol': '📖', 'sticky-wilds': '🤠', 'megaways-cascade': '🌊' };
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     try {
       const games = await (await fetch('/api/v1/games')).json();
