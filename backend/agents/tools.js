@@ -144,7 +144,11 @@ const T = {
     description: 'Encarga una tarea a un agente especialista y recibe su resumen. designer: tema, paleta, tipografía, nombres. artist: imágenes (Venice). sound: efectos y música (ElevenLabs). math: tabla de pagos, reglas, RTP.',
     input_schema: {
       type: 'object', required: ['agent', 'task'],
-      properties: { agent: { type: 'string', enum: ['designer', 'artist', 'sound', 'math'] }, task: { type: 'string', description: 'Instrucciones completas y concretas' } },
+      properties: {
+        agent: { type: 'string', enum: ['designer', 'artist', 'sound', 'math'] },
+        task: { type: 'string', description: 'Instrucciones completas y concretas' },
+        referenceImages: { type: 'array', items: { type: 'string' }, description: 'Ids de imágenes de referencia (as_…) que el especialista debe ver' },
+      },
     },
   },
 };

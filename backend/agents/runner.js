@@ -8,6 +8,39 @@ import { toolDefs, runTool, EDIT_SCOPES } from './tools.js';
 import { one, run, all } from '../db.js';
 import { config, providers } from '../config.js';
 import { getGame } from '../services/games.js';
+import { readAssetBytes } from '../services/assets.js';
+
+// ---------------- Imágenes de referencia ----------------
+const MAX_REFS = 6;
+const REF_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
+/** Convierte ids de assets en bloques de imagen para Claude (se saltan los inválidos o muy pesados). */
+function imageBlocks(ids = []) {
+  const blocks = [], used = [];
+  for (const id of [...new Set(ids)].slice(0, MAX_REFS)) {
+    try {
+      const { asset, buf } = readAssetBytes(id);
+      if (!REF_MIME.has(asset.mime) || buf.length > 3_700_000) continue;
+      blocks.push({ type: 'image', source: { type: 'base64', media_type: asset.mime, data: buf.toString('base64') } });
+      used.push(asset);
+    } catch { /* asset inexistente: se ignora */ }
+  }
+  return { blocks, used };
+}
+
+const REF_NOTE = (assets) => `\n\n(Imágenes de referencia adjuntas: ${assets.map((a) => a.id).join(', ')}. Úsalas para entender lo que se pide: estilo, colores, disposición, ambiente. `
+  + 'Para que un especialista las vea, pásalas en referenceImages al delegar; el Artista puede usarlas como base con edit_image. '
+  + 'Nunca copies personajes, logos, marcas ni obras protegidas que aparezcan en ellas: toma solo la idea general.)';
+
+/** Para guardar la conversación sin los bytes de las imágenes (se pueden volver a ver con view_asset). */
+function forStorage(messages) {
+  const strip = (content) => (Array.isArray(content) ? content.map((b) => {
+    if (b.type === 'image') return { type: 'text', text: '[imagen omitida del historial: usa view_asset con el id indicado para volver a verla]' };
+    if (b.type === 'tool_result' && Array.isArray(b.content)) return { ...b, content: strip(b.content) };
+    return b;
+  }) : content);
+  return messages.map((m) => ({ ...m, content: strip(m.content) }));
+}
 import { HttpError } from '../lib/http.js';
 
 const bus = new EventEmitter();
@@ -32,6 +65,8 @@ Eres el DIRECTOR. Entiendes lo que pide el usuario, lees el juego y delegas en e
 - sound: efectos de sonido y música (ElevenLabs).
 - math: tabla de pagos, reglas, volatilidad, RTP, cantidad de rodillos, filas y líneas de pago (resize_grid).
 Orden recomendado para un re-diseño completo: designer → artist → sound; math solo si piden cambios de juego/pagos/RTP.
+Si el usuario adjunta imágenes de referencia, descríbelas brevemente con tus palabras (estilo, colores, disposición) y pásalas
+en referenceImages a los especialistas que las necesiten (sobre todo artist y designer).
 Puedes delegar varias veces. Al terminar, resume qué cambió y recuerda que hay que revisar la vista previa y publicar.`,
     maxTurns: 14,
     director: true,
@@ -157,7 +192,7 @@ async function agentLoop(agent, messages, ctx, usage) {
       let out, isError = false;
       try {
         if (call.name === 'delegate') {
-          out = { summary: await runSpecialist(call.input.agent, call.input.task, ctx, usage) };
+          out = { summary: await runSpecialist(call.input.agent, call.input.task, ctx, usage, call.input.referenceImages || []) };
         } else {
           out = await runTool(call.name, call.input, ctx, agent);
         }
@@ -175,14 +210,17 @@ async function agentLoop(agent, messages, ctx, usage) {
   return 'Límite de pasos alcanzado; el trabajo puede estar incompleto.';
 }
 
-async function runSpecialist(agent, task, ctx, usage) {
+async function runSpecialist(agent, task, ctx, usage, referenceImages = []) {
   if (!AGENTS[agent] || AGENTS[agent].director) throw new HttpError(400, `Agente desconocido: ${agent}`);
   const p = providers();
   if (agent === 'artist' && !p.venice) return 'No disponible: falta VENICE_API_KEY en el servidor.';
   if (agent === 'sound' && !p.elevenlabs) return 'No disponible: falta ELEVENLABS_API_KEY en el servidor.';
   ctx.emit('agent_start', { agent, title: AGENTS[agent].title, task });
   const scope = EDIT_SCOPES[agent].join(', ');
-  const text = await agentLoop(agent, [{ role: 'user', content: `${task}\n\n(Rutas que puedes editar: ${scope})` }], ctx, usage);
+  const { blocks, used } = imageBlocks(referenceImages);
+  const firstText = `${task}\n\n(Rutas que puedes editar: ${scope})${used.length ? REF_NOTE(used) : ''}`;
+  const content = blocks.length ? [...blocks, { type: 'text', text: firstText }] : firstText;
+  const text = await agentLoop(agent, [{ role: 'user', content }], ctx, usage);
   ctx.emit('agent_done', { agent, summary: text });
   return text;
 }
@@ -192,7 +230,7 @@ async function runSpecialist(agent, task, ctx, usage) {
  * el progreso llega por eventos (SSE /api/admin/agents/runs/:id/events).
  * `agent` permite hablar directo con un especialista sin pasar por el director.
  */
-export function startRun({ gameId, prompt, runId = null, agent = 'director', actor = 'admin' }) {
+export function startRun({ gameId, prompt, runId = null, agent = 'director', actor = 'admin', images = [] }) {
   if (!providers().anthropic) throw new HttpError(503, 'Falta ANTHROPIC_API_KEY en las variables del servidor');
   if (!prompt?.trim()) throw new HttpError(400, 'Escribe un pedido para los agentes');
   if (!AGENTS[agent]) throw new HttpError(400, `Agente desconocido: ${agent}`);
@@ -212,8 +250,11 @@ export function startRun({ gameId, prompt, runId = null, agent = 'director', act
   active.set(runId, state);
   const ctx = { runId, gameId, engine: game.engine, actor, state, emit: (type, data) => persist(runId, type, data) };
   const usage = {};
-  messages.push({ role: 'user', content: prompt });
-  ctx.emit('user', { text: prompt, agent });
+  if (!Array.isArray(images)) images = [];
+  if (images.length > MAX_REFS) throw new HttpError(400, `Máximo ${MAX_REFS} imágenes por mensaje`);
+  const { blocks, used } = imageBlocks(images);
+  messages.push({ role: 'user', content: blocks.length ? [...blocks, { type: 'text', text: prompt + REF_NOTE(used) }] : prompt });
+  ctx.emit('user', { text: prompt, agent, images: used.map((a) => ({ id: a.id, url: a.url })) });
 
   (async () => {
     let status = 'done', summary = '';
@@ -235,7 +276,7 @@ export function startRun({ gameId, prompt, runId = null, agent = 'director', act
       const total = prev?.usage ? JSON.parse(prev.usage) : {};
       addUsage(total, usage);
       run('UPDATE agent_runs SET status = ?, summary = ?, usage = ?, messages = ?, finished_at = datetime(\'now\') WHERE id = ?',
-        status, summary.slice(0, 4000), JSON.stringify(total), JSON.stringify(messages), runId);
+        status, summary.slice(0, 4000), JSON.stringify(total), JSON.stringify(forStorage(messages)), runId);
       ctx.emit('done', { status, summary, usage: total });
     }
   })();
