@@ -5,7 +5,13 @@ import { DATA_DIR } from '../config.js';
 import { one, all, run, audit } from '../db.js';
 import { HttpError } from '../lib/http.js';
 
-const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg' };
+const EXT = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/gif': 'gif',
+  'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg',
+  'video/mp4': 'mp4', 'video/webm': 'webm',
+  'font/woff2': 'woff2', 'font/woff': 'woff', 'font/ttf': 'ttf', 'font/otf': 'otf',
+};
+const KIND = (mime) => (mime.startsWith('audio/') ? 'sound' : mime.startsWith('video/') ? 'video' : mime.startsWith('font/') ? 'font' : 'image');
 
 export function sniffMime(buf, fallback) {
   if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
@@ -14,6 +20,13 @@ export function sniffMime(buf, fallback) {
   if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WAVE') return 'audio/wav';
   if (buf.slice(0, 3).toString() === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)) return 'audio/mpeg';
   if (buf.slice(0, 4).toString() === 'OggS') return 'audio/ogg';
+  if (buf.slice(0, 4).toString() === 'GIF8') return 'image/gif';
+  if (buf.slice(4, 8).toString() === 'ftyp') return 'video/mp4';
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'video/webm';
+  if (buf.slice(0, 4).toString() === 'wOF2') return 'font/woff2';
+  if (buf.slice(0, 4).toString() === 'wOFF') return 'font/woff';
+  if (buf.slice(0, 4).toString() === 'OTTO') return 'font/otf';
+  if ((buf[0] === 0x00 && buf[1] === 0x01 && buf[2] === 0x00 && buf[3] === 0x00) || buf.slice(0, 4).toString() === 'true') return 'font/ttf';
   if (/^\s*<(\?xml|svg)/.test(buf.slice(0, 100).toString())) return 'image/svg+xml';
   return fallback;
 }
@@ -22,7 +35,7 @@ export function saveAsset(buf, { gameId = null, kind, mime, provider = 'upload',
   mime = sniffMime(buf, mime);
   const ext = EXT[mime];
   if (!ext) throw new HttpError(415, `Tipo de archivo no permitido: ${mime}`);
-  if (!kind) kind = mime.startsWith('audio/') ? 'sound' : 'image';
+  kind = KIND(mime); // el tipo real sale del archivo, no de lo que diga el cliente
   const id = `as_${randomBytes(9).toString('base64url')}`;
   const filename = `${id}.${ext}`;
   writeFileSync(`${DATA_DIR}/media/${filename}`, buf);

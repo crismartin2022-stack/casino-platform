@@ -26,9 +26,9 @@ export class GameApi {
   history(limit = 20) { return this.request(`/api/v1/history?limit=${limit}`); }
 
   /** clientRoundId hace la petición idempotente: si se corta la conexión, reintentar no cobra dos veces. */
-  async spin(bet, mode = 'base') {
+  async spin(bet, mode = 'base', { force = false } = {}) {
     const clientRoundId = `${Date.now().toString(36)}-${(this.seq++).toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const body = { bet, mode, clientRoundId };
+    const body = { bet, mode, clientRoundId, ...(force ? { force: true } : {}) };
     for (let attempt = 0; ; attempt++) {
       try {
         return await this.request('/api/v1/spin', { method: 'POST', body });

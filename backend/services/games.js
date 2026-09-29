@@ -36,10 +36,27 @@ export function seedTemplates() {
   return out;
 }
 
+// Juegos de fábrica recalibrados (bonus más frecuente). Se actualizan solos SOLO si nadie los tocó.
+const FACTORY_RECALIBRATED = { 'megaways-cascade': 'Recalibración de fábrica: bonus cada ~185 giros', 'scatter-pays': 'Recalibración de fábrica: bonus cada ~185 giros' };
+
 export function seedGames() {
   const templates = seedTemplates();
   for (const c of Object.values(templates)) {
-    if (one('SELECT id FROM games WHERE id = ?', c.id)) continue;
+    const existing = one('SELECT * FROM games WHERE id = ?', c.id);
+    if (existing && FACTORY_RECALIBRATED[c.id] && existing.published_version === 1) {
+      const v1 = one("SELECT config, created_by FROM game_versions WHERE game_id = ? AND version = 1", c.id);
+      const { math, ...config } = c;
+      const untouched = v1?.created_by === 'system' && stableStringify(JSON.parse(existing.draft)) === stableStringify(JSON.parse(v1.config));
+      if (untouched && mathHash(JSON.parse(v1.config)) !== mathHash(config)) {
+        tx(() => {
+          run('INSERT INTO game_versions (game_id, version, config, math_hash, math, note, created_by) VALUES (?, 2, ?, ?, ?, ?, ?)',
+            c.id, JSON.stringify(config), mathHash(config), JSON.stringify(math || null), FACTORY_RECALIBRATED[c.id], 'system');
+          run('UPDATE games SET draft = ?, draft_updated_at = ?, published_version = 2 WHERE id = ?', JSON.stringify(config), now(), c.id);
+        });
+        console.log(`[seed] ${c.id} recalibrado (v2)`);
+      }
+    }
+    if (existing) continue;
     const { math, ...config } = c;
     tx(() => {
       run('INSERT INTO games (id, engine, name, draft, draft_updated_at, published_version) VALUES (?, ?, ?, ?, ?, 1)',

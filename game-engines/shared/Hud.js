@@ -2,6 +2,7 @@
 // Los colores vienen del tema del juego vía variables CSS, así los agentes pueden re-tematizar sin tocar código.
 import { formatMoney } from './api.js';
 import { canFullscreen, isTouch, toggleFullscreen, rotate, onFullscreenChange, isFullscreen } from './screen.js';
+import { buildCustom, positionCustom, enableEditor } from './HudCustom.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -34,7 +35,7 @@ function chipLabel(cents) {
 }
 
 export class Hud {
-  constructor(root, { game, currency, onSpin, onBuy, onInfo, onToggleSound, onHistory, lobbyUrl, preview }) {
+  constructor(root, { game, currency, onSpin, onBuy, onInfo, onToggleSound, onHistory, onForce, lobbyUrl, preview }) {
     this.root = root;
     this.game = game;
     this.currency = currency;
@@ -50,7 +51,8 @@ export class Hud {
     css.setProperty('--accent', p.accent || '#ffd460');
     css.setProperty('--panel', p.panel || '#16213e');
     css.setProperty('--text', p.text || '#ffffff');
-    css.setProperty('--font', `'${t.font || 'Bungee'}', system-ui, sans-serif`);
+    // La botonera puede usar su propia tipografía (theme.hud.font); si no, la del juego.
+    css.setProperty('--font', `'${t.hud?.font || t.font || 'Bungee'}', system-ui, sans-serif`);
 
     // Botones personalizables desde el tema (theme.buttons): forma, estilo, tamaño,
     // y por cada botón una imagen, un icono o un texto propio.
@@ -78,6 +80,8 @@ export class Hud {
     });
     this.minus = this.makeButton('minus', 'chip', '−', 'Bajar apuesta', () => this.changeBet(-1));
     this.plus = this.makeButton('plus', 'chip', '+', 'Subir apuesta', () => this.changeBet(1));
+    // Vista previa: botón para forzar el bonus y probar sus sonidos y animaciones
+    this.forceBtn = onForce ? h('button', { class: 'forcebtn', title: 'Solo en vista previa: el próximo giro trae el bonus', onclick: () => { if (!this.locked) onForce(); } }, '🎁 FORZAR BONUS') : null;
     // Pantalla completa y girar (girar solo en pantallas táctiles)
     this.fullBtn = canFullscreen() ? this.makeButton('fullscreen', 'chip', '⛶', 'Pantalla completa', () => toggleFullscreen()) : null;
     this.rotateBtn = isTouch() ? this.makeButton('rotate', 'chip', '⟳', 'Girar pantalla', () => this.rotateScreen()) : null;
@@ -92,10 +96,12 @@ export class Hud {
 
     // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior,
     // o una de las interfaces completas (SKINS).
-    root.dataset.layout = this.skin || (HUD.layout === 'classic' ? 'classic' : 'pill');
+    this.isCustom = HUD.layout === 'custom';
+    root.dataset.layout = this.isCustom ? 'custom' : this.skin || (HUD.layout === 'classic' ? 'classic' : 'pill');
     // Tamaño general de la interfaz (theme.hud.scale 0.8–1.4): agranda o achica botonera, botones y textos juntos.
     this.uiScale = Math.min(1.4, Math.max(0.8, Number(HUD.scale) || 1));
-    css.zoom = this.uiScale === 1 ? '' : String(this.uiScale);
+    css.zoom = this.uiScale === 1 || this.isCustom ? '' : String(this.uiScale);
+    if (this.isCustom) this.uiScale = 1; // en Diseño libre la escala se aplica a cada elemento
     if (this.skin) root.dataset.skin = this.skin; else delete root.dataset.skin;
     if (HUD.barColor) css.setProperty('--bar', HUD.barColor);
     if (HUD.barBorder) css.setProperty('--bar-border', HUD.barBorder);
@@ -104,6 +110,15 @@ export class Hud {
     const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, label), el);
     this.onInfo = onInfo;
     this.onHistory = onHistory;
+    if (this.isCustom) {
+      buildCustom(this, { stat, lobbyUrl, preview });
+      this.wantEditor = preview && typeof location !== 'undefined' && new URLSearchParams(location.search).get('edit') === '1';
+      this.renderBet();
+      window.addEventListener('keydown', (e) => {
+        if (!this.editing && e.code === 'Space' && this.modal.hidden && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); onSpin(); }
+      });
+      return;
+    }
     if (this.skin) {
       this.buildSkin({ stat, lobbyUrl, preview, t });
       this.renderBet();
@@ -125,6 +140,7 @@ export class Hud {
       h('div', { class: 'top' },
         lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl, 'aria-label': 'Volver' }, '⟵') : null,
         preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null,
+        this.forceBtn,
         (this.fullBtn || this.rotateBtn) ? h('div', { class: 'tr' }, this.rotateBtn, this.fullBtn) : null),
       this.banner, this.status,
       this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null,
@@ -156,6 +172,7 @@ export class Hud {
       this.infoBtn,
       h('div', { class: 'sk-brand' }, t.title || this.game.name),
       preview ? h('span', { class: 'tag' }, 'VISTA PREVIA') : null,
+      this.forceBtn,
       stat('SALDO', this.balanceEl, 'saldo'),
       h('div', { class: 'sk-topbtns' }, this.rotateBtn, this.soundBtn, this.fullBtn));
     this.dock = h('div', { class: 'sk-dock' },
@@ -169,6 +186,7 @@ export class Hud {
 
   /** Espacio (px) que ocupa la interfaz: el motor acomoda los rodillos en el resto. null = botonera clásica. */
   reserve(orientation) {
+    if (this.isCustom) return { top: 0, bottom: 0, side: 0, full: true }; // todo va dentro del área de juego
     if (!this.skin) return null;
     const W = window.innerWidth;
     const sideOn = orientation === 'landscape' && W >= 1000;
@@ -181,6 +199,13 @@ export class Hud {
   }
 
   toggleFullscreen() { return toggleFullscreen(); }
+
+  /** Transformación del mundo de juego (para Diseño libre: todo se ubica en coordenadas del juego). */
+  setWorld(world) {
+    if (!this.isCustom) return;
+    positionCustom(this, world, this.root.dataset.orient || 'landscape');
+    if (this.wantEditor && !this.editing) enableEditor(this);
+  }
 
   /** Gira a la otra orientación; si el teléfono no lo permite (iPhone), pide girarlo a mano. */
   async rotateScreen() {
@@ -246,7 +271,8 @@ export class Hud {
     const content = s.image
       ? h('img', { src: s.image, alt: '', draggable: 'false' })
       : h('span', {}, s.icon || s.label || defaultIcon);
-    return h('button', { class: `${cls}${s.image ? ' img' : ''}`, 'aria-label': s.label || label, title: s.label || label, onclick }, content);
+    const txt = !s.image && String(s.icon || s.label || defaultIcon).length > 2 ? ' txt' : '';
+    return h('button', { class: `${cls}${s.image ? ' img' : ''}${txt}`, 'aria-label': s.label || label, title: s.label || label, onclick }, content);
   }
 
   /** Muestra el contador del juego automático sin borrar una imagen personalizada. */
@@ -334,7 +360,7 @@ export class Hud {
 
   lock(v) {
     this.locked = v;
-    for (const b of [this.minus, this.plus, this.maxBtn, this.buyBtn].filter(Boolean)) b.disabled = v;
+    for (const b of [this.minus, this.plus, this.maxBtn, this.buyBtn, this.forceBtn].filter(Boolean)) b.disabled = v;
     this.betChips?.querySelectorAll?.('button').forEach((b) => { b.disabled = v; });
     this.spinBtn.classList.toggle('busy', v);
   }

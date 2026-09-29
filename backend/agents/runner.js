@@ -91,9 +91,15 @@ BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los ro
   Para "agrandar los botones" usa theme.buttons.size; para "agrandar toda la botonera/interfaz" usa theme.hud.scale; para el GIRAR en pill/classic, theme.hud.spinSize;
   para los símbolos, theme.symbolScale. Los giros automáticos que elige el jugador están en bet.autoSpins (los define el matemático).
   Cada interfaz toma los colores de theme.palette (primary = botón GIRAR y brillos, accent = premios y detalles, panel = fondos).
+  "custom" (DISEÑO LIBRE): cada elemento se ubica en coordenadas del juego (PC 1280×720, celular 720×1280) en theme.hud.custom:
+    { board: { image (URL o null para quitarla), fit: "fill"|"contain", color, radius, border: true|false },
+      landscape|portrait: { board: { x, y, w, h, hidden }, items: { spin|minus|plus|max|auto|turbo|info|sound|fullscreen|rotate|buy|balance|bet|win: { x, y, s, hidden } } } }
+    x,y = centro; s = alto en px de diseño (el ancho sale de la proporción del logo, nunca se deforma). Jerarquía recomendada: spin 100 %,
+    minus/plus/auto/turbo ≈58 %, max (ovalado) a la altura de los chicos junto al plus, info/sound ≈45 % en los extremos, separación pareja.
   Elige la que mejor encaje con la temática (p. ej. egipcio/lujo → real, cyberpunk → neon, volcán/dragón → brasa, fantasía → cristal, retro → arcade).
 RODILLOS: theme.symbolScale (0.6-1, cuánto de la celda ocupa el símbolo; 0.92 por defecto), theme.cellGap (0-16 px entre celdas),
   theme.cellColor, theme.cellAlpha (0-1), theme.cellRadius, theme.cellBorder (color o "none"), theme.frameColor,
+  theme.frameLayer ("back" | "front": marco de imagen detrás o delante de los rodillos; front solo si el marco tiene el centro transparente), theme.frameScale (0.9-1.6, tamaño del marco),
   theme.tagline (frase corta bajo los rodillos en celular). Imágenes que pone el Artista: theme.background (PC), theme.backgroundMobile
   (celular), theme.reelsBackground (detrás de los rodillos), theme.cellImage (fondo de cada celda), theme.frame (marco), theme.logo.
 Usa update_config con varias operaciones a la vez. No puedes tocar la matemática.`,

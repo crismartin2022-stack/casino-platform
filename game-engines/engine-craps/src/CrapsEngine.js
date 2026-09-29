@@ -3,6 +3,7 @@
 import { SoundManager } from '../../shared/SoundManager.js';
 import { formatMoney } from '../../shared/api.js';
 import { canFullscreen, isTouch, toggleFullscreen, rotate } from '../../shared/screen.js';
+import { applyBackgroundMedia, loadFontFile } from '../../shared/media.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -150,11 +151,13 @@ export class CrapsEngine {
     if (D.radius != null) root.setProperty('--die-radius', `${Math.max(0, Math.min(50, Number(D.radius)))}%`);
     const bg = document.getElementById('bg');
     if (bg) {
-      if (t.background) bg.style.setProperty('--bg-desktop', `url("${t.background}")`);
-      if (t.backgroundMobile) bg.style.setProperty('--bg-mobile', `url("${t.backgroundMobile}")`);
+      if (t.background && !/\.(mp4|webm)(\?|$)/i.test(t.background)) bg.style.setProperty('--bg-desktop', `url("${t.background}")`);
+      if (t.backgroundMobile && !/\.(mp4|webm)(\?|$)/i.test(t.backgroundMobile)) bg.style.setProperty('--bg-mobile', `url("${t.backgroundMobile}")`);
       if (t.backgroundColor) bg.style.setProperty('--bg-color', t.backgroundColor);
     }
-    if (t.font && !document.querySelector(`link[data-font="${t.font}"]`)) {
+    applyBackgroundMedia(t, matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape');
+    if (t.fontUrl) await loadFontFile(t.font, t.fontUrl);
+    else if (t.font && !document.querySelector(`link[data-font="${t.font}"]`)) {
       const link = h('link', { rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(t.font).replace(/%20/g, '+')}&display=swap` });
       link.dataset.font = t.font;
       document.head.append(link);

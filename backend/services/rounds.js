@@ -45,7 +45,12 @@ export function formatRound(r) {
   };
 }
 
-export async function playRound(token, { bet, mode = 'base', clientRoundId = null }) {
+/** ¿El resultado trae un bonus (giros gratis, Hold & Win, re-giros, minijuego)? */
+export function hasFeature(r) {
+  return !!((r.freeSpins && (r.freeSpins.awarded > 0 || r.freeSpins.spins?.length)) || r.holdAndWin || r.respins?.length || r.bonus);
+}
+
+export async function playRound(token, { bet, mode = 'base', clientRoundId = null, force = false }) {
   const session = getSession(token);
   const prior = existingRound(token, clientRoundId);
   if (prior) return { ...prior, replayed: true };
@@ -57,7 +62,17 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   if (!(engine.modes || ['base']).includes(mode)) throw new HttpError(400, `Modo de juego no disponible: ${mode}`);
   const cost = Math.round(bet * costMultiplier(engine, config, mode));
 
-  const rng = recordingRng(cryptoRng());
+  // Forzar bonus: SOLO en la vista previa del borrador (demo), para probar sonidos y animaciones del bonus.
+  if (force && session.source !== 'draft') throw new HttpError(403, 'Forzar el bonus solo está permitido en la vista previa del borrador');
+  let rng = recordingRng(cryptoRng());
+  const produce = () => {
+    for (let i = 0; i < (force ? 60_000 : 1); i++) {
+      if (i) rng = recordingRng(cryptoRng());
+      const res = engine.play(config, rng, { mode });
+      if (!force || hasFeature(res)) return res;
+    }
+    throw new HttpError(409, 'Este juego no tiene un bonus que se pueda forzar (o es demasiado raro): revisa la frecuencia del bonus en Matemática');
+  };
   const roundId = `rd_${randomUUID()}`;
   const wallet = walletForSession(session);
   const base = [roundId, clientRoundId, token, session.player_id, session.game_id, version, variantId ?? null, session.source, session.mode, mode, bet, cost];
@@ -67,7 +82,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
     const row = tx(() => {
       const before = one('SELECT balance FROM players WHERE id = ?', session.player_id).balance;
       wallet.debitSync(cost, roundId);
-      const result = engine.play(config, rng, { mode });
+      const result = produce();
       const win = toCents(result.totalWin, bet);
       const after = wallet.creditSync(win, roundId);
       run(`INSERT INTO rounds (id, client_round_id, session_token, player_id, game_id, version, variant_id, source, mode, play_mode, bet, cost,
@@ -94,7 +109,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
     }
     throw e.status ? e : new HttpError(502, 'No se pudo contactar la billetera del operador');
   }
-  const result = engine.play(config, rng, { mode });
+  const result = produce();
   const win = toCents(result.totalWin, bet);
   run("UPDATE rounds SET status = 'pending_credit', win = ?, balance_before = ?, rng = ?, result = ? WHERE id = ?",
     win, afterDebit + cost, JSON.stringify(rng.draws), JSON.stringify(result), roundId);

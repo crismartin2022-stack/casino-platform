@@ -5,6 +5,7 @@ import { gsap } from 'gsap';
 import { GridView, wait } from './GridView.js';
 import { Hud, h } from './Hud.js';
 import { SoundManager } from './SoundManager.js';
+import { isAnimated, isVideo, mediaEl, applyBackgroundMedia, loadFontFile } from './media.js';
 
 const DESIGN = { landscape: { w: 1280, h: 720 }, portrait: { w: 720, h: 1280 } };
 // Zonas en coordenadas de diseño: logo arriba, rodillos, espacio para la botonera (HTML) abajo.
@@ -73,7 +74,9 @@ export class BaseEngine {
     this.app.stage.addChild(this.world);
 
     onProgress(0.1, 'Cargando tipografía…');
-    await loadFont(t.font);
+    // Tipografía propia subida (theme.fontUrl) o de Google Fonts (theme.font); la botonera puede tener otra (theme.hud.font/fontUrl)
+    if (t.fontUrl) await loadFontFile(t.font, t.fontUrl); else await loadFont(t.font);
+    if (t.hud?.fontUrl) await loadFontFile(t.hud.font, t.hud.fontUrl); else if (t.hud?.font) await loadFont(t.hud.font);
 
     onProgress(0.2, 'Cargando símbolos…');
     this.textures = new Map();
@@ -86,8 +89,15 @@ export class BaseEngine {
     }));
     this.textures.set('__missing', await loadTexture('/gen/symbol.svg?label=%3F&color=%23555555'));
     const optional = async (url) => { if (!url) return null; try { return await loadTexture(url); } catch (e) { console.warn(e.message); return null; } };
+    // Fondo de rodillos animado (GIF o video): va en una capa HTML detrás del lienzo, que es transparente.
+    const reelsAnimated = isAnimated(t.reelsBackground);
     [this.logoTexture, this.cellTexture, this.reelsTexture, this.frameTexture] = await Promise.all(
-      [t.logo, t.cellImage, t.reelsBackground, t.frame].map(optional));
+      [t.logo, t.cellImage, reelsAnimated ? null : t.reelsBackground, t.frame].map(optional));
+    if (reelsAnimated) {
+      this.reelsMedia = mediaEl(t.reelsBackground, { fit: 'fill' });
+      this.reelsMedia.className = 'reelsbg';
+      this.container.prepend(this.reelsMedia);
+    }
 
     onProgress(0.9, 'Preparando mesa…');
     this.sound = new SoundManager(this.game.sounds || {}, this.game.soundVolumes || {});
@@ -113,9 +123,11 @@ export class BaseEngine {
     const t = this.game.theme || {};
     const el = document.getElementById?.('bg');
     if (!el) return;
+    applyBackgroundMedia(t, this.orientation);
     const url = (u) => (u ? `url("${String(u).replace(/"/g, '%22')}")` : null);
-    if (url(t.background)) el.style.setProperty('--bg-desktop', url(t.background));
-    if (url(t.backgroundMobile)) el.style.setProperty('--bg-mobile', url(t.backgroundMobile));
+    // Los videos no van por CSS (applyBackgroundMedia los pone como <video>)
+    if (url(t.background) && !isVideo(t.background)) el.style.setProperty('--bg-desktop', url(t.background));
+    if (url(t.backgroundMobile) && !isVideo(t.backgroundMobile)) el.style.setProperty('--bg-mobile', url(t.backgroundMobile));
     if (t.backgroundColor) el.style.setProperty('--bg-color', t.backgroundColor);
   }
 
@@ -131,6 +143,7 @@ export class BaseEngine {
 
   relayout(orientation) {
     this.orientation = orientation;
+    applyBackgroundMedia(this.game.theme || {}, orientation);
     this.design = DESIGN[orientation];
     for (const ch of this.world.removeChildren()) ch.destroy({ children: true });
     this.buildScene();
@@ -177,6 +190,7 @@ export class BaseEngine {
         cellColor: t.cellColor, cellAlpha: t.cellAlpha, cellRadius: t.cellRadius,
         cellBorder: t.cellBorder === 'none' ? null : t.cellBorder, frameColor: t.frameColor,
         cellTexture: this.cellTexture, reelsTexture: this.reelsTexture, frameTexture: this.frameTexture,
+        frameLayer: t.frameLayer, frameScale: t.frameScale, frameCut: t.frameCut,
       },
     });
     this.grid.position.set(a.x, a.y);
@@ -247,6 +261,8 @@ export class BaseEngine {
       onInfo: () => this.showInfo(),
       onToggleSound: () => this.sound.toggleMute(),
       onHistory: () => this.api.history(20),
+      // Solo en la vista previa del borrador: el próximo giro trae el bonus
+      onForce: this.session.source === 'draft' ? () => this.spin('base', { force: true }) : null,
     });
     this.hud.onTurbo = (v) => { this.grid.turbo = v; };
   }
@@ -259,7 +275,7 @@ export class BaseEngine {
     // Interfaces completas: barra superior, dock inferior y panel lateral ocupan píxeles fijos; los rodillos van en el resto.
     const R = this.hud?.reserve?.(this.orientation);
     if (R) {
-      const usedH = this.gridRect.y + this.gridRect.h + (this.taglineH || 0) + 12;
+      const usedH = R.full ? this.design.h : this.gridRect.y + this.gridRect.h + (this.taglineH || 0) + 12;
       const availW = Math.max(200, W - 2 * R.side), availH = Math.max(200, H - R.top - R.bottom);
       const k = Math.min(availW / this.design.w, availH / usedH);
       this.world.scale.set(k);
@@ -268,6 +284,8 @@ export class BaseEngine {
       this.world.position.set(ox, oy);
       const r = this.gridRect;
       this.hud.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
+      this.hud.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, gridBottom: r.y + r.h + (this.taglineH || 0) });
+      this.placeReelsMedia(ox, oy, k);
       this.hud.renderBet();
       return;
     }
@@ -281,10 +299,19 @@ export class BaseEngine {
     this.world.position.set(ox, oy);
     const r = this.gridRect;
     this.hud?.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
+    this.hud?.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, gridBottom: r.y + r.h + (this.taglineH || 0) });
+    this.placeReelsMedia(ox, oy, k);
+  }
+
+  /** Coloca el fondo de rodillos animado exactamente detrás de la cuadrícula (mismo margen que la imagen fija). */
+  placeReelsMedia(ox, oy, k) {
+    if (!this.reelsMedia) return;
+    const r = this.gridRect;
+    Object.assign(this.reelsMedia.style, { left: `${ox + (r.x - 10) * k}px`, top: `${oy + (r.y - 10) * k}px`, width: `${(r.w + 20) * k}px`, height: `${(r.h + 20) * k}px` });
   }
 
   // ---------------------------------------------------------------- Ciclo de juego
-  async spin(mode = 'base') {
+  async spin(mode = 'base', { force = false } = {}) {
     if (this.busy) return;
     const bet = this.hud.bet;
     const cost = Math.round(bet * this.costFor(mode));
@@ -301,7 +328,7 @@ export class BaseEngine {
     this.grid.startSpin();
     let round;
     try {
-      [round] = await Promise.all([this.api.spin(bet, mode), wait(this.hud.turbo ? 150 : 380)]);
+      [round] = await Promise.all([this.api.spin(bet, mode, { force }), wait(this.hud.turbo ? 150 : 380)]);
     } catch (e) {
       await this.grid.stop(this.randomGrid());
       this.hud.setBalance(this.hud.balance + cost);

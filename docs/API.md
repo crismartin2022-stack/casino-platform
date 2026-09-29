@@ -149,7 +149,8 @@ Tiempo máximo de respuesta: 8 s.
 | POST | `/api/admin/games/:id/simulate` · `/tune` | Simulación Monte Carlo · ajuste automático del RTP |
 | GET | `/api/admin/games/:id/grid?reels=&rows=` | Tamaño actual, tipo de pago (líneas/formas) y máximo de líneas posible |
 | POST | `/api/admin/games/:id/resize` | `{ reels?, rows?, lines? }` cambia rodillos (3–8), filas (3–6) y líneas; reconstruye rodillos y pagos y reajusta el RTP |
-| POST | `/api/admin/games/:id/preview-session` | Sesión demo que juega el **borrador** |
+| POST | `/api/admin/games/:id/preview-session` | Sesión demo que juega el **borrador**. En esa sesión, `POST /api/v1/spin { "force": true }` fuerza un bonus (solo borradores: en cualquier otra sesión responde `403`) |
+| POST | `/api/admin/games/:id/feature-frequency` | `{ every }` recalibra el bonus para que salga cada ~N giros y reajusta el RTP del borrador |
 | GET / POST | `/api/admin/assets` | Listar / subir imagen o sonido (cuerpo binario, `?gameId=&kind=`) |
 | POST | `/api/admin/agents/runs` | `{ gameId, prompt, agent?: director\|designer\|artist\|sound\|math, runId? }` |
 | GET | `/api/admin/agents/runs/:id/events` | Progreso en vivo (Server-Sent Events) |

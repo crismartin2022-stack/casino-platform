@@ -29,6 +29,9 @@
     #bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55)); }
 
     #stage { position: fixed; inset: 0; }
+    #stage canvas { position: relative; z-index: 1; }
+    #stage .reelsbg { z-index: 0; }
+    #bg video.bgvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     #hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--font); color: var(--text);
       --btn: rgba(255,255,255,.12); --btn-text: var(--text); --btn-scale: 1; --bar: rgba(10,8,12,.82); --bar-border: color-mix(in srgb, var(--accent) 65%, transparent);
       --spin-size: 84px; --ui: 1; --gx: 50vw; --gb: 80vh; --gw: 900px; }
@@ -41,6 +44,8 @@
     .top .tr .chip { background: rgba(0,0,0,.45); }
     #hud[data-orient="portrait"]:not([data-skin]) .top .tr { right: 62px; }
     .tag { background: #ff9f1c; color: #000; font: 700 11px system-ui; padding: 4px 8px; border-radius: 6px; }
+    .forcebtn { background: linear-gradient(#b14cff, #6a1fd1); color: #fff; font: 800 11px system-ui; letter-spacing: .06em; padding: 6px 10px; border-radius: 8px; box-shadow: 0 0 0 2px #fff4, 0 4px 12px rgba(0,0,0,.5); white-space: nowrap; }
+    #hud[data-orient="portrait"] .forcebtn { font-size: 9px; padding: 4px 6px; }
     button { font-family: inherit; cursor: pointer; border: 0; color: inherit; -webkit-tap-highlight-color: transparent; }
     button:disabled { opacity: .4; cursor: not-allowed; }
 
@@ -398,6 +403,40 @@
     #hud[data-skin="arcade"] .fx i:nth-child(3n) { background: var(--primary); } #hud[data-skin="arcade"] .fx i:nth-child(3n+1) { background: #fff; }
     #hud[data-skin="arcade"] .sheet { background: #0b0b14; border: 4px solid var(--primary); border-radius: 10px; font-family: ui-monospace, monospace; }
     #hud[data-skin="arcade"][data-orient="portrait"] .spin:not(.img) { width: 150px; }
+
+
+    /* =====================================================================
+       DISEÑO LIBRE (theme.hud.layout = "custom"): cada elemento en coordenadas del juego
+       ===================================================================== */
+    #hud[data-layout="custom"] .citem { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; z-index: 3; --sz: 60px; }
+    #hud[data-layout="custom"] .citem > button:not(.img) { width: var(--sz); height: var(--sz); font-size: calc(var(--sz) * .42); transform: none; padding: 0; }
+    #hud[data-layout="custom"] .citem > .spin:not(.img) { --spin-size: var(--sz); font-size: calc(var(--sz) * .45); }
+    #hud[data-layout="custom"] .citem > button.txt:not(.img):not(.maxbet):not(.buy) { font-size: calc(var(--sz) * .25); font-weight: 800; letter-spacing: .04em; }
+    #hud[data-layout="custom"] .citem > .chip.maxbet:not(.img) { width: auto; padding: 0 calc(var(--sz) * .38); border-radius: 999px; font-size: calc(var(--sz) * .34); }
+    #hud[data-layout="custom"] .citem > .buy:not(.img) { width: auto; max-width: none; height: var(--sz); padding: 0 calc(var(--sz) * .3); font-size: calc(var(--sz) * .24); }
+    #hud[data-layout="custom"] .citem > .autos .chip, #hud[data-layout="custom"] .citem > .chip { border: 1px solid var(--bar-border); }
+    #hud[data-layout="custom"] .citem > button.img img { height: var(--sz); width: auto; max-width: none; }
+    #hud[data-layout="custom"] .citem > .spin.img img { height: var(--sz); max-width: none; }
+    #hud[data-layout="custom"] .cstat .stat small { font-size: calc(var(--sz) * .22); }
+    #hud[data-layout="custom"] .cstat .stat b { font-size: calc(var(--sz) * .4); }
+    #hud[data-layout="custom"] .cboard { position: absolute; transform: translate(-50%, -50%); z-index: 2; border-radius: var(--cb-radius, 26px);
+      background: var(--cb-color, linear-gradient(180deg, color-mix(in srgb, var(--panel) 80%, #fff 8%), color-mix(in srgb, var(--panel) 85%, #000)));
+      border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 10px 30px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.15); }
+    #hud[data-layout="custom"] .cboard.img { background-color: transparent; background-repeat: no-repeat; background-position: center; background-size: 100% 100%; border: 0; box-shadow: none; }
+    #hud[data-layout="custom"] .cboard.img[data-fit="contain"] { background-size: contain; }
+    #hud[data-layout="custom"] .cboard.noborder { border: 0; box-shadow: none; }
+    #hud[data-layout="custom"] .top .forcebtn { margin-left: 8px; }
+    /* Editor */
+    #hud.editing .citem, #hud.editing .cboard { outline: 1px dashed rgba(120,220,255,.55); cursor: move; touch-action: none; }
+    #hud.editing .citem > * { pointer-events: none; }
+    #hud.editing .sel { outline: 2px solid #33ccff !important; box-shadow: 0 0 0 4px rgba(51,204,255,.25); }
+    #hud.editing .hiddenitem { opacity: .3; }
+    #hud.editing .cboard::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; border-right: 3px solid #33ccff; border-bottom: 3px solid #33ccff; cursor: nwse-resize; }
+    .ceditbar { position: fixed; left: 50%; top: 8px; transform: translateX(-50%); z-index: 40; background: rgba(8,12,22,.94); border: 1px solid #33ccff; border-radius: 12px;
+      padding: 6px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 96vw; font: 12px system-ui; pointer-events: auto; }
+    .ceditbar button { background: #1b2340; color: #fff; border: 1px solid #3a4670; border-radius: 8px; padding: 6px 9px; font: 600 12px system-ui; }
+    .ceditbar button:disabled { opacity: .4; }
+    .ceditbar .cinfo { padding: 0 6px; align-self: center; color: #9fe3ff; min-width: 220px; }
 
     #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; background: #05060c; font: 600 15px system-ui; }
     #loader .bar2 { width: min(320px, 70vw); height: 8px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 12px; }

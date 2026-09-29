@@ -185,6 +185,63 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
  * Escala los pagos para acercar el RTP al objetivo. Es lineal en los pagos, así que
  * converge en 2-3 iteraciones. Para Bonus Buy también ajusta el precio de compra.
  */
+/**
+ * Frecuencia del bonus: cambia cuántos símbolos activadores (scatter, libro, moneda…) hay en las tiras
+ * para que el bonus salga en promedio cada `every` giros y luego reajusta los pagos al RTP objetivo.
+ * Ajusta la densidad (activadores / largo de tira) cambiando cantidad de activadores y relleno con símbolos normales.
+ */
+export function tuneFeature(config, { every, spins = 200_000, seed = 4242 } = {}) {
+  const engine = getEngine(config.engine);
+  if (engine.kind === 'table') throw Object.assign(new Error('Los juegos de mesa no tienen bonus de rodillos'), { status: 400 });
+  every = Number(every);
+  if (!(every >= 20 && every <= 5000)) throw Object.assign(new Error('La frecuencia debe estar entre 20 y 5000 giros'), { status: 400 });
+  const triggers = new Set((config.symbols || []).filter((s) => ['scatter', 'wildscatter', 'coin'].includes(s.type)).map((s) => s.id));
+  if (!triggers.size || !Array.isArray(config.reels)) throw Object.assign(new Error('Este juego no tiene un bonus activado por símbolos en los rodillos'), { status: 400 });
+  const regular = (config.symbols || []).filter((s) => (s.type || 'regular') === 'regular').map((s) => s.id);
+  const rng = seededRng(seed);
+  let cfg = structuredClone(config);
+  const history = [];
+  const measure = (c) => simulate(c, { spins, seed: seed + 1, timeBudgetMs: 45_000 });
+  let sim = measure(cfg);
+  history.push({ step: 0, featureEvery: sim.featureEvery, rtp: sim.rtp });
+  for (let step = 1; step <= 7; step++) {
+    const fe = sim.featureEvery ?? every * 20;
+    if (Math.abs(fe - every) / every < 0.1) break;
+    // La probabilidad del bonus crece aprox. con la densidad al cubo (hacen falta ~3 activadores)
+    const factor = Math.min(2.2, Math.max(0.45, (fe / every) ** (1 / 3)));
+    cfg.reels = cfg.reels.map((strip) => {
+      const trig = strip.filter((x) => triggers.has(x));
+      const others = strip.filter((x) => !triggers.has(x));
+      if (!trig.length) return strip;
+      const density = (trig.length / strip.length) * factor;
+      let count = Math.max(1, Math.round(trig.length * Math.sqrt(factor)));
+      let len = Math.round(count / density);
+      len = Math.max(Math.max(24, count * 4), Math.min(220, len));
+      // Relleno: símbolos normales copiando la mezcla de la tira (o regulares si no hay)
+      const pool = others.filter((x) => regular.includes(x));
+      const fill = pool.length ? pool : regular;
+      let body = others.slice();
+      while (body.length < len - count) body.splice(rng.int(body.length + 1), 0, fill[rng.int(fill.length)]);
+      while (body.length > len - count) {
+        const idx = body.findIndex((x, i) => regular.includes(x) && i === rng.int(body.length));
+        body.splice(idx >= 0 ? idx : rng.int(body.length), 1);
+      }
+      // Reparte los activadores lo más separados posible (nunca dos juntos a la vista)
+      const out = body.slice();
+      const types = [...trig];
+      for (let i = 0; i < count; i++) {
+        const pos = Math.round(((i + 0.5) * out.length) / count) + i;
+        out.splice(Math.min(out.length, pos), 0, types[i % types.length]);
+      }
+      return out;
+    });
+    sim = measure(cfg);
+    history.push({ step, featureEvery: sim.featureEvery, rtp: sim.rtp });
+  }
+  const tuned = tuneRtpSlot(cfg, { target: cfg.rtpTarget, spins: Math.max(spins, 400_000), iterations: 5 });
+  return { config: tuned.config, history, featureEvery: tuned.final.featureEvery, final: tuned.final, buy: tuned.buy, buyOptions: tuned.buyOptions };
+}
+
 export function tuneRtp(config, opts = {}) {
   if (getEngine(config.engine).kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP depende de los pagos de cada apuesta: edítalos en las reglas'), { status: 400 });
   return tuneRtpSlot(config, opts);

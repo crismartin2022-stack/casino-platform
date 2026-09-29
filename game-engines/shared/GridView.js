@@ -38,14 +38,20 @@ export class GridView extends Container {
     this.colW = (width - gap * (cols - 1)) / cols;
     this.turbo = false;
 
-    // Capas: marco decorativo → fondo de rodillos → recuadros de celda → símbolos → efectos
+    // Capas: marco decorativo (detrás) → fondo de rodillos → recuadros de celda → símbolos → marco (delante) → efectos
+    // theme.frameLayer: "front" pone el marco por encima de los símbolos (para marcos con el centro transparente).
+    // theme.frameScale: tamaño del marco respecto de los rodillos (1 = justo; 1,12 por defecto).
+    let frameSprite = null;
     if (look.frameTexture) {
       const f = new Sprite(look.frameTexture);
-      const pad = Math.max(width, height) * 0.06;
-      f.position.set(-pad, -pad);
-      f.width = width + pad * 2;
-      f.height = height + pad * 2;
-      this.addChild(f);
+      const k = look.frameScale != null ? Math.min(1.6, Math.max(0.9, Number(look.frameScale))) : null;
+      const padX = k != null ? (width * (k - 1)) / 2 : Math.max(width, height) * 0.06;
+      const padY = k != null ? (height * (k - 1)) / 2 : Math.max(width, height) * 0.06;
+      f.position.set(-padX, -padY);
+      f.width = width + padX * 2;
+      f.height = height + padY * 2;
+      frameSprite = f;
+      if (look.frameLayer !== 'front') this.addChild(f);
     }
     if (look.reelsTexture) {
       const r = new Sprite(look.reelsTexture);
@@ -63,6 +69,15 @@ export class GridView extends Container {
     const mask = new Graphics().rect(0, 0, width, height).fill(0xffffff);
     this.addChild(mask);
     this.content.mask = mask;
+    if (frameSprite && look.frameLayer === 'front') {
+      this.addChild(frameSprite);
+      // Si el marco no trae el centro transparente, se recorta el hueco de los rodillos (theme.frameCut = false lo desactiva).
+      if (look.frameCut !== false) {
+        const hole = new Graphics().rect(frameSprite.x, frameSprite.y, frameSprite.width, frameSprite.height).fill(0xffffff).rect(0, 0, width, height).cut();
+        this.addChild(hole);
+        frameSprite.mask = hole;
+      }
+    }
     this.fx = new Container(); // capa de efectos por encima (sin máscara)
     this.addChild(this.fx);
 

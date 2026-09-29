@@ -1,12 +1,13 @@
 // Ejecuta simulaciones y ajustes de RTP en un hilo aparte para no bloquear las tiradas de los jugadores.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { simulate, tuneRtp, resizeGrid } from './index.js';
+import { simulate, tuneRtp, resizeGrid, tuneFeature } from './index.js';
 
 if (!isMainThread && workerData?.__simWorker) {
   const { task, config, opts } = workerData;
   try {
     let out;
     if (task === 'tune') out = tuneRtp(config, opts);
+    else if (task === 'feature') out = tuneFeature(config, opts);
     else if (task === 'resize') {
       const { config: resized, maxLines } = resizeGrid(config, opts);
       out = { ...tuneRtp(resized, { target: resized.rtpTarget, spins: opts.spins || 300_000 }), maxLines };
@@ -39,5 +40,6 @@ function enqueue(task, config, opts) {
 
 export const simulateAsync = (config, opts = {}) => enqueue('simulate', config, opts);
 export const tuneAsync = (config, opts = {}) => enqueue('tune', config, opts);
+export const featureAsync = (config, opts = {}) => enqueue('feature', config, opts);
 /** Cambia rodillos/filas/líneas y reajusta el RTP. opts: { reels, rows, lines, spins } */
 export const resizeAsync = (config, opts = {}) => enqueue('resize', config, opts);
