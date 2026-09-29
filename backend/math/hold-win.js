@@ -34,24 +34,34 @@ export function play(config, rng) {
     while (left > 0 && held.size < cells) {
       left--;
       const landed = [];
+      let extra = 0;
       for (let c = 0; c < RC; c++) {
         for (let r = 0; r < RR; r++) {
           const key = `${c},${r}`;
           if (held.has(key)) continue;
           if (rng.int(1_000_000) < R.landChance * 1_000_000) {
-            const coin = { c, r, ...coinValue(rng, R) };
+            // Monedas especiales (opcional): multiplicador o +1 re-giro
+            let special = null;
+            if (R.specialCoins?.length && rng.int(1_000_000) < (R.specialChance || 0) * 1_000_000) special = weightedPick(rng, R.specialCoins);
+            const coin = special?.special === 'multiplier'
+              ? { c, r, value: 0, special: 'multiplier', mult: special.mult }
+              : { c, r, ...coinValue(rng, R), ...(special ? { special: special.special } : {}) };
+            if (coin.special === 'respin') extra++;
             held.set(key, coin); landed.push(coin);
           }
         }
       }
-      if (landed.length) left = R.respins;
+      if (landed.length) left = R.respins + extra;
       respins.push({ landed, respinsLeft: left });
     }
     const all = [...held.values()];
     const full = held.size === cells;
     let win = all.reduce((a, k) => a + k.value, 0);
+    // Los multiplicadores se suman entre sí y multiplican el total de monedas
+    const multSum = all.filter((k) => k.special === 'multiplier').reduce((a, k) => a + k.mult, 0);
+    if (multSum > 0) win *= multSum;
     if (full) win += R.jackpots.grand;
-    holdAndWin = { coins: all, respins, full, win: round6(win) };
+    holdAndWin = { coins: all, respins, full, multiplier: multSum || 1, win: round6(win) };
     total += holdAndWin.win;
   }
   const { total: capped, capped: wasCapped } = capWin(total, config);
@@ -74,6 +84,11 @@ export function validate(config) {
     if (!(cv.weight > 0)) errors.push('Cada coinValue necesita weight > 0');
   }
   if (!R.jackpots?.grand) errors.push('rules.jackpots.grand es obligatorio');
+  for (const sc of R.specialCoins || []) {
+    if (!['multiplier', 'respin'].includes(sc.special) || !(sc.weight > 0)) errors.push('rules.specialCoins: cada una necesita special "multiplier" o "respin" y weight > 0');
+    if (sc.special === 'multiplier' && !(sc.mult >= 2)) errors.push('Moneda multiplicadora: mult debe ser >= 2');
+  }
+  if (R.specialCoins?.length && !(R.specialChance > 0 && R.specialChance < 1)) errors.push('rules.specialChance debe estar entre 0 y 1');
   return errors;
 }
 
@@ -111,6 +126,9 @@ export function defaults() {
         { jackpot: 'mini', weight: 20 }, { jackpot: 'minor', weight: 8 }, { jackpot: 'major', weight: 2 },
       ],
       jackpots: { mini: 10, minor: 30, major: 150, grand: 1000 },
+      // Monedas especiales durante el bonus (inspiradas en el diseño enviado): multiplicador ×2/×3 y +1 re-giro
+      specialChance: 0.12,
+      specialCoins: [{ special: 'multiplier', mult: 2, weight: 50 }, { special: 'multiplier', mult: 3, weight: 20 }, { special: 'respin', weight: 30 }],
       maxWin: 5000,
     },
     bet: { levels: [20, 50, 100, 200, 500, 1000, 2000, 5000], default: 100, currency: 'USD' },

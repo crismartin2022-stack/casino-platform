@@ -250,8 +250,6 @@ export class BaseEngine {
     this.hud.onTurbo = (v) => { this.grid.turbo = v; };
   }
 
-  supportsBuy() { return false; }
-
   /** Gancho para limpiar capas propias del motor (etiquetas, colosales…) antes de girar. */
   onSpinStart() {}
 
@@ -273,7 +271,7 @@ export class BaseEngine {
   async spin(mode = 'base') {
     if (this.busy) return;
     const bet = this.hud.bet;
-    const cost = mode === 'buy' ? bet * (this.game.rules.buyCost || 1) : bet;
+    const cost = Math.round(bet * this.costFor(mode));
     if (this.hud.balance < cost) { this.hud.error('Saldo insuficiente para esta apuesta.'); return; }
     this.busy = true;
     this.hud.lock(true);
@@ -390,26 +388,64 @@ export class BaseEngine {
     this.sound.playMusic('music');
   }
 
+  /** Precio (en múltiplos de la apuesta) de cada modo de juego. */
+  costFor(mode) {
+    const R = this.game.rules || {};
+    if (mode === 'base') return 1;
+    if (mode === 'buy') return R.buyCost || 1;
+    const key = { 'buy-sticky': 'sticky', 'buy-wheel': 'wheel', 'buy-pick': 'pick' }[mode];
+    return R.bonusMenu?.[key]?.cost || 1;
+  }
+
+  /** Opciones de compra disponibles: [{ mode, name, cost }]. */
+  buyOptions() {
+    const R = this.game.rules || {};
+    const out = [];
+    if (R.buyCost) out.push({ mode: 'buy', name: 'Giros gratis', cost: R.buyCost });
+    const names = { sticky: 'Giros gratis con wilds fijos', wheel: 'Ruleta de la fortuna', pick: 'Elige un premio' };
+    for (const [key, mode] of [['sticky', 'buy-sticky'], ['wheel', 'buy-wheel'], ['pick', 'buy-pick']]) {
+      const o = R.bonusMenu?.[key];
+      if (o) out.push({ mode, name: o.name || names[key], cost: o.cost });
+    }
+    return out;
+  }
+
+  supportsBuy() { return this.buyOptions().length > 0; }
+
   async buyBonus() {
     if (this.busy) return;
-    const price = this.hud.bet * this.game.rules.buyCost;
-    const ok = await this.hud.confirm('Comprar bonus', `¿Comprar los giros gratis por ${this.hud.fmt(price)}?`, `Comprar por ${this.hud.fmt(price)}`);
-    if (ok) this.spin('buy');
+    const opts = this.buyOptions();
+    if (opts.length === 1) {
+      const price = this.hud.bet * opts[0].cost;
+      const ok = await this.hud.confirm('Comprar bonus', `¿Comprar ${opts[0].name.toLowerCase()} por ${this.hud.fmt(price)}?`, `Comprar por ${this.hud.fmt(price)}`);
+      if (ok) this.spin(opts[0].mode);
+      return;
+    }
+    const mode = await this.hud.choose('Comprar bonus', opts.map((o) => ({ value: o.mode, label: o.name, sub: this.hud.fmt(this.hud.bet * o.cost) })));
+    if (mode) this.spin(mode);
   }
 
   // ---------------------------------------------------------------- Reglas y pagos (obligatorio en mercados regulados)
   payUnit() { return 1; }
 
+  /** Cómo se muestra cada cantidad de la tabla de pagos (los motores de grupos la cambian). */
+  payLabel(n) { return `${n}`; }
+
   showInfo() {
     const bet = this.hud.bet;
     const unit = this.payUnit();
     const rows = this.game.symbols.map((s) => {
+      const keys = Object.keys(s.pays || {});
       const pays = Object.entries(s.pays || {}).sort((a, b) => b[0] - a[0])
-        .map(([n, p]) => h('div', {}, `${n}× `, h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
-      const kind = s.type === 'wild' ? 'Sustituye a los símbolos normales'
-        : s.type === 'scatter' ? 'Activa los giros gratis'
-          : s.type === 'coin' ? 'Activa el bonus Hold & Win' : null;
-      return h('div', { class: 'pay' }, h('img', { src: s.image, alt: s.name }), h('div', {}, h('strong', {}, s.name), kind ? h('div', {}, kind) : null, ...pays));
+        .map(([n, p]) => h('div', {}, `${this.payLabel(n, keys)}× `, h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
+      // Pagos de scatter en cualquier posición (múltiplos de la apuesta total)
+      const sp = Object.entries(s.scatterPays || {}).sort((a, b) => b[0] - a[0])
+        .map(([n, p]) => h('div', {}, `${n}× `, h('b', {}, this.hud.fmt(Math.round(p * bet)))));
+      const kind = {
+        wild: 'Sustituye a los símbolos normales', scatter: 'Activa los giros gratis', coin: 'Activa el bonus Hold & Win',
+        wildscatter: 'Comodín y scatter: activa los giros gratis', multiplier: 'Multiplica el premio del giro', mystery: 'Se revela como un símbolo al azar',
+      }[s.type] || null;
+      return h('div', { class: 'pay' }, h('img', { src: s.image, alt: s.name }), h('div', {}, h('strong', {}, s.name), kind ? h('div', {}, kind) : null, ...pays, ...sp));
     });
     const rtp = this.game.math?.rtp ? `${(this.game.math.rtp * 100).toFixed(2)} %` : '—';
     this.hud.openModal(h('div', { class: 'info' },

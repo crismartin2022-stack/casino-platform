@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { db, one, all, run, tx, audit } from '../db.js';
 import { ROOT, config as appConfig } from '../config.js';
-import { validateConfig, getEngine, ENGINES } from '../math/index.js';
+import { validateConfig, getEngine, ENGINES, buyModesOf } from '../math/index.js';
 import { simulateAsync } from '../math/worker.js';
 import { HttpError } from '../lib/http.js';
 
@@ -97,8 +97,17 @@ export function getDraft(id) {
 export function publicConfig(id, c, version) {
   const { reels, freeSpinReels, ...rest } = structuredClone(c);
   const rules = { ...rest.rules };
-  for (const k of ['rowWeights', 'coinValues', 'colossalSymbols', 'colossalSizes', 'landChance', 'colossalChance']) delete rules[k];
+  for (const k of ['rowWeights', 'coinValues', 'colossalSymbols', 'colossalSizes', 'landChance', 'colossalChance',
+    'multiplierValues', 'mysteryWeights', 'expandWeights', 'specialCoins', 'specialChance', 'bonusMenu']) delete rules[k];
   if (c.rules?.coinValues) rules.coinValues = c.rules.coinValues.filter((v) => v.value != null).map((v) => v.value);
+  if (c.rules?.multiplierValues) rules.multiplierValues = c.rules.multiplierValues.map((m) => m.value);
+  // Menú de compra: nombre, precio y lo necesario para dibujar (sin probabilidades)
+  if (c.rules?.bonusMenu) {
+    rules.bonusMenu = Object.fromEntries(Object.entries(c.rules.bonusMenu).filter(([, o]) => o?.enabled).map(([k, o]) => [k, {
+      name: o.name, cost: o.cost, freeSpins: o.freeSpins, spins: o.spins, multStep: o.multStep, picks: o.picks, tiles: o.tiles,
+      segments: o.segments?.map((x) => x.value), prizes: o.prizes?.map((x) => x.value),
+    }]));
+  }
   return { id, version, ...rest, rules };
 }
 
@@ -173,9 +182,12 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
     if (dev > appConfig.publishMaxRtpDeviation && !inCi) {
       throw new HttpError(422, `RTP simulado ${(sim.rtp * 100).toFixed(2)} % fuera de tolerancia respecto al objetivo ${(draft.rtpTarget * 100).toFixed(2)} %. Ajusta la tabla de pagos (agente matemático → tune_rtp).`, math);
     }
-    if (ENGINES[draft.engine].modes?.includes('buy')) {
-      const b = await simulateAsync(draft, { spins: 50_000, mode: 'buy', seed: 99 });
-      math.buy = { buyCost: draft.rules.buyCost, rtp: b.rtp, ci: [b.rtpLow, b.rtpHigh] };
+    math.buyOptions = [];
+    for (const b of buyModesOf(ENGINES[draft.engine], draft)) {
+      const sim2 = await simulateAsync(draft, { spins: 50_000, mode: b.mode, seed: 99 });
+      const info = { mode: b.mode, cost: b.get(draft), rtp: sim2.rtp, ci: [sim2.rtpLow, sim2.rtpHigh] };
+      math.buyOptions.push(info);
+      if (b.mode === 'buy') math.buy = { buyCost: info.cost, rtp: info.rtp, ci: info.ci };
     }
   }
   const version = (last?.version || 0) + 1;

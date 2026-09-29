@@ -59,9 +59,10 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 5 juegos publicados', async () => {
+test('lista los 10 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'colossal-reels', 'hold-win', 'megaways', 'reel-rush']);
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cluster-pays', 'colossal-reels', 'expanding-symbol', 'hold-win',
+    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
 });
@@ -78,6 +79,16 @@ test('demo: giro, idempotencia, saldo y verificación', async () => {
   assert.equal(bad.status, 400);
   const rep = await req(`/api/admin/rounds/${r1.body.roundId}/replay`, { headers: ADMIN });
   assert.equal(rep.body.match, true);
+});
+
+test('bonus buy: menú de compra (ruleta) cobra su precio', async () => {
+  const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'bonus-buy' } });
+  const { body: sess } = await req('/api/v1/session', { headers: { authorization: `Bearer ${s.token}` } });
+  const cost = sess.game.rules.bonusMenu.wheel.cost;
+  const r = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.token}` }, body: { bet: 20, mode: 'buy-wheel' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.cost, 20 * cost);
+  assert.equal(r.body.result.bonus.type, 'wheel');
 });
 
 test('bonus buy cobra el precio de compra', async () => {

@@ -4,6 +4,11 @@ import * as megaways from './megaways.js';
 import * as bonusBuy from './bonus-buy.js';
 import * as holdWin from './hold-win.js';
 import * as colossal from './colossal-reels.js';
+import * as clusterPays from './cluster-pays.js';
+import * as scatterPays from './scatter-pays.js';
+import * as expanding from './expanding-symbol.js';
+import * as stickyWilds from './sticky-wilds.js';
+import * as megawaysCascade from './megaways-cascade.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -16,7 +21,31 @@ export const ENGINES = {
   [bonusBuy.id]: bonusBuy,
   [holdWin.id]: holdWin,
   [colossal.id]: colossal,
+  [clusterPays.id]: clusterPays,
+  [scatterPays.id]: scatterPays,
+  [expanding.id]: expanding,
+  [stickyWilds.id]: stickyWilds,
+  [megawaysCascade.id]: megawaysCascade,
 };
+
+/** Modos de compra de un motor, con acceso a su precio. */
+export function buyModesOf(engine, config) {
+  if (engine.buyModes) return engine.buyModes(config);
+  if (engine.modes?.includes('buy')) return [{ mode: 'buy', get: (c) => c.rules.buyCost, set: (c, v) => { c.rules.buyCost = v; } }];
+  return [];
+}
+
+/** Motores que pagan por líneas (tienen rules.lines configurable). */
+export const LINE_ENGINES = ['bonus-buy', 'hold-win', 'expanding-symbol', 'sticky-wilds'];
+/** Motores de altura variable por rodillo (sin filas fijas). */
+export const VARIABLE_ROW_ENGINES = ['megaways', 'megaways-cascade'];
+
+export function engineGridLimits(engineId) {
+  const e = ENGINES[engineId];
+  if (e?.gridLimits) return { reels: e.gridLimits.reels || GRID_LIMITS.reels, rows: e.gridLimits.rows || GRID_LIMITS.rows };
+  if (engineId === 'megaways' || engineId === 'colossal-reels') return { reels: [4, 8], rows: GRID_LIMITS.rows };
+  return GRID_LIMITS;
+}
 
 export function getEngine(id) {
   const e = ENGINES[id];
@@ -26,6 +55,8 @@ export function getEngine(id) {
 
 export const engineList = () => Object.values(ENGINES).map((e) => ({
   id: e.id, name: e.name, description: e.description, modes: e.modes || ['base'],
+  paysBy: e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
+  variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
 }));
 
 export function costMultiplier(engine, config, mode = 'base') {
@@ -94,10 +125,12 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
   const newReels = reels ?? g.reels;
   const newRows = rows ?? g.rows;
   const errors = [];
-  const [minR, maxR] = c.engine === 'megaways' || c.engine === 'colossal-reels' ? [4, 8] : GRID_LIMITS.reels;
+  const lim = engineGridLimits(c.engine);
+  const variable = VARIABLE_ROW_ENGINES.includes(c.engine);
+  const [minR, maxR] = lim.reels;
   if (!Number.isInteger(newReels) || newReels < minR || newReels > maxR) errors.push(`Rodillos: entre ${minR} y ${maxR}`);
-  if (c.engine !== 'megaways' && (!Number.isInteger(newRows) || newRows < GRID_LIMITS.rows[0] || newRows > GRID_LIMITS.rows[1])) {
-    errors.push(`Filas: entre ${GRID_LIMITS.rows[0]} y ${GRID_LIMITS.rows[1]}`);
+  if (!variable && (!Number.isInteger(newRows) || newRows < lim.rows[0] || newRows > lim.rows[1])) {
+    errors.push(`Filas: entre ${lim.rows[0]} y ${lim.rows[1]}`);
   }
   if (errors.length) throw Object.assign(new Error(errors.join('. ')), { status: 400, details: errors });
 
@@ -111,11 +144,12 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
   c.reels = rebuild(c.reels, 9100);
   if (c.freeSpinReels) c.freeSpinReels = rebuild(c.freeSpinReels, 9300);
   g.reels = newReels;
-  if (c.engine !== 'megaways') g.rows = newRows;
+  if (!variable) g.rows = newRows;
 
   // Pagos: quitar cantidades imposibles y extrapolar las nuevas (cada paso ×2,5 aprox., como en slots típicos).
+  const byCount = ['cluster', 'count'].includes(ENGINES[c.engine]?.paysBy); // pagos por tamaño de grupo, no por rodillos
   for (const s of c.symbols) {
-    if (!s.pays || !Object.keys(s.pays).length) continue;
+    if (byCount || !s.pays || !Object.keys(s.pays).length) continue;
     for (const k of Object.keys(s.pays)) if (Number(k) > newReels) delete s.pays[k];
     const keys = Object.keys(s.pays).map(Number).sort((a, b) => a - b);
     if (!keys.length) continue;
@@ -127,7 +161,7 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
   }
 
   // Reglas que dependen del tamaño
-  const maxL = ['bonus-buy', 'hold-win'].includes(c.engine) ? maxLines(newReels, g.rows) : null;
+  const maxL = LINE_ENGINES.includes(c.engine) ? maxLines(newReels, g.rows) : null;
   if (maxL) R.lines = Math.max(1, Math.min(maxL, lines ?? R.lines));
   if (c.engine === 'hold-win') {
     const cells = newReels * g.rows;
@@ -157,14 +191,17 @@ export function tuneRtp(config, { target = config.rtpTarget, spins = 300_000, it
     engine.scalePays(cfg, target / sim.rtp);
   }
   const finalSim = simulate(cfg, { spins, seed: seed + 99 });
+  // Precio de cada compra = valor esperado del bono / RTP objetivo.
   let buy = null;
-  if (engine.modes?.includes('buy')) {
-    // RTP de la compra = EV(giros gratis) / precio. Precio = EV / objetivo.
-    const probe = simulate(cfg, { spins: Math.max(20_000, spins / 10), mode: 'buy', seed: seed + 5 });
+  const buyOptions = [];
+  for (const b of buyModesOf(engine, cfg)) {
+    const probe = simulate(cfg, { spins: Math.max(20_000, spins / 10), mode: b.mode, seed: seed + 5 });
     const ev = probe.rtp * probe.costMultiplier;
-    cfg.rules.buyCost = Math.max(10, Math.round(ev / target));
-    const check = simulate(cfg, { spins: Math.max(20_000, spins / 10), mode: 'buy', seed: seed + 6 });
-    buy = { buyCost: cfg.rules.buyCost, rtp: check.rtp, ci: [check.rtpLow, check.rtpHigh] };
+    b.set(cfg, Math.max(5, Math.round(ev / target)));
+    const check = simulate(cfg, { spins: Math.max(20_000, spins / 10), mode: b.mode, seed: seed + 6 });
+    const info = { mode: b.mode, cost: b.get(cfg), rtp: check.rtp, ci: [check.rtpLow, check.rtpHigh] };
+    buyOptions.push(info);
+    if (b.mode === 'buy') buy = { buyCost: info.cost, rtp: info.rtp, ci: info.ci };
   }
-  return { config: cfg, history, final: finalSim, buy };
+  return { config: cfg, history, final: finalSim, buy, buyOptions };
 }

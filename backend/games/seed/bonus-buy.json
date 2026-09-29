@@ -12,9 +12,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=10&color=%232980b9",
       "pays": {
-        "3": 10.128719,
-        "4": 20.257438,
-        "5": 50.643596
+        "3": 10.084034,
+        "4": 20.168067,
+        "5": 50.420168
       }
     },
     {
@@ -23,9 +23,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=J&color=%2327ae60",
       "pays": {
-        "3": 10.128719,
-        "4": 20.257438,
-        "5": 50.643596
+        "3": 10.084034,
+        "4": 20.168067,
+        "5": 50.420168
       }
     },
     {
@@ -34,9 +34,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=Q&color=%2316a085",
       "pays": {
-        "3": 12.154463,
-        "4": 30.386157,
-        "5": 60.772315
+        "3": 12.10084,
+        "4": 30.252101,
+        "5": 60.504202
       }
     },
     {
@@ -45,9 +45,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=K&color=%23d35400",
       "pays": {
-        "3": 16.205951,
-        "4": 40.514877,
-        "5": 81.029753
+        "3": 16.134454,
+        "4": 40.336134,
+        "5": 80.672269
       }
     },
     {
@@ -56,9 +56,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=A&color=%23c0392b",
       "pays": {
-        "3": 20.257438,
-        "4": 50.643596,
-        "5": 101.287191
+        "3": 20.168067,
+        "4": 50.420168,
+        "5": 100.840336
       }
     },
     {
@@ -67,9 +67,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%92%8E&color=%239b59b6",
       "pays": {
-        "3": 30.386157,
-        "4": 81.029753,
-        "5": 202.574383
+        "3": 30.252101,
+        "4": 80.672269,
+        "5": 201.680672
       }
     },
     {
@@ -78,9 +78,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%92%8D&color=%23f39c12",
       "pays": {
-        "3": 40.514877,
-        "4": 121.54463,
-        "5": 303.861574
+        "3": 40.336134,
+        "4": 121.008403,
+        "5": 302.521008
       }
     },
     {
@@ -89,9 +89,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%8F%86&color=%23e67e22",
       "pays": {
-        "3": 60.772315,
-        "4": 202.574383,
-        "5": 506.435957
+        "3": 60.504202,
+        "4": 201.680672,
+        "5": 504.201681
       }
     },
     {
@@ -100,9 +100,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%90%89&color=%23c0392b",
       "pays": {
-        "3": 101.287191,
-        "4": 405.148766,
-        "5": 2025.743828
+        "3": 100.840336,
+        "4": 403.361345,
+        "5": 2016.806723
       }
     },
     {
@@ -755,7 +755,94 @@
     "maxFreeSpins": 50,
     "fsMultiplier": 3,
     "buyCost": 37,
-    "maxWin": 5000
+    "maxWin": 5000,
+    "bonusMenu": {
+      "sticky": {
+        "enabled": true,
+        "name": "Giros gratis con wilds fijos",
+        "cost": 210,
+        "freeSpins": 10,
+        "multiplier": 1
+      },
+      "wheel": {
+        "enabled": true,
+        "name": "Ruleta de la fortuna",
+        "cost": 112,
+        "spins": 3,
+        "multStep": 0.5,
+        "segments": [
+          {
+            "value": 5,
+            "weight": 30
+          },
+          {
+            "value": 10,
+            "weight": 25
+          },
+          {
+            "value": 15,
+            "weight": 18
+          },
+          {
+            "value": 25,
+            "weight": 12
+          },
+          {
+            "value": 40,
+            "weight": 8
+          },
+          {
+            "value": 75,
+            "weight": 4
+          },
+          {
+            "value": 150,
+            "weight": 2
+          },
+          {
+            "value": 500,
+            "weight": 1
+          }
+        ]
+      },
+      "pick": {
+        "enabled": true,
+        "name": "Elige un premio",
+        "cost": 78,
+        "picks": 5,
+        "tiles": 12,
+        "prizes": [
+          {
+            "value": 2,
+            "weight": 30
+          },
+          {
+            "value": 5,
+            "weight": 28
+          },
+          {
+            "value": 10,
+            "weight": 20
+          },
+          {
+            "value": 20,
+            "weight": 12
+          },
+          {
+            "value": 50,
+            "weight": 6
+          },
+          {
+            "value": 100,
+            "weight": 3
+          },
+          {
+            "value": 250,
+            "weight": 1
+          }
+        ]
+      }
+    }
   },
   "bet": {
     "levels": [
@@ -798,19 +885,57 @@
   "math": {
     "rtp": 0.9585,
     "ci": [
-      0.952,
-      0.9649
+      0.948,
+      0.9689
     ],
     "hitFrequency": 0.3476,
     "featureEvery": 113,
     "volatility": "media",
     "buy": {
       "buyCost": 37,
-      "rtp": 0.9696,
+      "rtp": 0.9636,
       "ci": [
-        0.9662,
-        0.9729
+        0.9583,
+        0.9688
       ]
-    }
+    },
+    "buyOptions": [
+      {
+        "mode": "buy",
+        "cost": 37,
+        "rtp": 0.9636,
+        "ci": [
+          0.9583,
+          0.9688
+        ]
+      },
+      {
+        "mode": "buy-sticky",
+        "cost": 210,
+        "rtp": 0.9565,
+        "ci": [
+          0.9506,
+          0.9624
+        ]
+      },
+      {
+        "mode": "buy-wheel",
+        "cost": 112,
+        "rtp": 0.9543,
+        "ci": [
+          0.9454,
+          0.9632
+        ]
+      },
+      {
+        "mode": "buy-pick",
+        "cost": 78,
+        "rtp": 0.9563,
+        "ci": [
+          0.9502,
+          0.9623
+        ]
+      }
+    ]
   }
 }

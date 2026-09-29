@@ -8,8 +8,9 @@ const money = (c) => (c / 100).toLocaleString('es-AR', { minimumFractionDigits: 
 const S = {
   token: sessionStorage.getItem('adminToken') || '',
   me: null, games: [], gameId: null, game: null, tab: 'agents', platformView: null,
-  runId: null, runStream: null, previewToken: null, agentsBusy: false,
+  runId: null, runStream: null, previewToken: null, agentsBusy: false, engines: {},
 };
+const engineInfo = (id) => S.engines[id] || { paysBy: 'ways', gridLimits: { reels: [3, 8], rows: [3, 6] }, variableRows: false };
 
 // ------------------------------------------------------------------ API
 async function api(path, { method = 'GET', body, raw, headers = {} } = {}) {
@@ -76,6 +77,7 @@ async function start() {
   const p = S.me.providers;
   $('#providers').innerHTML = [['anthropic', 'Claude (agentes)'], ['venice', 'Venice (imágenes)'], ['elevenlabs', 'ElevenLabs (sonido)']]
     .map(([k, l]) => `<div><span class="dot ${p[k] ? 'ok' : ''}"></span>${l}</div>`).join('');
+  S.engines = Object.fromEntries((await (await fetch('/api/v1/engines')).json()).map((e) => [e.id, e]));
   await loadGames();
   const fromHash = decodeURIComponent(location.hash.slice(1));
   if (S.games.some((g) => g.id === fromHash)) selectGame(fromHash);
@@ -491,7 +493,8 @@ async function tabSymbols(v) {
   const syms = S.game.draft.symbols;
   const maxN = Math.max(...syms.flatMap((s) => Object.keys(s.pays || {}).map(Number)), 3);
   const counts = []; for (let n = 3; n <= maxN; n++) counts.push(n);
-  const unit = ['bonus-buy', 'hold-win'].includes(S.game.engine) ? 'múltiplo de la apuesta por línea' : 'múltiplo de la apuesta total (por way)';
+  const unit = { lines: 'múltiplo de la apuesta por línea', cluster: 'múltiplo de la apuesta total, según el tamaño del grupo (la columna es el mínimo del nivel)',
+    count: 'múltiplo de la apuesta total, según cuántos iguales hay en pantalla (la columna es el mínimo del nivel)' }[engineInfo(S.game.engine).paysBy] || 'múltiplo de la apuesta total (por way)';
   v.innerHTML = `<div class="card"><table><thead><tr><th>Imagen</th><th>Id</th><th>Nombre</th><th>Tipo</th>${counts.map((n) => `<th>${n}×</th>`).join('')}</tr></thead>
     <tbody>${syms.map((s) => `<tr data-id="${esc(s.id)}"><td><img class="sym" src="${esc(s.image)}" title="Cambiar imagen" /></td><td><code>${esc(s.id)}</code></td>
       <td><input data-f="name" value="${esc(s.name)}" /></td><td>${esc(s.type || 'regular')}</td>
@@ -547,6 +550,8 @@ async function tabSounds(v) {
 }
 
 // ------------------------------------------------------------------ Pestaña: Matemática
+const BUY_NAMES = { buy: 'giros gratis', 'buy-sticky': 'wilds fijos', 'buy-wheel': 'ruleta', 'buy-pick': 'elige premio' };
+
 async function tabMath(v) {
   const d = S.game.draft;
   const m = S.game.math;
@@ -554,17 +559,19 @@ async function tabMath(v) {
     <div class="card stack"><h3 style="margin:0">Versión publicada</h3>
       ${m ? `<div class="kpi"><div><small>RTP</small><b>${pct(m.rtp)}</b></div><div><small>IC 95 %</small><b style="font-size:14px">${pct(m.ci?.[0])} – ${pct(m.ci?.[1])}</b></div>
       <div><small>Frecuencia de premio</small><b>${pct(m.hitFrequency)}</b></div><div><small>Bonus cada</small><b>${m.featureEvery ? `1/${m.featureEvery}` : '—'}</b></div>
-      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${m.buy ? `<div><small>Compra</small><b>${m.buy.buyCost}× · ${pct(m.buy.rtp)}</b></div>` : ''}</div>` : '<p class="muted">Sin publicar.</p>'}
+      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
+      .map((b) => `<div><small>Compra ${esc(BUY_NAMES[b.mode] || b.mode)}</small><b>${b.cost}× · ${pct(b.rtp)}</b></div>`).join('')}</div>` : '<p class="muted">Sin publicar.</p>'}
     </div>
     <div class="card stack"><h3 style="margin:0">Tamaño de la cuadrícula${d.rules.lines != null ? ' y líneas' : ''}</h3>
       <div class="row">
-        <div style="width:150px"><label>Rodillos (verticales)</label><input id="gReels" type="number" min="${['megaways', 'colossal-reels'].includes(d.engine) ? 4 : 3}" max="8" value="${d.grid.reels}" /></div>
-        ${d.engine === 'megaways' ? '<div class="muted" style="max-width:260px">En Megaways cada rodillo muestra de 2 a 7 filas al azar en cada giro.</div>'
-    : `<div style="width:150px"><label>Filas (horizontales)</label><input id="gRows" type="number" min="3" max="6" value="${d.grid.rows}" /></div>`}
+        <div style="width:150px"><label>Rodillos (verticales)</label><input id="gReels" type="number" min="${engineInfo(d.engine).gridLimits.reels[0]}" max="${engineInfo(d.engine).gridLimits.reels[1]}" value="${d.grid.reels}" /></div>
+        ${engineInfo(d.engine).variableRows ? '<div class="muted" style="max-width:260px">En los Megaways cada rodillo muestra de 2 a 7 filas al azar en cada giro.</div>'
+    : `<div style="width:150px"><label>Filas (horizontales)</label><input id="gRows" type="number" min="${engineInfo(d.engine).gridLimits.rows[0]}" max="${engineInfo(d.engine).gridLimits.rows[1]}" value="${d.grid.rows}" /></div>`}
         ${d.rules.lines != null ? `<div style="width:170px"><label>Líneas de pago <span id="gMax" class="muted"></span></label><input id="gLines" type="number" min="1" max="100" value="${d.rules.lines}" /></div>` : ''}
         <button class="primary" id="gApply">Aplicar y ajustar RTP</button>
       </div>
-      <p class="muted">Ahora: <b>${d.grid.reels} × ${d.grid.rows ?? `${d.grid.rowsMin}–${d.grid.rowsMax}`}</b>${d.rules.lines != null ? ` · <b>${d.rules.lines} líneas</b>` : ` · paga por formas (${d.engine === 'megaways' ? 'hasta ' + (7 ** d.grid.reels).toLocaleString('es') : (d.grid.rows ** d.grid.reels).toLocaleString('es')} formas), sin líneas`}.
+      <p class="muted">Ahora: <b>${d.grid.reels} × ${d.grid.rows ?? `${d.grid.rowsMin}–${d.grid.rowsMax}`}</b>${d.rules.lines != null ? ` · <b>${d.rules.lines} líneas</b>` : ({ cluster: ' · paga por grupos que se tocan, sin líneas', count: ' · paga por cantidad de iguales en pantalla, sin líneas' }[engineInfo(d.engine).paysBy]
+      || ` · paga por formas (${engineInfo(d.engine).variableRows ? 'hasta ' + (7 ** d.grid.reels).toLocaleString('es') : (d.grid.rows ** d.grid.reels).toLocaleString('es')} formas), sin líneas`)}.
       Al aplicar se reconstruyen los rodillos, se completa la tabla de pagos y se reajusta el RTP al objetivo (tarda entre 10 s y 1 min). Revisa la vista previa y publica.</p>
     </div>
     <div class="card stack"><h3 style="margin:0">Borrador</h3>
@@ -572,12 +579,15 @@ async function tabMath(v) {
         <div style="width:160px"><label>RTP objetivo</label><input id="mTarget" type="number" step="0.001" min="0.85" max="1.10" value="${d.rtpTarget}" /><div class="muted">0.85 a 1.10 (85 %–110 %)</div></div>
         <div id="rtpWarn" class="error" style="max-width:330px" ${d.rtpTarget > 1 ? '' : 'hidden'}>⚠ Por encima de 100 % el juego paga más de lo que recauda: pierdes dinero con cada apuesta. Úsalo solo para promociones o demo.</div>
         <div style="width:170px"><label>Giros a simular</label><select id="mSpins"><option>200000</option><option selected>500000</option><option>1000000</option><option>3000000</option></select></div>
-        ${d.engine === 'bonus-buy' ? '<div style="width:150px"><label>Modo</label><select id="mMode"><option value="base">Juego base</option><option value="buy">Compra de bonus</option></select></div>' : ''}
+        ${engineInfo(d.engine).modes?.length > 1 ? `<div style="width:190px"><label>Modo</label><select id="mMode"><option value="base">Juego base</option>${engineInfo(d.engine).modes.filter((x) => x !== 'base' && (x === 'buy' || d.rules.bonusMenu?.[{ 'buy-sticky': 'sticky', 'buy-wheel': 'wheel', 'buy-pick': 'pick' }[x]]?.enabled)).map((x) => `<option value="${x}">Compra: ${BUY_NAMES[x]}</option>`).join('')}</select></div>` : ''}
         <button id="mSim">Simular</button><button class="primary" id="mTune">Ajustar RTP al objetivo</button>
       </div>
       <div id="mOut"></div>
     </div>
     <div class="card stack"><h3 style="margin:0">Reglas del motor (<code>rules</code>)</h3>
+      <p class="muted">${d.rules.bonusMenu ? 'Aquí también se edita el menú de compra (<code>bonusMenu</code>): activar/desactivar cada bono, giros, segmentos de la ruleta y premios del "elige un premio". Los precios se recalculan al pulsar “Ajustar RTP”.' : ''}
+      ${d.rules.specialCoins ? 'Monedas especiales: <code>specialChance</code> y <code>specialCoins</code> (multiplicador o +1 re-giro).' : ''}
+      ${d.rules.wildMode ? 'Modo de comodines: <code>wildMode</code> = "sticky" (fijos en giros gratis) o "walking" (caminan y dan re-giros).' : ''}</p>
       <textarea id="mRules" rows="14">${esc(JSON.stringify(d.rules, null, 2))}</textarea>
       <div class="row"><button id="mRulesSave">Guardar reglas</button><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button></div>
     </div></div>`;
@@ -616,7 +626,7 @@ async function tabMath(v) {
   }));
   $('#mTune').addEventListener('click', guard(async (e) => {
     const r = await busy(e.target, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/tune`, { method: 'POST', body: { target: Number($('#mTarget').value) } }));
-    showSim({ ...r.final }, `Ajustado: ${r.history.map((h) => pct(h.rtp)).join(' → ')}${r.buy ? ` · compra ${r.buy.buyCost}× (${pct(r.buy.rtp)})` : ''}`);
+    showSim({ ...r.final }, `Ajustado: ${r.history.map((h) => pct(h.rtp)).join(' → ')}${(r.buyOptions || []).map((b) => ` · ${BUY_NAMES[b.mode] || b.mode} ${b.cost}× (${pct(b.rtp)})`).join('')}`);
     await refreshGame();
     toast('Tabla de pagos ajustada en el borrador');
   }));

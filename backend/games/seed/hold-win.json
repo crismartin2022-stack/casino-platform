@@ -12,9 +12,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=J&color=%2327ae60",
       "pays": {
-        "3": 7.672634,
-        "4": 23.017903,
-        "5": 61.381074
+        "3": 6.75866,
+        "4": 20.275979,
+        "5": 54.069276
       }
     },
     {
@@ -23,9 +23,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=Q&color=%2316a085",
       "pays": {
-        "3": 7.672634,
-        "4": 23.017903,
-        "5": 61.381074
+        "3": 6.75866,
+        "4": 20.275979,
+        "5": 54.069276
       }
     },
     {
@@ -34,9 +34,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=K&color=%23d35400",
       "pays": {
-        "3": 12.276215,
-        "4": 30.690537,
-        "5": 92.071611
+        "3": 10.813855,
+        "4": 27.034638,
+        "5": 81.103914
       }
     },
     {
@@ -45,9 +45,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=A&color=%23c0392b",
       "pays": {
-        "3": 12.276215,
-        "4": 30.690537,
-        "5": 92.071611
+        "3": 10.813855,
+        "4": 27.034638,
+        "5": 81.103914
       }
     },
     {
@@ -56,9 +56,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%A7%B2&color=%2395a5a6",
       "pays": {
-        "3": 23.017903,
-        "4": 76.726343,
-        "5": 230.179028
+        "3": 20.275979,
+        "4": 67.586595,
+        "5": 202.759786
       }
     },
     {
@@ -67,9 +67,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%8D%80&color=%232ecc71",
       "pays": {
-        "3": 30.690537,
-        "4": 115.089514,
-        "5": 383.631714
+        "3": 27.034638,
+        "4": 101.379893,
+        "5": 337.932977
       }
     },
     {
@@ -78,9 +78,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%92%B0&color=%23f39c12",
       "pays": {
-        "3": 61.381074,
-        "4": 230.179028,
-        "5": 767.263427
+        "3": 54.069276,
+        "4": 202.759786,
+        "5": 675.865953
       }
     },
     {
@@ -432,27 +432,27 @@
     "landChance": 0.07,
     "coinValues": [
       {
-        "value": 1.534527,
+        "value": 1.351732,
         "weight": 400
       },
       {
-        "value": 3.069054,
+        "value": 2.703464,
         "weight": 250
       },
       {
-        "value": 4.603581,
+        "value": 4.055196,
         "weight": 150
       },
       {
-        "value": 7.672634,
+        "value": 6.75866,
         "weight": 100
       },
       {
-        "value": 15.345269,
+        "value": 13.517319,
         "weight": 50
       },
       {
-        "value": 38.363171,
+        "value": 33.793298,
         "weight": 15
       },
       {
@@ -469,11 +469,28 @@
       }
     ],
     "jackpots": {
-      "mini": 15.345269,
-      "minor": 46.035806,
-      "major": 230.179028,
-      "grand": 1534.526854
+      "mini": 13.517319,
+      "minor": 40.551957,
+      "major": 202.759786,
+      "grand": 1351.731907
     },
+    "specialChance": 0.12,
+    "specialCoins": [
+      {
+        "special": "multiplier",
+        "mult": 2,
+        "weight": 50
+      },
+      {
+        "special": "multiplier",
+        "mult": 3,
+        "weight": 20
+      },
+      {
+        "special": "respin",
+        "weight": 30
+      }
+    ],
     "maxWin": 5000
   },
   "bet": {
@@ -516,14 +533,15 @@
   "rtpTarget": 0.96,
   "id": "hold-win",
   "math": {
-    "rtp": 0.9559,
+    "rtp": 0.9535,
     "ci": [
-      0.9364,
-      0.9754
+      0.9221,
+      0.9849
     ],
-    "hitFrequency": 0.2289,
+    "hitFrequency": 0.2285,
     "featureEvery": 160,
     "volatility": "alta",
-    "buy": null
+    "buy": null,
+    "buyOptions": []
   }
 }
