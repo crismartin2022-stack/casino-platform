@@ -25,14 +25,14 @@ export class HoldFeature {
     const hw = result.holdAndWin;
     const held = new Set(result.coins.map((k) => `${k.c},${k.r}`));
     await g.highlight(result.coins.map((k) => [k.c, k.r]), { times: 2 });
-    await e.featureIntro('HOLD & WIN', `${result.coins.length} MONEDAS · 3 RE-GIROS`);
+    await e.featureIntro(e.msg('holdWin'), `${result.coins.length} MONEDAS · 3 RE-GIROS`);
     this.frames.clear();
     for (const k of result.coins) this.lockFrame(k.c, k.r);
     // Las celdas libres se oscurecen
     g.columns.forEach((col, c) => col.sprites.forEach((s, r) => { if (s && !held.has(`${c},${r}`)) gsap.to(s, { alpha: 0.18, duration: 0.3 }); }));
 
     for (const step of hw.respins) {
-      e.hud.setStatus(`RE-GIROS: ${step.respinsLeft}`);
+      e.hud.setStatus(e.msg('respins', { n: step.respinsLeft }));
       // Parpadeo de las celdas libres simulando el re-giro
       const free = [];
       g.columns.forEach((col, c) => col.sprites.forEach((s, r) => { if (s && !held.has(`${c},${r}`)) free.push(s); }));

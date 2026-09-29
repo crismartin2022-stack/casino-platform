@@ -59,6 +59,7 @@ export class GridView extends Container {
       r.width = width + 20;
       r.height = height + 20;
       this.addChild(r);
+      this.reelsSprite = r;
     }
     this.tiles = new Container(); // imágenes de celda
     this.addChild(this.tiles);

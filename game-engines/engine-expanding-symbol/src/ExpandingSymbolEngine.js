@@ -56,11 +56,11 @@ export class ExpandingSymbolEngine extends BaseEngine {
     if (!fs) return;
     await this.grid.highlight(b.books, { times: 3 });
     const sp = this.game.symbols.find((s) => s.id === fs.special);
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, `SÍMBOLO ESPECIAL: ${(sp?.name || fs.special).toUpperCase()}`);
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), `SÍMBOLO ESPECIAL: ${(sp?.name || fs.special).toUpperCase()}`);
     let i = 0;
     for (const s of fs.spins) {
       i++;
-      this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length} · ESPECIAL: ${sp?.name || fs.special}`);
+      this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })} · ESPECIAL: ${sp?.name || fs.special}`);
       this.clearExpand();
       this.grid.undim();
       this.grid.startSpin();

@@ -8,7 +8,43 @@
 import { h } from './Hud.js';
 
 // Jerarquía por defecto (pedido de diseño): GIRAR 100 % · − + AUTO TURBO ≈58 % · MAX ovalado a la altura de los chicos · INFO/SONIDO ≈45 %
-export function defaultCustomLayout(orientation, gridBottom = null) {
+/**
+ * Plantilla "Tablero de la maqueta": marcadores en recuadros a la izquierda (SALDO arriba, PREMIO abajo), GIRAR grande al centro,
+ * a la derecha APUESTA en recuadro, fila − 1.00 + MÁX y debajo AUTO y TURBO; INFO y SONIDO en las esquinas de arriba.
+ */
+function boardPreset(orientation, gridBottom) {
+  if (orientation === 'portrait') {
+    // En celular la botonera va pegada al borde de abajo de la pantalla y INFO/SONIDO a las esquinas de arriba (anchor)
+    const T = 1280 - 252, b = 'bottom', t = 'top';
+    return {
+      board: { x: 360, y: T + 126, w: 720, h: 252, anchor: b },
+      items: {
+        balance: { x: 134, y: T + 62, s: 64, anchor: b }, win: { x: 134, y: T + 158, s: 64, anchor: b },
+        spin: { x: 360, y: T + 118, s: 176, anchor: b },
+        bet: { x: 586, y: T + 62, s: 64, anchor: b },
+        minus: { x: 478, y: T + 146, s: 44, anchor: b }, betval: { x: 536, y: T + 146, s: 38, anchor: b }, plus: { x: 594, y: T + 146, s: 44, anchor: b }, max: { x: 660, y: T + 146, s: 42, anchor: b },
+        auto: { x: 548, y: T + 214, s: 54, anchor: b }, turbo: { x: 640, y: T + 214, s: 54, anchor: b },
+        info: { x: 40, y: 44, s: 52, anchor: t }, sound: { x: 680, y: 44, s: 52, anchor: t },
+        fullscreen: { x: 622, y: 44, s: 44, anchor: t }, rotate: { x: 568, y: 44, s: 44, anchor: t }, buy: { x: 360, y: 205, s: 66 },
+      },
+    };
+  }
+  return {
+    board: { x: 640, y: 662, w: 1280, h: 118 },
+    items: {
+      balance: { x: 170, y: 636, s: 50 }, win: { x: 170, y: 690, s: 50 },
+      spin: { x: 640, y: 652, s: 128 },
+      bet: { x: 1000, y: 632, s: 46 },
+      minus: { x: 900, y: 690, s: 42 }, betval: { x: 958, y: 690, s: 36 }, plus: { x: 1016, y: 690, s: 42 }, max: { x: 1082, y: 690, s: 42 },
+      auto: { x: 1164, y: 632, s: 48 }, turbo: { x: 1164, y: 690, s: 48 },
+      info: { x: 38, y: 38, s: 50 }, sound: { x: 1242, y: 38, s: 50 },
+      fullscreen: { x: 1186, y: 38, s: 42 }, rotate: { x: 1136, y: 38, s: 42 }, buy: { x: 150, y: 300, s: 84 },
+    },
+  };
+}
+
+export function defaultCustomLayout(orientation, gridBottom = null, preset = null) {
+  if (preset === 'board') return boardPreset(orientation, gridBottom);
   if (orientation === 'portrait') {
     // El tablero arranca justo debajo de los rodillos (sin hueco), sin salirse de la pantalla
     const top = Math.min(1275 - 262, Math.max(700, (gridBottom ?? 980) + 26));
@@ -41,7 +77,7 @@ export function defaultCustomLayout(orientation, gridBottom = null) {
 
 const LABELS = { spin: 'GIRAR', minus: 'Bajar apuesta', plus: 'Subir apuesta', max: 'Apuesta máxima', auto: 'Automático', turbo: 'Turbo',
   info: 'Reglas', sound: 'Sonido', fullscreen: 'Pantalla completa', rotate: 'Girar pantalla', buy: 'Comprar bonus',
-  balance: 'Saldo', bet: 'Apuesta', win: 'Premio', board: 'Tablero de la botonera' };
+  balance: 'Saldo', bet: 'Apuesta', win: 'Premio', betval: 'Valor de la apuesta', board: 'Tablero de la botonera' };
 
 /** Arma la interfaz libre dentro del HUD. */
 export function buildCustom(hud, { stat, lobbyUrl, preview }) {
@@ -62,11 +98,13 @@ export function buildCustom(hud, { stat, lobbyUrl, preview }) {
     spin: hud.spinBtn, minus: hud.minus, plus: hud.plus, max: hud.maxBtn, auto: hud.autoBtn, turbo: hud.turboBtn,
     info: hud.infoBtn, sound: hud.soundBtn, fullscreen: hud.fullBtn, rotate: hud.rotateBtn, buy: hud.buyBtn,
     balance: stat('SALDO', hud.balanceEl, 'saldo'), bet: stat('APUESTA', hud.betEl, 'apuesta'), win: stat('PREMIO', hud.winEl, 'premio'),
+    betval: h('div', { class: 'cbetval' }, hud.betValEl),
   };
   hud.citems = {};
   for (const [key, node] of Object.entries(nodes)) {
     if (!node) continue;
-    const wrap = h('div', { class: `citem ${['balance', 'bet', 'win'].includes(key) ? 'cstat' : ''}`, 'data-key': key }, node);
+    const box = C.statStyle === 'box' && ['balance', 'bet', 'win'].includes(key) ? ' box' : '';
+    const wrap = h('div', { class: `citem ${['balance', 'bet', 'win'].includes(key) ? 'cstat' : ''}${box}`, 'data-key': key }, node);
     hud.citems[key] = wrap;
   }
   const top = h('div', { class: 'top' },
@@ -79,7 +117,7 @@ export function buildCustom(hud, { stat, lobbyUrl, preview }) {
 
 /** Layout efectivo de una orientación: el guardado sobre los valores por defecto. */
 export function layoutFor(hud, orientation) {
-  const def = defaultCustomLayout(orientation, hud.world?.gridBottom);
+  const def = defaultCustomLayout(orientation, hud.world?.gridBottom, hud.custom?.preset);
   const saved = hud.custom?.[orientation] || {};
   const items = { ...def.items };
   for (const [k, v] of Object.entries(saved.items || {})) items[k] = { ...(def.items[k] || {}), ...v };
@@ -96,8 +134,11 @@ export function positionCustom(hud, world, orientation) {
   hud.current = { orientation, ...structuredClone(L) };
   const g = Math.min(1.6, Math.max(0.6, Number(hud.game.theme?.hud?.scale) || 1));
   const { ox, oy, k } = world;
+  // anchor: "top" = pegado arriba de la pantalla; "bottom" = pegado abajo; sin anchor = junto con los rodillos
+  const H = world.H || (typeof window !== 'undefined' ? window.innerHeight : 0);
+  const ty = (it) => (it.anchor === 'top' ? it.y * k : it.anchor === 'bottom' ? H - (world.h - it.y) * k : oy + it.y * k);
   const b = L.board;
-  Object.assign(hud.board.style, { left: `${ox + b.x * k}px`, top: `${oy + b.y * k}px`, width: `${b.w * k}px`, height: `${b.h * k}px`, display: b.hidden ? 'none' : '' });
+  Object.assign(hud.board.style, { left: `${ox + b.x * k}px`, top: `${ty(b)}px`, width: `${b.w * k}px`, height: `${b.h * k}px`, display: b.hidden ? 'none' : '' });
   for (const [key, el] of Object.entries(hud.citems)) {
     const it = L.items[key];
     if (!it) { el.style.display = 'none'; continue; }
@@ -105,7 +146,7 @@ export function positionCustom(hud, world, orientation) {
     el.style.display = it.hidden && !hud.editing ? 'none' : '';
     el.classList.toggle('hiddenitem', !!it.hidden);
     el.style.left = `${ox + it.x * k}px`;
-    el.style.top = `${oy + it.y * k}px`;
+    el.style.top = `${ty(it)}px`;
     el.style.setProperty('--sz', `${size}px`);
   }
 }
@@ -142,7 +183,7 @@ export function enableEditor(hud) {
     btn('↕ Ancho del tablero', () => { if (sel !== 'board') return; const it = itemOf('board'); it.w = Math.min(hud.world.w, it.w * 1.05); apply(); }, 'Ensanchar el tablero'),
     btn('↔ Alto del tablero', () => { if (sel !== 'board') return; const it = itemOf('board'); it.h *= 1.05; apply(); }, 'Hacer más alto el tablero'),
     hideBtn,
-    btn('↺ Restablecer', () => { hud.editLayout = { orientation: hud.orient, ...defaultCustomLayout(hud.orient, hud.world?.gridBottom) }; hud.custom = { ...(hud.custom || {}), [hud.orient]: null }; positionCustom(hud, hud.world, hud.orient); markSel(); }),
+    btn('↺ Restablecer', () => { hud.editLayout = { orientation: hud.orient, ...defaultCustomLayout(hud.orient, hud.world?.gridBottom, hud.custom?.preset) }; hud.custom = { ...(hud.custom || {}), [hud.orient]: null }; positionCustom(hud, hud.world, hud.orient); markSel(); }),
     btn('💾 Guardar', () => {
       const cur = L();
       window.parent?.postMessage({ type: 'hud-layout', orientation: cur.orientation, layout: { board: cur.board, items: cur.items } }, '*');

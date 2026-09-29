@@ -97,11 +97,11 @@ export class ColossalEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (!fs) return;
     await this.grid.highlight(result.base.scatters, { times: 3 });
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, 'COLOSAL GARANTIZADO');
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), 'COLOSAL GARANTIZADO');
     let i = 0;
     for (const s of fs.spins) {
       i++;
-      this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length}`);
+      this.hud.setStatus(this.msg('spinOf', { i, n: fs.spins.length }));
       this.clearColossal();
       this.grid.undim();
       this.grid.startSpin();

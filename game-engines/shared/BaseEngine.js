@@ -7,6 +7,13 @@ import { Hud, h } from './Hud.js';
 import { SoundManager } from './SoundManager.js';
 import { isAnimated, isVideo, mediaEl, applyBackgroundMedia, loadFontFile } from './media.js';
 
+// Textos de los carteles (editables en theme.messages.texts; {n}, {i} y {x} se reemplazan)
+const DEFAULT_TEXTS = {
+  win: '', bigWin: 'GRAN PREMIO', megaWin: '¡MEGA PREMIO!', freeSpins: '{n} GIROS GRATIS', bonusTotal: 'TOTAL DEL BONUS',
+  spinOf: 'GIRO GRATIS {i}/{n}', respins: 'RE-GIROS: {n}', holdWin: 'HOLD & WIN', multiplier: 'MULTIPLICADOR ×{x}',
+};
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 const DESIGN = { landscape: { w: 1280, h: 720 }, portrait: { w: 720, h: 1280 } };
 // Zonas en coordenadas de diseño: logo arriba, rodillos, espacio para la botonera (HTML) abajo.
 const ZONES = {
@@ -77,6 +84,9 @@ export class BaseEngine {
     // Tipografía propia subida (theme.fontUrl) o de Google Fonts (theme.font); la botonera puede tener otra (theme.hud.font/fontUrl)
     if (t.fontUrl) await loadFontFile(t.font, t.fontUrl); else await loadFont(t.font);
     if (t.hud?.fontUrl) await loadFontFile(t.hud.font, t.hud.fontUrl); else if (t.hud?.font) await loadFont(t.hud.font);
+    for (const st of Object.values(t.messages?.styles || {})) {
+      if (st?.fontUrl) await loadFontFile(st.font, st.fontUrl); else if (st?.font) await loadFont(st.font);
+    }
 
     onProgress(0.2, 'Cargando símbolos…');
     this.textures = new Map();
@@ -284,7 +294,7 @@ export class BaseEngine {
       this.world.position.set(ox, oy);
       const r = this.gridRect;
       this.hud.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
-      this.hud.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, gridBottom: r.y + r.h + (this.taglineH || 0) });
+      this.hud.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, H, gridBottom: r.y + r.h + (this.taglineH || 0) });
       this.placeReelsMedia(ox, oy, k);
       this.hud.renderBet();
       return;
@@ -299,15 +309,16 @@ export class BaseEngine {
     this.world.position.set(ox, oy);
     const r = this.gridRect;
     this.hud?.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
-    this.hud?.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, gridBottom: r.y + r.h + (this.taglineH || 0) });
+    this.hud?.setWorld?.({ ox, oy, k, w: this.design.w, h: this.design.h, H, gridBottom: r.y + r.h + (this.taglineH || 0) });
     this.placeReelsMedia(ox, oy, k);
   }
 
   /** Coloca el fondo de rodillos animado exactamente detrás de la cuadrícula (mismo margen que la imagen fija). */
   placeReelsMedia(ox, oy, k) {
-    if (!this.reelsMedia) return;
     const r = this.gridRect;
-    Object.assign(this.reelsMedia.style, { left: `${ox + (r.x - 10) * k}px`, top: `${oy + (r.y - 10) * k}px`, width: `${(r.w + 20) * k}px`, height: `${(r.h + 20) * k}px` });
+    for (const m of [this.reelsMedia, this.bonusReels]) {
+      if (m) Object.assign(m.style, { left: `${ox + (r.x - 10) * k}px`, top: `${oy + (r.y - 10) * k}px`, width: `${(r.w + 20) * k}px`, height: `${(r.h + 20) * k}px` });
+    }
   }
 
   // ---------------------------------------------------------------- Ciclo de juego
@@ -407,28 +418,108 @@ export class BaseEngine {
     gsap.to(this.winText, { alpha: 0, duration: 0.4, delay: this.hud.turbo ? 0.5 : 1.1 });
   }
 
+  /** Texto de un cartel: el que puso el diseñador o el de fábrica. */
+  msg(key, vars = {}) {
+    const txt = this.game.theme?.messages?.texts?.[key];
+    return String(txt != null && txt !== '' ? txt : DEFAULT_TEXTS[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+  }
+
   async presentTotal(cents, bet) {
     const x = cents / bet;
-    if (x >= 50) {
+    const T = this.game.theme?.messages?.thresholds || {};
+    const mega = Number(T.mega) || 50, big = Number(T.big) || 15;
+    if (x >= mega) {
       this.sound.play('bigWin');
-      await this.hud.showBanner(`<small>¡MEGA PREMIO!</small><b>${this.hud.fmt(cents)}</b>`, { kind: 'big', ms: 3200 });
-    } else if (x >= 15) {
+      await this.hud.showBanner(`<small>${escHtml(this.msg('megaWin'))}</small><b>${this.hud.fmt(cents)}</b>`, { kind: 'big', ms: 3200 });
+    } else if (x >= big) {
       this.sound.play('bigWin');
-      await this.hud.showBanner(`<small>GRAN PREMIO</small><b>${this.hud.fmt(cents)}</b>`, { kind: 'big', ms: 2400 });
+      await this.hud.showBanner(`<small>${escHtml(this.msg('bigWin'))}</small><b>${this.hud.fmt(cents)}</b>`, { kind: 'big', ms: 2400 });
     } else if (x >= 1) {
-      await this.hud.showBanner(`<b>${this.hud.fmt(cents)}</b>`, { kind: 'win', ms: 900 });
+      const t = this.msg('win');
+      await this.hud.showBanner(`${t ? `<small>${escHtml(t)}</small>` : ''}<b>${this.hud.fmt(cents)}</b>`, { kind: 'win', ms: 900 });
     }
   }
 
   async featureIntro(title, sub = '') {
     this.sound.play('feature');
     this.sound.playMusic('featureMusic');
-    await this.hud.showBanner(`<small>${sub}</small><b>${title}</b>`, { kind: 'feature', ms: 2000 });
+    await this.enterBonus();
+    await this.hud.showBanner(`<small>${escHtml(sub)}</small><b>${escHtml(title)}</b>`, { kind: 'feature', ms: 2000 });
   }
 
   async featureOutro(totalMult) {
-    await this.hud.showBanner(`<small>TOTAL DEL BONUS</small><b>${this.hud.fmt(this.money(totalMult))}</b>`, { kind: 'feature', ms: 2200 });
+    await this.hud.showBanner(`<small>${escHtml(this.msg('bonusTotal'))}</small><b>${this.hud.fmt(this.money(totalMult))}</b>`, { kind: 'feature', ms: 2200 });
+    await this.exitBonus();
     this.sound.playMusic('music');
+  }
+
+  // ---------------------------------------------------------------- Ambiente del bonus (theme.bonus)
+  // { intro, outro: imagen/GIF/video a pantalla completa; background, backgroundMobile, reelsBackground: fondos durante el bonus }
+
+  /** Muestra una imagen, GIF o video a pantalla completa (se salta tocando). Espera a que termine o a `seconds`. */
+  async playOverlay(url, seconds = 3) {
+    if (!url || typeof document === 'undefined') return;
+    const box = document.createElement('div');
+    box.className = 'bonus-intro';
+    const el = mediaEl(url, { fit: 'contain' });
+    const hint = document.createElement('small');
+    hint.textContent = 'Toca para continuar';
+    box.append(el, hint);
+    document.body.appendChild(box);
+    const max = Math.max(1, Math.min(15, Number(seconds) || 3)) * 1000;
+    await new Promise((resolve) => {
+      const done = () => { clearTimeout(t); resolve(); };
+      const t = setTimeout(done, this.hud.turbo ? max / 2 : max);
+      box.addEventListener('click', done, { once: true });
+      if (isVideo(url)) el.addEventListener('ended', done, { once: true });
+    });
+    box.remove();
+  }
+
+  async enterBonus() {
+    const B = this.game.theme?.bonus || {};
+    if (this.inBonus) return;
+    this.inBonus = true;
+    await this.playOverlay(B.intro, B.introSeconds);
+    const t = this.game.theme || {};
+    if (B.background || B.backgroundMobile) {
+      this.applyThemeBackground({ ...t, background: B.background || t.background, backgroundMobile: B.backgroundMobile || B.background || t.backgroundMobile });
+    }
+    if (B.reelsBackground) {
+      this.bonusReels?.remove();
+      this.bonusReels = mediaEl(B.reelsBackground, { fit: 'fill' });
+      this.bonusReels.className = 'reelsbg';
+      this.container.prepend(this.bonusReels);
+      if (this.reelsMedia) this.reelsMedia.style.visibility = 'hidden';
+      if (this.grid?.reelsSprite) this.grid.reelsSprite.visible = false;
+      this.fit();
+    }
+  }
+
+  async exitBonus() {
+    if (!this.inBonus) return;
+    const B = this.game.theme?.bonus || {};
+    await this.playOverlay(B.outro, B.outroSeconds);
+    this.inBonus = false;
+    if (B.background || B.backgroundMobile) this.applyThemeBackground(this.game.theme || {});
+    if (this.bonusReels) {
+      this.bonusReels.remove();
+      this.bonusReels = null;
+      if (this.reelsMedia) this.reelsMedia.style.visibility = '';
+      if (this.grid?.reelsSprite) this.grid.reelsSprite.visible = true;
+    }
+  }
+
+  /** Aplica los fondos (PC/celular) de un tema: imágenes y GIF por CSS, videos como <video>. */
+  applyThemeBackground(t) {
+    const el = document.getElementById?.('bg');
+    if (!el) return;
+    const url = (u) => (u ? `url("${String(u).replace(/"/g, '%22')}")` : null);
+    el.style.removeProperty('--bg-desktop');
+    el.style.removeProperty('--bg-mobile');
+    if (url(t.background) && !isVideo(t.background)) el.style.setProperty('--bg-desktop', url(t.background));
+    if (url(t.backgroundMobile) && !isVideo(t.backgroundMobile)) el.style.setProperty('--bg-mobile', url(t.backgroundMobile));
+    applyBackgroundMedia(t, this.orientation);
   }
 
   /** Precio (en múltiplos de la apuesta) de cada modo de juego. */

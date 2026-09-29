@@ -92,6 +92,9 @@ Todas toman los colores de la paleta del juego y funcionan en PC y celular; los 
 - **Marcos** delante o detrás de los rodillos, con tamaño ajustable y recorte automático del centro.
 - **Fondos animados**: GIF o video (MP4/WebM) para el fondo de PC, de celular y detrás de los rodillos. **Tipografías propias** (.ttf, .otf, .woff, .woff2) para el juego y para la botonera.
 - **Forzar bonus** en la vista previa (solo borradores) para probar sonidos y animaciones del bonus.
+- **Carteles diseñables** (premio, gran/mega premio, entrada y total del bonus, contador de giros): imagen o GIF de fondo, colores, tipografía, tamaño, animación, posición, partículas y textos propios; «▶ Probar» en la vista previa.
+- **Ambiente del bonus**: presentación y cierre a pantalla completa y fondos propios durante el bonus, con imagen, GIF o video.
+- **Plantilla «Tablero de la maqueta»** en Diseño libre: marcadores en recuadros, GIRAR al centro, − valor + MÁX, AUTO y TURBO; en celular pegada abajo con INFO y SONIDO en las esquinas.
 - **Frecuencia del bonus** (Matemática): "bonus cada ~N giros" recalibra los activadores y reajusta el RTP.
 
 ## Monedas
