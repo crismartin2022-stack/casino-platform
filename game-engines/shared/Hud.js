@@ -1,6 +1,7 @@
 // Interfaz del jugador en HTML/CSS sobre el lienzo (saldo, apuesta, girar, ayuda, compra de bonus).
 // Los colores vienen del tema del juego vía variables CSS, así los agentes pueden re-tematizar sin tocar código.
 import { formatMoney } from './api.js';
+import { canFullscreen, isTouch, toggleFullscreen, rotate, onFullscreenChange, isFullscreen } from './screen.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -77,6 +78,12 @@ export class Hud {
     });
     this.minus = this.makeButton('minus', 'chip', '−', 'Bajar apuesta', () => this.changeBet(-1));
     this.plus = this.makeButton('plus', 'chip', '+', 'Subir apuesta', () => this.changeBet(1));
+    // Pantalla completa y girar (girar solo en pantallas táctiles)
+    this.fullBtn = canFullscreen() ? this.makeButton('fullscreen', 'chip', '⛶', 'Pantalla completa', () => toggleFullscreen()) : null;
+    this.rotateBtn = isTouch() ? this.makeButton('rotate', 'chip', '⟳', 'Girar pantalla', () => this.rotateScreen()) : null;
+    onFullscreenChange(() => this.fullBtn?.classList.toggle('on', isFullscreen()));
+    // Apuesta máxima (se puede ocultar con theme.hud.maxBet = false)
+    this.maxBtn = (t.hud?.maxBet ?? true) ? this.makeButton('max', 'chip maxbet', 'MÁX', 'Apuesta máxima', () => this.setMaxBet()) : null;
     this.buyBtn = onBuy ? this.makeButton('buy', 'buy', 'COMPRAR BONUS', 'Comprar bonus', () => onBuy()) : null;
     this.infoBtn = this.makeButton('info', 'chip menu', '☰', 'Menú: reglas y pagos', () => onInfo());
     this.banner = h('div', { class: 'banner', hidden: true });
@@ -86,6 +93,9 @@ export class Hud {
     // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior,
     // o una de las interfaces completas (SKINS).
     root.dataset.layout = this.skin || (HUD.layout === 'classic' ? 'classic' : 'pill');
+    // Tamaño general de la interfaz (theme.hud.scale 0.8–1.4): agranda o achica botonera, botones y textos juntos.
+    this.uiScale = Math.min(1.4, Math.max(0.8, Number(HUD.scale) || 1));
+    css.zoom = this.uiScale === 1 ? '' : String(this.uiScale);
     if (this.skin) root.dataset.skin = this.skin; else delete root.dataset.skin;
     if (HUD.barColor) css.setProperty('--bar', HUD.barColor);
     if (HUD.barBorder) css.setProperty('--bar-border', HUD.barBorder);
@@ -105,7 +115,7 @@ export class Hud {
     this.bar = h('div', { class: 'bar' },
       this.infoBtn,
       stat('SALDO', this.balanceEl, 'saldo'),
-      h('div', { class: 'betbox' }, stat('APUESTA', this.betEl, 'apuesta'), h('div', { class: 'betbtns' }, this.minus, this.plus)),
+      h('div', { class: 'betbox' }, stat('APUESTA', this.betEl, 'apuesta'), h('div', { class: 'betbtns' }, this.minus, this.plus, this.maxBtn)),
       this.spinBtn,
       h('div', { class: 'autos' }, this.autoBtn, this.turboBtn),
       stat('PREMIO', this.winEl, 'premio'),
@@ -114,7 +124,8 @@ export class Hud {
     root.append(...[
       h('div', { class: 'top' },
         lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl, 'aria-label': 'Volver' }, '⟵') : null,
-        preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null),
+        preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null,
+        (this.fullBtn || this.rotateBtn) ? h('div', { class: 'tr' }, this.rotateBtn, this.fullBtn) : null),
       this.banner, this.status,
       this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null,
       this.bar,
@@ -128,8 +139,7 @@ export class Hud {
 
   /** Interfaz completa: barra superior, panel lateral, dock inferior con fichas y efectos propios de cada estilo. */
   buildSkin({ stat, lobbyUrl, preview, t }) {
-    const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
-    this.fullBtn = fsOk ? this.makeButton('fullscreen', 'chip', '⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null;
+    const fsOk = canFullscreen();
     this.betChips = h('div', { class: 'betchips' });
     const side = (icon, label, fn) => h('button', { class: 'sk-sbtn', onclick: fn, title: label }, h('i', {}, icon), h('span', {}, label));
     this.sideSound = side('🔊', 'SONIDO', () => { this.soundBtn.click(); this.sideSound.classList.toggle('muted', this.soundBtn.classList.contains('muted')); });
@@ -147,10 +157,10 @@ export class Hud {
       h('div', { class: 'sk-brand' }, t.title || this.game.name),
       preview ? h('span', { class: 'tag' }, 'VISTA PREVIA') : null,
       stat('SALDO', this.balanceEl, 'saldo'),
-      h('div', { class: 'sk-topbtns' }, this.soundBtn, this.fullBtn));
+      h('div', { class: 'sk-topbtns' }, this.rotateBtn, this.soundBtn, this.fullBtn));
     this.dock = h('div', { class: 'sk-dock' },
       h('div', { class: 'sk-deco' }),
-      h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, 'APUESTA'), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus)),
+      h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, 'APUESTA'), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus, this.maxBtn)),
       h('div', { class: 'sk-spinwrap' }, h('div', { class: 'sk-ring' }), this.spinBtn),
       h('div', { class: 'sk-right' }, stat('APUESTA', this.betEl, 'apuesta'), stat('PREMIO', this.winEl, 'premio'), h('div', { class: 'autos' }, this.autoBtn, this.turboBtn)));
     this.fx = h('div', { class: 'fx' });
@@ -163,26 +173,34 @@ export class Hud {
     const W = window.innerWidth;
     const sideOn = orientation === 'landscape' && W >= 1000;
     this.root.toggleAttribute('data-noside', !sideOn);
-    return orientation === 'portrait'
+    const z = this.uiScale || 1;
+    const r = orientation === 'portrait'
       ? { top: 64, bottom: 228, side: 0 }
       : { top: 62, bottom: W < 760 ? 88 : 112, side: sideOn ? 150 : 0 };
+    return { top: r.top * z, bottom: r.bottom * z, side: r.side * z };
   }
 
-  toggleFullscreen() {
-    const d = document;
-    if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen)?.call(d);
-    else (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen)?.call(d.documentElement)?.catch?.(() => {});
+  toggleFullscreen() { return toggleFullscreen(); }
+
+  /** Gira a la otra orientación; si el teléfono no lo permite (iPhone), pide girarlo a mano. */
+  async rotateScreen() {
+    const ok = await rotate(this.root.dataset.orient);
+    if (!ok) {
+      const to = this.root.dataset.orient === 'portrait' ? 'horizontal' : 'vertical';
+      await this.showBanner(`<small>GIRA TU TELÉFONO</small><b style="font-size:clamp(20px,5vw,34px)">Ponlo en ${to}: el juego se acomoda solo</b>`, { kind: 'info', ms: 2400 });
+    }
   }
 
   openMenu() {
     const item = (icon, label, fn) => h('button', { class: 'sk-mitem', onclick: () => { this.modal.hidden = true; fn(); } }, h('i', {}, icon), h('span', {}, label));
-    const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    const fsOk = canFullscreen();
     this.openModal(h('div', { class: 'sk-menu' }, h('h2', {}, 'Menú'),
       h('div', { class: 'sk-mgrid' },
         item('ⓘ', 'Reglas y pagos', () => this.onInfo()),
         this.onHistory ? item('☷', 'Historial', () => this.showHistory()) : null,
         item(this.soundBtn.classList.contains('muted') ? '🔇' : '🔊', 'Sonido', () => this.soundBtn.click()),
         fsOk ? item('⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null,
+        isTouch() ? item('⟳', 'Girar pantalla', () => this.rotateScreen()) : null,
         item('⚡', this.turbo ? 'Turbo: sí' : 'Turbo: no', () => this.toggleTurbo()))));
   }
 
@@ -248,9 +266,12 @@ export class Hud {
    * Coloca la botonera según dónde quedó la cuadrícula en pantalla (px) y la orientación.
    * rect: { x, y, w, h } de la cuadrícula; scale: escala del mundo de juego.
    */
-  setLayout(rect, orientation, scale) {
+  setLayout(rect0, orientation, scale) {
     const css = this.root.style;
     this.root.dataset.orient = orientation;
+    // Con zoom, las coordenadas en px de la pantalla se pasan a px de la interfaz.
+    const z = this.uiScale || 1;
+    const rect = { x: rect0.x / z, y: rect0.y / z, w: rect0.w / z, h: rect0.h / z };
     css.setProperty('--gx', `${rect.x + rect.w / 2}px`);
     css.setProperty('--gy', `${rect.y}px`);
     css.setProperty('--gw', `${rect.w}px`);
@@ -276,6 +297,14 @@ export class Hud {
   get bet() { return this.levels[this.betIndex]; }
   fmt(cents) { return formatMoney(cents, this.currency); }
 
+  setMaxBet() {
+    if (this.locked) return;
+    this.betIndex = this.levels.length - 1;
+    this.renderBet();
+    this.maxBtn?.classList.add('on');
+    setTimeout(() => this.maxBtn?.classList.remove('on'), 350);
+  }
+
   changeBet(d) {
     if (this.locked) return;
     this.betIndex = Math.min(this.levels.length - 1, Math.max(0, this.betIndex + d));
@@ -286,7 +315,7 @@ export class Hud {
     this.betEl.textContent = this.fmt(this.bet);
     if (this.betChips) {
       // Ventana de fichas alrededor de la apuesta actual (todas si entran)
-      const max = window.innerWidth < 420 ? 5 : window.innerWidth < 760 ? 5 : 7;
+      const max = window.innerWidth < 420 ? 4 : window.innerWidth < 760 ? 5 : 7;
       const L = this.levels;
       let from = Math.max(0, Math.min(L.length - max, this.betIndex - Math.floor(max / 2)));
       if (L.length <= max) from = 0;
@@ -305,7 +334,7 @@ export class Hud {
 
   lock(v) {
     this.locked = v;
-    for (const b of [this.minus, this.plus, this.buyBtn].filter(Boolean)) b.disabled = v;
+    for (const b of [this.minus, this.plus, this.maxBtn, this.buyBtn].filter(Boolean)) b.disabled = v;
     this.betChips?.querySelectorAll?.('button').forEach((b) => { b.disabled = v; });
     this.spinBtn.classList.toggle('busy', v);
   }
@@ -316,9 +345,27 @@ export class Hud {
     this.onTurbo?.(this.turbo);
   }
 
-  toggleAuto(onSpin) {
+  /** Giros automáticos: el jugador elige cuántos (opciones de bet.autoSpins) y, si quiere, un límite de pérdida. */
+  async toggleAuto(onSpin) {
     if (this.autoLeft > 0) { this.stopAuto(); return; }
-    this.autoLeft = 25;
+    const opts = (Array.isArray(this.game.bet?.autoSpins) && this.game.bet.autoSpins.length ? this.game.bet.autoSpins : [10, 25, 50, 100])
+      .filter((n) => Number.isInteger(n) && n > 0).slice(0, 8);
+    const pick = await new Promise((resolve) => {
+      this.modalResolve = () => resolve(null);
+      let loss = 0;
+      const lossSel = h('select', { class: 'auto-loss', onchange: (e) => { loss = Number(e.target.value); } },
+        h('option', { value: '0' }, 'Sin límite'),
+        ...[10, 25, 50, 100].map((k) => h('option', { value: String(k) }, `${k}× la apuesta (${this.fmt(this.bet * k)})`)));
+      this.openModal(h('div', { class: 'confirm auto-pick' }, h('h2', {}, 'Juego automático'),
+        h('p', {}, '¿Cuántos giros?'),
+        h('div', { class: 'auto-grid' }, opts.map((n) => h('button', { class: 'buy auto-n', onclick: () => { this.modalResolve = null; this.modal.hidden = true; resolve({ n, loss }); } }, String(n)))),
+        h('label', { class: 'auto-lbl' }, 'Detener si pierdo más de', lossSel),
+        h('p', { class: 'fine' }, 'Se detiene solo al entrar en un bonus. Puedes pararlo cuando quieras tocando AUTO.')));
+    });
+    if (!pick) return;
+    this.autoLeft = pick.n;
+    this.autoLoss = pick.loss ? pick.loss * this.bet : 0;
+    this.autoStartBalance = this.balance;
     this.autoBtn.classList.add('on');
     this.setAutoLabel(String(this.autoLeft));
     if (!this.locked) onSpin();
@@ -332,6 +379,12 @@ export class Hud {
 
   consumeAuto() {
     if (this.autoLeft <= 0) return false;
+    if (this.autoLoss && this.autoStartBalance - this.balance >= this.autoLoss) {
+      this.stopAuto();
+      this.setStatus('Juego automático detenido: llegaste a tu límite de pérdida');
+      setTimeout(() => this.setStatus(''), 3500);
+      return false;
+    }
     this.autoLeft--;
     this.setAutoLabel(this.autoLeft ? String(this.autoLeft) : null);
     if (!this.autoLeft) this.autoBtn.classList.remove('on');

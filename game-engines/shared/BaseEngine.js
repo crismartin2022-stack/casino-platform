@@ -271,8 +271,8 @@ export class BaseEngine {
       this.hud.renderBet();
       return;
     }
-    // Reserva espacio para la botonera HTML debajo de los rodillos.
-    const barSpace = this.orientation === 'portrait' ? 250 : 110;
+    // Reserva espacio para la botonera HTML debajo de los rodillos (más si la interfaz está agrandada).
+    const barSpace = (this.orientation === 'portrait' ? 250 : 110) * (this.hud?.uiScale || 1);
     const usedH = this.gridRect.y + this.gridRect.h + barSpace + (this.taglineH || 0);
     const k = Math.min(W / this.design.w, H / usedH);
     this.world.scale.set(k);

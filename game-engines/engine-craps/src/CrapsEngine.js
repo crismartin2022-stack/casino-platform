@@ -2,6 +2,7 @@
 // Los dados los tira el SERVIDOR; aquí el lanzamiento (arrastrando o con el botón) solo decide la animación.
 import { SoundManager } from '../../shared/SoundManager.js';
 import { formatMoney } from '../../shared/api.js';
+import { canFullscreen, isTouch, toggleFullscreen, rotate } from '../../shared/screen.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -225,11 +226,16 @@ export class CrapsEngine {
       h('div', { class: 'cr-chipsel' }, this.chipBtns),
       this.undoBtn, this.clearBtn, this.rollBtn);
     this.soundBtn = h('button', { class: 'cr-icon', onclick: () => { this.soundBtn.textContent = this.sound.toggleMute() ? '🔇' : '🔊'; } }, '🔊');
+    const fullBtn = canFullscreen() ? h('button', { class: 'cr-icon', 'aria-label': 'Pantalla completa', onclick: () => toggleFullscreen() }, '⛶') : null;
+    const rotBtn = isTouch() ? h('button', { class: 'cr-icon', 'aria-label': 'Girar pantalla', onclick: async () => {
+      const portrait = matchMedia('(orientation: portrait)').matches;
+      if (!(await rotate(portrait ? 'portrait' : 'landscape'))) this.toast(`Gira el teléfono a ${portrait ? 'horizontal' : 'vertical'}: la mesa se acomoda sola`);
+    } }, '⟳') : null;
     const top = h('div', { class: 'cr-top' },
       this.lobbyUrl ? h('a', { class: 'cr-icon', href: this.lobbyUrl, style: 'display:grid;place-items:center;text-decoration:none' }, '⟵') : null,
       h('button', { class: 'cr-icon', onclick: () => this.showRules(), 'aria-label': 'Reglas' }, '☰'),
       h('div', { class: 'cr-title' }, t.logo ? h('img', { src: t.logo, alt: t.title || this.game.name }) : (t.title || this.game.name)),
-      this.soundBtn);
+      rotBtn, this.soundBtn, fullBtn);
     this.root = h('div', { class: 'cr' }, top, h('div', { class: 'cr-main' }, this.felt, side), bar);
     if (this.session.source === 'draft') this.root.append(h('div', { class: 'cr-tag' }, 'VISTA PREVIA · BORRADOR'));
     this.container.innerHTML = '';
