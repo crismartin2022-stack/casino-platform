@@ -246,6 +246,7 @@ export class BaseEngine {
       onBuy: this.supportsBuy() ? () => this.buyBonus() : null,
       onInfo: () => this.showInfo(),
       onToggleSound: () => this.sound.toggleMute(),
+      onHistory: () => this.api.history(20),
     });
     this.hud.onTurbo = (v) => { this.grid.turbo = v; };
   }
@@ -255,6 +256,21 @@ export class BaseEngine {
 
   fit() {
     const W = this.container.clientWidth || window.innerWidth, H = this.container.clientHeight || window.innerHeight;
+    // Interfaces completas: barra superior, dock inferior y panel lateral ocupan píxeles fijos; los rodillos van en el resto.
+    const R = this.hud?.reserve?.(this.orientation);
+    if (R) {
+      const usedH = this.gridRect.y + this.gridRect.h + (this.taglineH || 0) + 12;
+      const availW = Math.max(200, W - 2 * R.side), availH = Math.max(200, H - R.top - R.bottom);
+      const k = Math.min(availW / this.design.w, availH / usedH);
+      this.world.scale.set(k);
+      const ox = (W - this.design.w * k) / 2;
+      const oy = R.top + Math.max(0, (availH - usedH * k) / 2);
+      this.world.position.set(ox, oy);
+      const r = this.gridRect;
+      this.hud.setLayout({ x: ox + r.x * k, y: oy + r.y * k, w: r.w * k, h: (r.h + (this.taglineH || 0)) * k }, this.orientation, k);
+      this.hud.renderBet();
+      return;
+    }
     // Reserva espacio para la botonera HTML debajo de los rodillos.
     const barSpace = this.orientation === 'portrait' ? 250 : 110;
     const usedH = this.gridRect.y + this.gridRect.h + barSpace + (this.taglineH || 0);

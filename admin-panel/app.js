@@ -186,7 +186,7 @@ function renderTab() {
   const v = $('#view');
   const fn = { agents: tabAgents, design: tabDesign, symbols: tabSymbols, sounds: tabSounds, math: tabMath, assets: tabAssets, json: tabJson, versions: tabVersions }[S.tab];
   v.innerHTML = '';
-  guard(fn)(v);
+  guard(async (el) => { await fn(el); if (S.tab === 'math' && !isOp()) currencyCard(el); })(v);
 }
 
 // ------------------------------------------------------------------ Vista previa
@@ -225,12 +225,15 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
     <div><label>Motor</label><select id="ngEngine">${engines.map((e) => `<option value="${e.id}">${esc(e.name)} — ${esc(e.description)}</option>`).join('')}</select></div>
     <div><label>Copiar diseño de (opcional)</label><select id="ngFrom"><option value="">— Plantilla del motor —</option>${S.games.map((g) => `<option value="${esc(g.id)}" data-engine="${esc(g.engine)}">${esc(g.name)}</option>`).join('')}</select></div>
+    ${uiPicker()}
     <button class="primary" id="ngCreate">Crear</button></div>`, (root, close) => {
+    bindUiPicker(root);
     $('#ngCreate', root).addEventListener('click', guard(async () => {
       const engine = $('#ngEngine', root).value;
       const from = $('#ngFrom', root).selectedOptions[0];
       if (from.value && from.dataset.engine !== engine) throw new Error('El juego a copiar debe usar el mismo motor');
       const g = await api('/api/admin/games', { method: 'POST', body: { name: $('#ngName', root).value, engine, fromGameId: from.value || undefined } });
+      await applyUiChoice(root, g.id, engine);
       close();
       await loadGames();
       selectGame(g.id);
@@ -238,6 +241,21 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
     }));
   });
 }));
+
+// ---- Selector de interfaz al crear un juego ----
+function uiPicker() {
+  return `<div><label>Interfaz</label><div class="ui-grid small">${UIS.map(([k, n, , pal], i) => `<button type="button" class="ui-tile ${i === 0 ? 'on' : ''}" data-pick="${k}">${uiMock(k, pal)}<b>${n}</b></button>`).join('')}</div>
+    <span class="muted">Los juegos de mesa (Craps) usan su propia mesa y no llevan esta interfaz.</span></div>`;
+}
+function bindUiPicker(root) {
+  $$('[data-pick]', root).forEach((b) => b.addEventListener('click', () => { $$('[data-pick]', root).forEach((x) => x.classList.toggle('on', x === b)); }));
+}
+async function applyUiChoice(root, gameId, engine) {
+  const k = $('[data-pick].on', root)?.dataset.pick;
+  if (!k || k === 'pill' || engineInfo(engine).kind === 'table') return;
+  const pal = UIS.find((x) => x[0] === k)[3];
+  await api(`/api/admin/games/${encodeURIComponent(gameId)}/draft`, { method: 'PATCH', body: { ops: [{ op: 'merge', path: 'theme.hud', value: { layout: k } }, ...(pal ? [{ op: 'merge', path: 'theme.palette', value: pal }] : [])] } });
+}
 
 // ------------------------------------------------------------------ Selector modal genérico
 function openPicker(title, html, onMount) {
@@ -487,6 +505,44 @@ function showUsage(u) {
 const BUTTONS = [['spin', 'Girar', '↻'], ['auto', 'Automático', 'AUTO'], ['turbo', 'Turbo', '⚡'], ['sound', 'Sonido', '🔊'],
   ['minus', 'Bajar apuesta', '−'], ['plus', 'Subir apuesta', '+'], ['info', 'Reglas', 'i'], ['buy', 'Comprar bonus', 'COMPRAR BONUS']];
 
+// ---- Interfaces del juego (theme.hud.layout) con miniatura y colores sugeridos ----
+const UIS = [
+  ['pill', 'Píldora', 'Botonera flotante bajo los rodillos', null],
+  ['classic', 'Clásica', 'Barra de ancho completo abajo', null],
+  ['neon', 'Neón', 'Tubos de luz y noche de ciudad', { primary: '#ff2d78', accent: '#00e5ff', panel: '#0b0716', text: '#ffffff' }],
+  ['cristal', 'Cristal', 'Vidrio esmerilado que flota', { primary: '#7c5cff', accent: '#7ef9ff', panel: '#101a33', text: '#ffffff' }],
+  ['brasa', 'Brasa', 'Metal forjado y fuego', { primary: '#ff5a1f', accent: '#ffc247', panel: '#1a0805', text: '#fff4e6' }],
+  ['real', 'Real', 'Oro, fichas de casino y monedas', { primary: '#b8860b', accent: '#ffd873', panel: '#120d05', text: '#fff8e1' }],
+  ['arcade', 'Arcade', 'Gabinete retro, LED y botones gordos', { primary: '#ff3b3b', accent: '#39ff88', panel: '#0a0a12', text: '#ffffff' }],
+];
+
+/** Miniatura dibujada con CSS de cada interfaz (para elegir de un vistazo). */
+function uiMock(key, pal) {
+  const P = pal || { primary: '#e94560', accent: '#ffd460', panel: '#16213e' };
+  const cells = Array.from({ length: 15 }, () => `<i style="background:${P.panel};border:1px solid ${P.accent}33;border-radius:2px"></i>`).join('');
+  const grid = `<div style="position:absolute;left:24%;right:24%;top:${['pill', 'classic'].includes(key) ? 14 : 22}%;height:44%;display:grid;grid-template-columns:repeat(5,1fr);gap:2px">${cells}</div>`;
+  const top = ['pill', 'classic'].includes(key) ? '' : `<div style="position:absolute;left:${key === 'cristal' ? '4%' : 0};right:${key === 'cristal' ? '4%' : 0};top:${key === 'cristal' ? '4%' : 0};height:11%;
+    background:${key === 'cristal' ? 'rgba(255,255,255,.14)' : key === 'arcade' ? '#07070d' : 'rgba(0,0,0,.7)'};border-radius:${key === 'cristal' ? 6 : 0}px;${key === 'neon' ? `border-bottom:1px solid ${P.primary};box-shadow:0 0 6px ${P.primary}` : key === 'arcade' ? `border-bottom:2px solid ${P.primary}` : ''}"></div>`;
+  const side = ['pill', 'classic'].includes(key) ? '' : `<div style="position:absolute;${key === 'cristal' ? 'left:3%' : 'right:3%'};top:24%;width:${key === 'cristal' ? 7 : 13}%;display:flex;flex-direction:column;gap:3px">
+    ${'<i style="height:8px;border-radius:2px;background:rgba(255,255,255,.18)"></i>'.repeat(4)}</div>`;
+  const spinStyle = {
+    neon: `border-radius:50%;background:${P.primary};box-shadow:0 0 8px ${P.primary},0 0 0 2px ${P.accent}`,
+    cristal: `border-radius:50%;background:rgba(255,255,255,.3);box-shadow:0 0 0 2px ${P.accent}`,
+    brasa: `clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:linear-gradient(0deg,${P.primary},${P.accent})`,
+    real: `border-radius:50%;background:conic-gradient(#fff6c9,${P.accent},#8a6408,#fff6c9);box-shadow:0 0 0 2px #5a4105`,
+    arcade: `border-radius:5px;width:26px;background:${P.primary};box-shadow:0 3px 0 #000`,
+  }[key] || `border-radius:50%;background:${P.primary};box-shadow:0 0 0 2px ${P.accent}`;
+  const dockBg = { pill: 'transparent', classic: 'rgba(0,0,0,.75)', neon: '#0a0614', cristal: 'rgba(255,255,255,.14)', brasa: 'linear-gradient(0deg,#0e0301,#2a0c05)', real: 'linear-gradient(0deg,#000,transparent)', arcade: '#0c0c14' }[key];
+  const dock = key === 'pill'
+    ? `<div style="position:absolute;left:18%;right:18%;bottom:12%;height:13%;border-radius:99px;background:rgba(0,0,0,.75);border:1px solid ${P.accent}88"></div>`
+    : `<div style="position:absolute;left:${key === 'cristal' ? '10%' : 0};right:${key === 'cristal' ? '10%' : 0};bottom:${key === 'cristal' ? '4%' : 0};height:20%;background:${dockBg};border-radius:${key === 'cristal' ? 10 : 0}px;
+      ${key === 'neon' ? `border-top:1px solid ${P.primary}` : key === 'brasa' ? `border-top:1px solid ${P.accent}` : ''};display:flex;align-items:center;gap:3px;padding-left:8%">
+      ${['pill', 'classic'].includes(key) ? '' : Array.from({ length: 4 }, (_, i) => `<i style="width:10px;height:8px;border-radius:${key === 'real' ? '50%' : '2px'};background:${i === 1 ? P.accent : 'rgba(255,255,255,.22)'}"></i>`).join('')}</div>`;
+  const spin = `<div style="position:absolute;left:50%;bottom:${key === 'pill' ? 9 : 5}%;transform:translateX(-50%);width:20px;height:20px;${spinStyle}"></div>`;
+  const bg = { neon: 'radial-gradient(#2a0f3a,#05030a)', cristal: 'linear-gradient(135deg,#1c2a55,#3a1f5c)', brasa: 'radial-gradient(#3a0e05,#080100)', real: 'radial-gradient(#2a1f08,#050402)', arcade: '#0a0a12' }[key] || 'radial-gradient(#2a2f4a,#0b0d17)';
+  return `<div style="position:relative;width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:${bg}">${grid}${top}${side}${dock}${spin}</div>`;
+}
+
 async function tabDesign(v) {
   const t = S.game.draft.theme || {};
   const p = t.palette || {};
@@ -495,7 +551,13 @@ async function tabDesign(v) {
   const imgField = (k, label) => `<div><label>${label}</label><div class="row">
     ${t[k] ? `<img src="${esc(t[k])}" style="height:54px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
     <button class="small" data-img="${k}">Elegir…</button>${t[k] ? `<button class="small danger" data-clear="${k}">Quitar</button>` : ''}</div></div>`;
+  const curUi = t.hud?.layout || 'pill';
+  const isTableGame = engineInfo(S.game.engine).kind === 'table';
   v.innerHTML = `<div class="stack">
+    ${isTableGame ? '' : `<div class="card stack"><h3 style="margin:0">Interfaz del juego</h3>
+      <p class="muted">Elige cómo se ve y se ordena todo alrededor de los rodillos: saldo, fichas de apuesta, botón GIRAR, menú y efectos de premio. Funciona en PC y celular.</p>
+      <div class="ui-grid">${UIS.map(([k, n, d, pal]) => `<button class="ui-tile ${curUi === k ? 'on' : ''}" data-ui="${k}">${uiMock(k, curUi === k ? (t.palette || pal) : pal)}<b>${n}</b><span class="muted">${d}</span></button>`).join('')}</div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="uiPal" style="width:auto" checked /> Aplicar también los colores sugeridos de la interfaz (luego puedes cambiarlos en Paleta)</label></div>`}
     <div class="card stack"><h3 style="margin:0">Identidad</h3>
       <div class="grid2">
         <div><label>Nombre del juego</label><input id="dName" value="${esc(S.game.draft.name)}" /></div>
@@ -522,7 +584,7 @@ async function tabDesign(v) {
       <div><label>Frase bajo los rodillos (celular)</label><input id="lTag" value="${esc(t.tagline || '')}" placeholder="Ej.: ¡El golpe continúa!" /></div>
     </div></div>
     <div class="card stack"><h3 style="margin:0">Botonera</h3><div class="grid2">
-      <div><label>Disposición</label><select id="hLayout"><option value="pill" ${(t.hud?.layout || 'pill') === 'pill' ? 'selected' : ''}>Píldora centrada bajo los rodillos</option><option value="classic" ${t.hud?.layout === 'classic' ? 'selected' : ''}>Barra de ancho completo abajo</option></select></div>
+      <input type="hidden" id="hLayout" value="${esc(t.hud?.layout || 'pill')}" />
       <div><label>Color de la botonera</label><input id="hBar" type="color" value="${esc((t.hud?.barColor || '').startsWith('#') ? t.hud.barColor : '#0a080c')}" /></div>
       <div><label>Borde de la botonera</label><input id="hBorder" type="color" value="${esc(t.hud?.barBorder || p.accent || '#ffd460')}" /></div>
       <div><label>Tamaño del botón GIRAR (<span id="hSpinV">${t.hud?.spinSize || 84}</span> px)</label><input id="hSpin" type="range" min="56" max="130" step="2" value="${t.hud?.spinSize || 84}" /></div>
@@ -549,6 +611,14 @@ async function tabDesign(v) {
     </div>
     <div class="row"><button class="primary" id="dSave">Guardar diseño</button><span class="muted">Consejo: en 🤖 Agentes puedes pedir “cambia el fondo por una selva de noche” y lo genera el Artista.</span></div>
   </div>`;
+  $$('[data-ui]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.dataset.ui;
+    const pal = UIS.find((x) => x[0] === k)[3];
+    const ops = [{ op: 'merge', path: 'theme.hud', value: { layout: k } }];
+    if (pal && $('#uiPal', v).checked) ops.push({ op: 'merge', path: 'theme.palette', value: pal });
+    await patchDraft(ops, `Interfaz: ${UIS.find((x) => x[0] === k)[1]}. Mírala en ▶ Vista previa`);
+    renderTab();
+  })));
   for (const [inp, out, fmt] of [['#lScale', '#lScaleV', (x) => Math.round(x * 100)], ['#lGap', '#lGapV', (x) => x], ['#hSpin', '#hSpinV', (x) => x]]) {
     $(inp, v).addEventListener('input', (e) => { $(out, v).textContent = fmt(Number(e.target.value)); });
   }
@@ -886,6 +956,74 @@ async function tabMath(v) {
   }));
 }
 
+// ---- Apuestas por moneda (bet.byCurrency) ----
+const CURRENCY_LIST = ['USD', 'EUR', 'GBP', 'CAD', 'ARS', 'BRL', 'MXN', 'CLP', 'COP', 'PEN', 'UYU', 'PYG', 'BOB', 'VES', 'DOP', 'CRC', 'GTQ', 'TRY', 'INR', 'JPY', 'CNY', 'KRW', 'PHP', 'ZAR', 'NGN', 'KES', 'AUD', 'NZD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'USDT'];
+const niceRound = (x) => { if (!(x > 0)) return 1; const p = 10 ** Math.floor(Math.log10(x)); const m = x / p; return Math.max(1, Math.round((m < 1.5 ? 1 : m < 2.25 ? 2 : m < 3.5 ? 2.5 : m < 7.5 ? 5 : 10) * p)); };
+const units = (list) => list.map((c) => (c / 100).toLocaleString('es-AR', { maximumFractionDigits: 2 })).join(' · ');
+const parseUnits = (txt) => String(txt).split(/[;\s·]+/).map((x) => x.trim().replace(',', '.')).filter(Boolean).map((x) => Math.round(Number(x) * 100)).filter((x) => x > 0);
+
+function currencyCard(v) {
+  const d = S.game.draft;
+  const base = d.bet || {};
+  const table = engineInfo(d.engine).kind === 'table';
+  const rows = Object.entries(base.byCurrency || {});
+  const el = document.createElement('div');
+  el.className = 'card stack';
+  el.id = 'curCard';
+  el.innerHTML = `<h3 style="margin:0">💱 Apuestas por moneda</h3>
+    <p class="muted">Moneda base <b>${esc(base.currency || 'USD')}</b>: fichas ${units(base.levels || [])}. Para cada moneda en que operan tus casinos, define sus fichas (el RTP no cambia: los premios son múltiplos de la apuesta).
+      Si una moneda no está en la lista, se usan los mismos números que la base. Cada operador puede además tener un mínimo y un máximo propios (Operadores → Gestionar).</p>
+    <table><thead><tr><th>Moneda</th><th>Fichas (en unidades, separadas por ;)</th><th>Predeterminada</th>${table ? '<th>Límites mín · máx · total mesa</th>' : ''}<th></th></tr></thead><tbody id="curRows">
+    ${rows.map(([cur, x]) => `<tr data-cur="${esc(cur)}"><td><b>${esc(cur)}</b></td><td><input data-lv value="${esc((x.levels || []).map((c) => c / 100).join('; '))}" placeholder="200; 500; 1000" /></td>
+      <td><input data-def value="${x.default != null ? x.default / 100 : ''}" style="width:110px" placeholder="la 1.ª" /></td>
+      ${table ? `<td class="row" style="gap:4px;flex-wrap:nowrap"><input data-lmin style="width:90px" value="${x.limits ? x.limits.min / 100 : ''}" placeholder="auto" /><input data-lmax style="width:100px" value="${x.limits ? x.limits.max / 100 : ''}" placeholder="auto" /><input data-ltab style="width:110px" value="${x.limits ? x.limits.table / 100 : ''}" placeholder="auto" /></td>` : ''}
+      <td><button class="small danger" data-del>Quitar</button></td></tr>`).join('') || `<tr><td colspan="${table ? 5 : 4}" class="muted">Sin monedas adicionales: todas usan las fichas base.</td></tr>`}
+    </tbody></table>
+    <div class="row" style="align-items:end;flex-wrap:wrap">
+      <div><label>Agregar moneda</label><select id="curNew" style="width:120px">${CURRENCY_LIST.filter((c) => c !== (base.currency || 'USD') && !(base.byCurrency || {})[c]).map((c) => `<option>${c}</option>`).join('')}</select></div>
+      <div><label>1 ${esc(base.currency || 'USD')} = </label><input id="curRate" type="number" step="any" min="0" placeholder="Ej. 1000" style="width:130px" /></div>
+      <button id="curSuggest">Sugerir fichas</button>
+      <span class="muted">Convierte las fichas base con ese valor y las redondea a cifras cómodas (1, 2, 2,5, 5…). Luego puedes ajustarlas.</span></div>
+    <div class="row"><button class="primary" id="curSave">Guardar apuestas por moneda</button><span id="curErr" class="error"></span></div>`;
+  v.appendChild(el);
+  const collect = () => {
+    const out = {};
+    for (const tr of $$('#curRows tr[data-cur]', el)) {
+      const levels = [...new Set(parseUnits($('[data-lv]', tr).value))].sort((a, b) => a - b);
+      const defTxt = $('[data-def]', tr).value.trim();
+      const entry = { levels, ...(defTxt ? { default: parseUnits(defTxt)[0] } : {}) };
+      if (table) {
+        const [mn, mx, tb] = ['[data-lmin]', '[data-lmax]', '[data-ltab]'].map((q) => $(q, tr).value.trim());
+        if (mn || mx || tb) entry.limits = { min: parseUnits(mn)[0], max: parseUnits(mx)[0], table: parseUnits(tb)[0] };
+      }
+      out[tr.dataset.cur] = entry;
+    }
+    return out;
+  };
+  $$('[data-del]', el).forEach((b) => b.addEventListener('click', () => { const tr = b.closest('tr'); tr.remove(); }));
+  $('#curSuggest', el).addEventListener('click', guard(async () => {
+    const cur = $('#curNew', el).value, rate = Number($('#curRate', el).value);
+    if (!cur) throw new Error('Elige una moneda');
+    if (!(rate > 0)) throw new Error(`Indica cuánto vale 1 ${base.currency || 'USD'} en ${cur}`);
+    const levels = [...new Set((base.levels || []).map((c) => niceRound(c * rate)))];
+    const def = base.default ? niceRound(base.default * rate) : levels[0];
+    const byCurrency = { ...collect(), [cur]: { levels, default: levels.includes(def) ? def : levels[0] } };
+    if (table && d.rules?.limits) {
+      const L = d.rules.limits;
+      byCurrency[cur].limits = { min: niceRound(L.min * rate), max: niceRound(L.max * rate), table: niceRound(L.table * rate) };
+    }
+    await patchDraft([{ op: 'set', path: 'bet.byCurrency', value: byCurrency }], `Fichas en ${cur} sugeridas: revísalas y publica`);
+    renderTab();
+  }));
+  $('#curSave', el).addEventListener('click', async () => {
+    try {
+      await patchDraft([{ op: 'set', path: 'bet.byCurrency', value: collect() }], 'Apuestas por moneda guardadas: publica para aplicarlas');
+      $('#curErr', el).textContent = '';
+      renderTab();
+    } catch (e) { $('#curErr', el).textContent = `${e.message}${e.details ? ': ' + e.details.join(' · ') : ''}`; }
+  });
+}
+
 // ------------------------------------------------------------------ Pestaña: Assets
 async function tabAssets(v) {
   const list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}`);
@@ -1027,6 +1165,15 @@ async function viewOperator(v, id, flash = '') {
       <p class="muted">Sus juegos propios parten de un juego de tu catálogo con el RTP que le asignaste. Puede cambiar diseño, imágenes y sonidos; la matemática, el RTP y las apuestas quedan bloqueados.
         Los agentes de IA consumen tus créditos de Claude, Venice y ElevenLabs, y nunca tocan la matemática.</p>
       <div class="row"><button class="primary" id="pSave">Guardar permisos</button></div></div>
+    <div class="card stack"><h3 style="margin:0">Límites de apuesta</h3>
+      <p class="muted">Acota la apuesta mínima y máxima de este casino por moneda (su moneda es <b>${esc(o.currency)}</b>). Se aplica a todos sus juegos: solo verá las fichas dentro del rango. Vacío = sin límite propio.</p>
+      <table><thead><tr><th>Moneda</th><th>Mínima</th><th>Máxima</th><th></th></tr></thead><tbody id="blRows">
+      ${[...new Set([o.currency, ...Object.keys(o.betLimits || {})])].map((cur) => `<tr data-cur="${esc(cur)}"><td><b>${esc(cur)}</b></td>
+        <td><input data-min type="number" step="0.01" min="0" style="width:140px" value="${o.betLimits?.[cur]?.min != null ? o.betLimits[cur].min / 100 : ''}" /></td>
+        <td><input data-max type="number" step="0.01" min="0" style="width:140px" value="${o.betLimits?.[cur]?.max != null ? o.betLimits[cur].max / 100 : ''}" /></td><td></td></tr>`).join('')}
+      </tbody></table>
+      <div class="row"><select id="blCur" style="width:110px">${CURRENCY_LIST.map((c) => `<option>${c}</option>`).join('')}</select><button class="small" id="blAdd">＋ Otra moneda</button>
+        <button class="primary" id="blSave">Guardar límites</button></div></div>
     <div class="card stack" style="overflow:auto"><h3 style="margin:0">Juegos y RTP</h3>
       <p class="muted">Desmarca los juegos que este operador no puede ofrecer. El RTP asignado se calcula con la misma matemática del juego (se ajustan los pagos) y se aplica a todas sus sesiones nuevas.
         Mientras se calcula, ese juego no se abre para él (nunca juega con un RTP distinto al asignado).</p>
@@ -1056,6 +1203,20 @@ async function viewOperator(v, id, flash = '') {
     await api(`/api/admin/operators/${id}`, { method: 'PATCH', body: { canCreateGames: $('#pCreate').checked, maxGames: Number($('#pMax').value), canUseAgents: $('#pAgents').checked } });
     toast('Permisos guardados');
     reload();
+  }));
+  $('#blAdd').addEventListener('click', () => {
+    const cur = $('#blCur').value;
+    if ($(`#blRows tr[data-cur="${cur}"]`)) return;
+    $('#blRows').insertAdjacentHTML('beforeend', `<tr data-cur="${cur}"><td><b>${cur}</b></td><td><input data-min type="number" step="0.01" min="0" style="width:140px" /></td><td><input data-max type="number" step="0.01" min="0" style="width:140px" /></td><td></td></tr>`);
+  });
+  $('#blSave').addEventListener('click', guard(async () => {
+    const betLimits = {};
+    for (const tr of $$('#blRows tr[data-cur]')) {
+      const mn = $('[data-min]', tr).value, mx = $('[data-max]', tr).value;
+      if (mn !== '' || mx !== '') betLimits[tr.dataset.cur] = { min: mn === '' ? null : Math.round(Number(mn) * 100), max: mx === '' ? null : Math.round(Number(mx) * 100) };
+    }
+    await api(`/api/admin/operators/${id}`, { method: 'PATCH', body: { betLimits } });
+    toast('Límites de apuesta guardados');
   }));
   $$('[data-en]', v).forEach((c) => c.addEventListener('change', guard(async () => {
     await api(`/api/admin/operators/${id}/games/${encodeURIComponent(c.dataset.en)}`, { method: 'PUT', body: { enabled: c.checked } });
@@ -1275,6 +1436,7 @@ VIEWS.catalog = async function viewCatalog(v) {
   const card = (g) => `<div class="card stack" style="gap:6px"><div class="row" style="justify-content:space-between"><b>${esc(g.name)}</b>${g.own ? '<span class="badge">propio</span>' : ''}</div>
     <div class="muted">${esc(g.engine)} · v${g.version}</div>
     <div>RTP <b>${pct(g.rtp)}</b>${g.volatility ? ` · volatilidad ${esc(g.volatility)}` : ''}${g.variant && g.variant.status !== 'ready' ? ' <span class="badge warn">RTP en preparación</span>' : ''}</div>
+    <div class="muted">Apuestas ${esc(g.currency)}: ${g.bets?.length ? `${money(g.bets[0])} a ${money(g.bets.at(-1))}` : 'sin fichas disponibles'}</div>
     <div class="row"><button class="small primary" data-demo="${esc(g.id)}">▶ Probar demo</button><button class="small" data-code="${esc(g.id)}">Código de integración</button></div></div>`;
   v.innerHTML = `<div class="stack"><h2 style="margin:0">Catálogo de juegos</h2>
     <p class="muted">Estos son los juegos que tu proveedor habilitó para tu casino, con el RTP que aplica a tus jugadores. Para abrir uno, tu servidor crea una sesión con <code>gameId</code>.</p>
@@ -1402,10 +1564,13 @@ async function newOwnGame() {
   openPicker('Nuevo juego', `<div class="stack">
     <p class="muted">Tu juego parte de uno del catálogo: conserva su matemática y el RTP que te asignó tu proveedor. Tú cambias nombre, diseño, imágenes y sonidos. Te quedan ${L.maxGames - L.usedGames}.</p>
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
-    <div><label>Basado en</label><select id="ngBase">${bases.map((g) => `<option value="${esc(g.id)}">${esc(g.name)} — ${esc(g.engine)} · RTP ${pct(g.rtp)}</option>`).join('')}</select></div>
+    <div><label>Basado en</label><select id="ngBase">${bases.map((g) => `<option value="${esc(g.id)}" data-engine="${esc(g.engine)}">${esc(g.name)} — ${esc(g.engine)} · RTP ${pct(g.rtp)}</option>`).join('')}</select></div>
+    ${uiPicker()}
     <button class="primary" id="ngCreate">Crear</button></div>`, (root, close) => {
+    bindUiPicker(root);
     $('#ngCreate', root).addEventListener('click', guard(async () => {
       const g = await api('/api/portal/games', { method: 'POST', body: { name: $('#ngName', root).value, baseGameId: $('#ngBase', root).value } });
+      await applyUiChoice(root, g.id, $('#ngBase', root).selectedOptions[0]?.dataset.engine);
       close();
       S.me = await api('/api/admin/me');
       setupOperatorShell();

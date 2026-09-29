@@ -13,8 +13,27 @@ const h = (tag, attrs = {}, ...children) => {
   return el;
 };
 
+// Interfaces completas (theme.hud.layout). Cada una es un estilo propio: barra superior con saldo,
+// panel lateral (reglas, sonido, pantalla completa, historial), fichas de apuesta directas y un GIRAR con carácter.
+export const SKINS = {
+  neon: { name: 'Neón', spinIcon: '↻', palette: { primary: '#ff2d78', accent: '#00e5ff', panel: '#0b0716', text: '#ffffff' } },
+  cristal: { name: 'Cristal', spinIcon: '↻', palette: { primary: '#7c5cff', accent: '#7ef9ff', panel: '#101a33', text: '#ffffff' } },
+  brasa: { name: 'Brasa', spinIcon: '↻', palette: { primary: '#ff5a1f', accent: '#ffc247', panel: '#1a0805', text: '#fff4e6' } },
+  real: { name: 'Real', spinIcon: '↻', palette: { primary: '#b8860b', accent: '#ffd873', panel: '#120d05', text: '#fff8e1' } },
+  arcade: { name: 'Arcade', spinIcon: 'GIRAR', palette: { primary: '#ff3b3b', accent: '#39ff88', panel: '#0a0a12', text: '#ffffff' } },
+};
+
+/** Etiqueta corta para una ficha: 0,20 · 1 · 2,5 · 10 · 1K · 2,5K · 1M */
+function chipLabel(cents) {
+  const v = cents / 100;
+  const n = (x) => x.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  if (v >= 1e6) return `${n(v / 1e6)}M`;
+  if (v >= 1e4) return `${n(v / 1e3)}K`;
+  return n(v);
+}
+
 export class Hud {
-  constructor(root, { game, currency, onSpin, onBuy, onInfo, onToggleSound, lobbyUrl, preview }) {
+  constructor(root, { game, currency, onSpin, onBuy, onInfo, onToggleSound, onHistory, lobbyUrl, preview }) {
     this.root = root;
     this.game = game;
     this.currency = currency;
@@ -46,7 +65,9 @@ export class Hud {
     this.balanceEl = h('b', {}, '—');
     this.betEl = h('b', {}, '');
     this.winEl = h('b', {}, formatMoney(0, currency));
-    this.spinBtn = this.makeButton('spin', 'spin', '↻', 'Girar', () => onSpin());
+    const HUD = t.hud || {};
+    this.skin = SKINS[HUD.layout] ? HUD.layout : null;
+    this.spinBtn = this.makeButton('spin', 'spin', this.skin ? SKINS[this.skin].spinIcon : '↻', 'Girar', () => onSpin());
     this.autoBtn = this.makeButton('auto', 'chip', 'AUTO', 'Juego automático', () => this.toggleAuto(onSpin));
     this.turboBtn = this.makeButton('turbo', 'chip', '⚡', 'Turbo', () => this.toggleTurbo());
     this.soundBtn = this.makeButton('sound', 'chip', '🔊', 'Sonido', () => {
@@ -62,14 +83,25 @@ export class Hud {
     this.status = h('div', { class: 'status' });
     this.modal = h('div', { class: 'modal', hidden: true, onclick: (e) => { if (e.target === this.modal) this.closeModal(); } });
 
-    // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior.
-    const HUD = t.hud || {};
-    root.dataset.layout = HUD.layout === 'classic' ? 'classic' : 'pill';
+    // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior,
+    // o una de las interfaces completas (SKINS).
+    root.dataset.layout = this.skin || (HUD.layout === 'classic' ? 'classic' : 'pill');
+    if (this.skin) root.dataset.skin = this.skin; else delete root.dataset.skin;
     if (HUD.barColor) css.setProperty('--bar', HUD.barColor);
     if (HUD.barBorder) css.setProperty('--bar-border', HUD.barBorder);
     if (HUD.spinSize) css.setProperty('--spin-size', `${Math.min(130, Math.max(56, Number(HUD.spinSize)))}px`);
 
     const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, label), el);
+    this.onInfo = onInfo;
+    this.onHistory = onHistory;
+    if (this.skin) {
+      this.buildSkin({ stat, lobbyUrl, preview, t });
+      this.renderBet();
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && this.modal.hidden && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); onSpin(); }
+      });
+      return;
+    }
     this.bar = h('div', { class: 'bar' },
       this.infoBtn,
       stat('SALDO', this.balanceEl, 'saldo'),
@@ -79,7 +111,7 @@ export class Hud {
       stat('PREMIO', this.winEl, 'premio'),
       this.soundBtn);
 
-    root.append(
+    root.append(...[
       h('div', { class: 'top' },
         lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl, 'aria-label': 'Volver' }, '⟵') : null,
         preview ? h('span', { class: 'tag' }, 'VISTA PREVIA · BORRADOR') : null),
@@ -87,11 +119,107 @@ export class Hud {
       this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null,
       this.bar,
       this.modal,
-    );
+    ].filter(Boolean));
     this.renderBet();
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && this.modal.hidden && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); onSpin(); }
     });
+  }
+
+  /** Interfaz completa: barra superior, panel lateral, dock inferior con fichas y efectos propios de cada estilo. */
+  buildSkin({ stat, lobbyUrl, preview, t }) {
+    const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    this.fullBtn = fsOk ? this.makeButton('fullscreen', 'chip', '⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null;
+    this.betChips = h('div', { class: 'betchips' });
+    const side = (icon, label, fn) => h('button', { class: 'sk-sbtn', onclick: fn, title: label }, h('i', {}, icon), h('span', {}, label));
+    this.sideSound = side('🔊', 'SONIDO', () => { this.soundBtn.click(); this.sideSound.classList.toggle('muted', this.soundBtn.classList.contains('muted')); });
+    this.sidePanel = h('div', { class: 'sk-side' },
+      side('ⓘ', 'REGLAS', () => this.onInfo()),
+      this.sideSound,
+      fsOk ? side('⛶', 'PANTALLA', () => this.toggleFullscreen()) : null,
+      this.onHistory ? side('☷', 'HISTORIAL', () => this.showHistory()) : null);
+    // El ☰ abre un menú con todo (en celular el panel lateral no entra)
+    this.infoBtn.onclick = null;
+    this.infoBtn.replaceWith(this.infoBtn = this.makeButton('info', 'chip menu', '☰', 'Menú', () => this.openMenu()));
+    const top = h('div', { class: 'sk-top' },
+      lobbyUrl ? h('a', { class: 'chip', href: lobbyUrl, 'aria-label': 'Volver' }, '⟵') : null,
+      this.infoBtn,
+      h('div', { class: 'sk-brand' }, t.title || this.game.name),
+      preview ? h('span', { class: 'tag' }, 'VISTA PREVIA') : null,
+      stat('SALDO', this.balanceEl, 'saldo'),
+      h('div', { class: 'sk-topbtns' }, this.soundBtn, this.fullBtn));
+    this.dock = h('div', { class: 'sk-dock' },
+      h('div', { class: 'sk-deco' }),
+      h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, 'APUESTA'), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus)),
+      h('div', { class: 'sk-spinwrap' }, h('div', { class: 'sk-ring' }), this.spinBtn),
+      h('div', { class: 'sk-right' }, stat('APUESTA', this.betEl, 'apuesta'), stat('PREMIO', this.winEl, 'premio'), h('div', { class: 'autos' }, this.autoBtn, this.turboBtn)));
+    this.fx = h('div', { class: 'fx' });
+    this.root.append(...[top, this.sidePanel, this.banner, this.status, this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null, this.dock, this.fx, this.modal].filter(Boolean));
+  }
+
+  /** Espacio (px) que ocupa la interfaz: el motor acomoda los rodillos en el resto. null = botonera clásica. */
+  reserve(orientation) {
+    if (!this.skin) return null;
+    const W = window.innerWidth;
+    const sideOn = orientation === 'landscape' && W >= 1000;
+    this.root.toggleAttribute('data-noside', !sideOn);
+    return orientation === 'portrait'
+      ? { top: 64, bottom: 228, side: 0 }
+      : { top: 62, bottom: W < 760 ? 88 : 112, side: sideOn ? 150 : 0 };
+  }
+
+  toggleFullscreen() {
+    const d = document;
+    if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen)?.call(d);
+    else (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen)?.call(d.documentElement)?.catch?.(() => {});
+  }
+
+  openMenu() {
+    const item = (icon, label, fn) => h('button', { class: 'sk-mitem', onclick: () => { this.modal.hidden = true; fn(); } }, h('i', {}, icon), h('span', {}, label));
+    const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    this.openModal(h('div', { class: 'sk-menu' }, h('h2', {}, 'Menú'),
+      h('div', { class: 'sk-mgrid' },
+        item('ⓘ', 'Reglas y pagos', () => this.onInfo()),
+        this.onHistory ? item('☷', 'Historial', () => this.showHistory()) : null,
+        item(this.soundBtn.classList.contains('muted') ? '🔇' : '🔊', 'Sonido', () => this.soundBtn.click()),
+        fsOk ? item('⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null,
+        item('⚡', this.turbo ? 'Turbo: sí' : 'Turbo: no', () => this.toggleTurbo()))));
+  }
+
+  async showHistory() {
+    this.openModal(h('div', { class: 'info' }, h('h2', {}, 'Historial'), h('p', {}, 'Cargando…')));
+    try {
+      const rows = await this.onHistory();
+      const fmtD = (s) => { try { return new Date(`${String(s).replace(' ', 'T')}Z`).toLocaleString(); } catch { return s; } };
+      this.openModal(h('div', { class: 'info' }, h('h2', {}, 'Historial'),
+        rows.length ? h('table', { class: 'hist' }, h('thead', {}, h('tr', {}, h('th', {}, 'Fecha'), h('th', {}, 'Jugada'), h('th', {}, 'Apuesta'), h('th', {}, 'Premio'))),
+          h('tbody', {}, rows.map((r) => h('tr', { class: r.win > 0 ? 'won' : '' }, h('td', {}, fmtD(r.created_at)), h('td', {}, r.play_mode === 'base' ? 'Giro' : 'Bonus'),
+            h('td', {}, this.fmt(r.cost)), h('td', {}, r.win > 0 ? this.fmt(r.win) : '—')))))
+          : h('p', {}, 'Todavía no hay jugadas.'),
+        h('p', { class: 'fine' }, 'Últimas 20 jugadas de esta sesión de juego. Cada jugada queda registrada y se puede verificar.')));
+    } catch (e) {
+      this.openModal(h('div', { class: 'info' }, h('h2', {}, 'Historial'), h('p', {}, e.message)));
+    }
+  }
+
+  /** Lluvia de partículas con la forma de cada estilo (monedas, brasas, píxeles…). */
+  celebrate(power = 1) {
+    if (!this.fx || typeof document === 'undefined') return;
+    const n = Math.round(14 + 40 * Math.min(1, power));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('i');
+      const ang = Math.random() * Math.PI * 2, dist = 120 + Math.random() * 380 * Math.min(1.4, power + 0.3);
+      p.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
+      p.style.setProperty('--dy', `${Math.sin(ang) * dist - 80}px`);
+      p.style.setProperty('--d', `${Math.random() * 0.25}s`);
+      p.style.setProperty('--s', String(0.6 + Math.random() * 0.9));
+      p.style.setProperty('--r', `${Math.round(Math.random() * 720 - 360)}deg`);
+      frag.appendChild(p);
+    }
+    this.fx.replaceChildren(frag);
+    clearTimeout(this.fxT);
+    this.fxT = setTimeout(() => this.fx.replaceChildren(), 2200);
   }
 
   /** Crea un botón usando la imagen, el icono o el texto definidos en theme.buttons[key]. */
@@ -156,6 +284,18 @@ export class Hud {
 
   renderBet() {
     this.betEl.textContent = this.fmt(this.bet);
+    if (this.betChips) {
+      // Ventana de fichas alrededor de la apuesta actual (todas si entran)
+      const max = window.innerWidth < 420 ? 5 : window.innerWidth < 760 ? 5 : 7;
+      const L = this.levels;
+      let from = Math.max(0, Math.min(L.length - max, this.betIndex - Math.floor(max / 2)));
+      if (L.length <= max) from = 0;
+      this.betChips.replaceChildren(...L.slice(from, from + max).map((v, i) => h('button', {
+        class: `bchip${from + i === this.betIndex ? ' sel' : ''}`, 'data-i': String((from + i) % 6), title: this.fmt(v),
+        onclick: () => { if (this.locked) return; this.betIndex = from + i; this.renderBet(); },
+      }, chipLabel(v))));
+      this.betChips.querySelectorAll?.('button').forEach((b) => { b.disabled = !!this.locked; });
+    }
     if (this.buyBtn && this.game.rules?.buyCost) this.buyBtn.title = `Precio: ${this.fmt(this.bet * this.game.rules.buyCost)}`;
   }
 
@@ -166,6 +306,7 @@ export class Hud {
   lock(v) {
     this.locked = v;
     for (const b of [this.minus, this.plus, this.buyBtn].filter(Boolean)) b.disabled = v;
+    this.betChips?.querySelectorAll?.('button').forEach((b) => { b.disabled = v; });
     this.spinBtn.classList.toggle('busy', v);
   }
 
@@ -199,6 +340,7 @@ export class Hud {
 
   /** Mensaje grande en pantalla. kind: win | big | feature | info */
   async showBanner(html, { kind = 'win', ms = 1400 } = {}) {
+    if (this.skin && kind !== 'info') this.celebrate(kind === 'big' ? 1.2 : kind === 'feature' ? 0.8 : 0.25);
     this.banner.className = `banner ${kind}`;
     this.banner.innerHTML = html;
     this.banner.hidden = false;

@@ -136,3 +136,12 @@ td input { padding: 5px 7px; }
 .ref-thumbs.in-msg img { width: 90px; height: 90px; border-color: #fff6; }
 .attach { cursor: pointer; font-size: 20px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); margin: 0; color: var(--text); }
 .attach:hover { border-color: var(--primary2); }
+
+/* Selector de interfaz del juego */
+.ui-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.ui-grid.small { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.ui-tile { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 8px; border-radius: 14px; background: var(--panel2); border: 2px solid var(--line); color: var(--text); cursor: pointer; transition: border-color .15s, transform .15s; }
+.ui-tile:hover { transform: translateY(-2px); border-color: var(--primary2, #8b5cf6); }
+.ui-tile.on { border-color: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 30%, transparent); }
+.ui-tile b { font-size: 14px; } .ui-tile span { font-size: 11px; }
+.ui-grid.small .ui-tile b { font-size: 12px; }

@@ -8,16 +8,17 @@ import { getSession, walletForSession } from './wallets.js';
 import { getPublished, getDraft, getVersionConfig } from './games.js';
 import { replayTableRound as replayTable } from './table.js';
 import { configWithVariant, variantById } from './variants.js';
+import { applyCurrency, operatorLimits } from './bets.js';
 
 export function loadConfigFor(session) {
   if (session.source === 'draft') {
     if (session.mode !== 'demo') throw new HttpError(403, 'Los borradores solo se pueden jugar en modo demo');
-    return { version: null, config: getDraft(session.game_id), variantId: null };
+    return { version: null, config: applyCurrency(getDraft(session.game_id), session.currency), variantId: null };
   }
   const pub = getPublished(session.game_id);
-  if (!session.variant_id) return { ...pub, variantId: null };
-  // RTP asignado por el proveedor a este operador
-  return { version: pub.version, config: configWithVariant(session.game_id, pub.version, session.variant_id), variantId: session.variant_id };
+  // RTP asignado por el proveedor a este operador + fichas de la moneda de la sesión y límites del operador
+  const config = session.variant_id ? configWithVariant(session.game_id, pub.version, session.variant_id) : pub.config;
+  return { version: pub.version, config: applyCurrency(config, session.currency, operatorLimits(session.operator_id, session.currency)), variantId: session.variant_id || null };
 }
 
 /** RTP/volatilidad que ve el jugador: los de la variante si la sesión tiene una. */

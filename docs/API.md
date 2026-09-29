@@ -162,6 +162,14 @@ Tiempo máximo de respuesta: 8 s.
 | POST | `/api/admin/operators/:id/users/:uid/reset-password` | Nueva contraseña temporal |
 | GET / POST | `/api/admin/games/:id/rtp-variants` | Variantes de RTP de un juego · `{ target }` calcula una nueva |
 
+### Monedas y límites de apuesta
+
+Todas las cantidades van en centavos de la moneda de la sesión (la del jugador, o la del operador si no se indica). El RTP no depende de la moneda: los premios son múltiplos de la apuesta.
+
+- Cada juego tiene fichas base en `bet.levels` y, opcionalmente, fichas por moneda en `bet.byCurrency`, por ejemplo `{ "ARS": { "levels": [20000, 50000, 100000], "default": 50000 } }`. En Craps también puede traer `limits: { min, max, table }`; si no, se escalan con la misma proporción que las fichas. Si una moneda no está definida, se usan las fichas base (mismos números).
+- El proveedor puede acotar a cada operador con `PATCH /api/admin/operators/:id { "betLimits": { "ARS": { "min": 50000, "max": 1000000 } } }`: el jugador solo ve (y el servidor solo acepta) las fichas dentro de ese rango.
+- `GET /api/v1/session` devuelve ya las fichas efectivas en `game.bet.levels`; `POST /api/v1/spin` con una ficha que no esté en esa lista responde `400`.
+
 ### RTP por operador
 
 El proveedor asigna a cada operador el RTP de cada juego (85 %–110 %). La plataforma ajusta la tabla de pagos de la versión publicada a ese RTP (misma matemática, pagos escalados, compras de bonus re-preciadas) y guarda el resultado como **variante**. Cada sesión nueva de ese operador juega con su variante; cada ronda registra `version` y `variant_id`, así que el replay reproduce exactamente lo jugado.

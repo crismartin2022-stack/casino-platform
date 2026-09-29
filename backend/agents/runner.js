@@ -80,8 +80,13 @@ BOTONES (theme.buttons): { shape: round|rounded|square|pill, style: gradient|fla
   color: fondo de botones pequeños, textColor, y por botón <spin|auto|turbo|sound|minus|plus|info|buy>: { icon: emoji o texto corto,
   label: texto accesible, iconOff: icono de sonido apagado, image: URL de imagen (la pone el Artista) } }.
 Para volver al diseño estándar de un botón con imagen, pon theme.buttons.<botón>.image = null.
-BOTONERA (theme.hud): { layout: "pill" (píldora centrada bajo los rodillos, por defecto) | "classic" (barra de ancho completo abajo),
-  barColor (color CSS con transparencia, ej. "rgba(10,8,12,.82)"), barBorder, spinSize (56-130 px) }.
+BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los rodillos, por defecto) | "classic" (barra de ancho completo abajo)
+  | interfaces completas con barra superior, panel lateral (reglas, sonido, pantalla completa, historial) y fichas de apuesta directas:
+  "neon" (noche de ciudad, tubos de luz), "cristal" (vidrio esmerilado flotante), "brasa" (metal forjado y fuego, GIRAR hexagonal),
+  "real" (oro, fichas de casino, lluvia de monedas), "arcade" (gabinete retro, LED y botones gordos),
+  barColor (color CSS con transparencia, ej. "rgba(10,8,12,.82)"), barBorder, spinSize (56-130 px; solo pill/classic) }.
+  Cada interfaz toma los colores de theme.palette (primary = botón GIRAR y brillos, accent = premios y detalles, panel = fondos).
+  Elige la que mejor encaje con la temática (p. ej. egipcio/lujo → real, cyberpunk → neon, volcán/dragón → brasa, fantasía → cristal, retro → arcade).
 RODILLOS: theme.symbolScale (0.6-1, cuánto de la celda ocupa el símbolo; 0.92 por defecto), theme.cellGap (0-16 px entre celdas),
   theme.cellColor, theme.cellAlpha (0-1), theme.cellRadius, theme.cellBorder (color o "none"), theme.frameColor,
   theme.tagline (frase corta bajo los rodillos en celular). Imágenes que pone el Artista: theme.background (PC), theme.backgroundMobile

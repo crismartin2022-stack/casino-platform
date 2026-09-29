@@ -8,6 +8,7 @@ import { getEngine } from '../math/index.js';
 import { listGames, createOwnedGame, getGame } from './games.js';
 import { configForOperator, operatorCanUse, buildVariant, findVariant, listVariants } from './variants.js';
 import { mathHash, getPublished } from './games.js';
+import { applyCurrency, operatorLimits } from './bets.js';
 const isTable = (engine) => getEngine(engine).kind === 'table';
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
@@ -152,8 +153,22 @@ export function updateOperator(id, patch, actor) {
     max_games: patch.maxGames == null ? op.max_games : Math.max(0, Math.min(1000, Math.floor(Number(patch.maxGames) || 0))),
     can_use_agents: patch.canUseAgents == null ? op.can_use_agents : patch.canUseAgents ? 1 : 0,
   };
-  run('UPDATE operators SET name = ?, active = ?, can_create_games = ?, max_games = ?, can_use_agents = ? WHERE id = ?',
-    next.name, next.active, next.can_create_games, next.max_games, next.can_use_agents, id);
+  let betLimits = op.bet_limits;
+  if (patch.betLimits !== undefined) {
+    // { "ARS": { "min": 10000, "max": 5000000 } } en centavos; null o {} quita los límites
+    const out = {};
+    for (const [cur, l] of Object.entries(patch.betLimits || {})) {
+      const code = String(cur).toUpperCase();
+      if (!/^[A-Z]{3,4}$/.test(code)) throw new HttpError(400, `Moneda inválida: ${cur}`);
+      const min = l?.min == null || l.min === '' ? null : Math.round(Number(l.min));
+      const max = l?.max == null || l.max === '' ? null : Math.round(Number(l.max));
+      if ((min != null && !(min > 0)) || (max != null && !(max > 0)) || (min != null && max != null && max < min)) throw new HttpError(400, `Límites inválidos para ${code}: la máxima debe ser mayor o igual a la mínima`);
+      if (min != null || max != null) out[code] = { ...(min != null ? { min } : {}), ...(max != null ? { max } : {}) };
+    }
+    betLimits = Object.keys(out).length ? JSON.stringify(out) : null;
+  }
+  run('UPDATE operators SET name = ?, active = ?, can_create_games = ?, max_games = ?, can_use_agents = ?, bet_limits = ? WHERE id = ?',
+    next.name, next.active, next.can_create_games, next.max_games, next.can_use_agents, betLimits, id);
   if (!next.active) run('DELETE FROM operator_user_sessions WHERE user_id IN (SELECT id FROM operator_users WHERE operator_id = ?)', id);
   audit(actor, 'operator.update', id, patch);
   return operatorDetail(id);
@@ -182,6 +197,7 @@ export function operatorDetail(id) {
   }));
   return {
     id: op.id, name: op.name, walletMode: op.wallet_mode, walletUrl: op.wallet_url, currency: op.currency, active: !!op.active, createdAt: op.created_at,
+    betLimits: op.bet_limits ? JSON.parse(op.bet_limits) : {},
     ...gameLimits(op), games, users: listUsers(id),
   };
 }
@@ -210,7 +226,11 @@ export { listVariants };
 export function catalog(op) {
   return listGames()
     .filter((g) => g.publishedVersion && g.status === 'active' && (!g.ownerOperatorId || g.ownerOperatorId === op.id))
-    .map((g) => ({ id: g.id, name: g.name, engine: g.engine, own: g.ownerOperatorId === op.id, version: g.publishedVersion, ...effectiveMath(op.id, g) }))
+    .map((g) => {
+      let bets = null;
+      try { bets = applyCurrency(getPublished(g.id).config, op.currency, operatorLimits(op.id, op.currency)).bet.levels; } catch { bets = []; }
+      return { id: g.id, name: g.name, engine: g.engine, own: g.ownerOperatorId === op.id, version: g.publishedVersion, currency: op.currency, bets, ...effectiveMath(op.id, g) };
+    })
     .filter((g) => g.own || g.enabled);
 }
 
@@ -351,7 +371,7 @@ export function csv(kind, op, q) {
 export function integration(op) {
   return {
     operatorId: op.id, name: op.name, walletMode: op.wallet_mode, walletUrl: op.wallet_url, currency: op.currency,
-    hasWalletSecret: !!op.wallet_secret, apiBase: config.publicUrl || null,
+    hasWalletSecret: !!op.wallet_secret, apiBase: config.publicUrl || null, betLimits: op.bet_limits ? JSON.parse(op.bet_limits) : {},
   };
 }
 

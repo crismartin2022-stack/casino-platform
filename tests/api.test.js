@@ -400,3 +400,53 @@ test('portal del operador: roles, RTP asignado por el proveedor, juegos propios 
   await req(`/api/admin/operators/${op.id}`, { method: 'PATCH', headers: ADMIN, body: { active: false } });
   assert.equal((await req('/api/portal/summary', { headers: P })).status, 401);
 });
+
+test('moneda: fichas por moneda, límites del operador y validación en el servidor', async () => {
+  // El proveedor define fichas en pesos argentinos para sticky-wilds y Craps
+  const g = (await req('/api/admin/games/sticky-wilds', { headers: ADMIN })).body;
+  const bad = await req('/api/admin/games/sticky-wilds/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'bet.byCurrency', value: { ARS: { levels: [50000, 20000] } } }] } });
+  assert.equal(bad.status, 422);
+  assert.ok(bad.body.details.some((e) => /byCurrency/.test(e)));
+  await req('/api/admin/games/sticky-wilds/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'bet.byCurrency', value: { ARS: { levels: [20000, 50000, 100000, 200000], default: 50000 } } }] } });
+  const pub = await req('/api/admin/games/sticky-wilds/publish', { method: 'POST', headers: ADMIN, body: { note: 'ARS' } });
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  assert.equal(pub.body.mathChanged, false); // las fichas no cambian el RTP
+  await req('/api/admin/games/craps/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'bet.byCurrency', value: { ARS: { levels: [100000, 500000] } } }] } });
+  assert.equal((await req('/api/admin/games/craps/publish', { method: 'POST', headers: ADMIN, body: {} })).status, 200);
+
+  const op = (await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Pesos', currency: 'ARS' } })).body;
+  const key = { 'x-api-key': op.apiKey };
+  await req('/api/v1/operator/players/a1/balance', { method: 'POST', headers: key, body: { amount: 10_000_000, reference: 'd' } });
+  let s = (await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'a1', gameId: 'sticky-wilds' } })).body;
+  let auth = { authorization: `Bearer ${s.token}` };
+  const sess = (await req('/api/v1/session', { headers: auth })).body;
+  assert.equal(sess.currency, 'ARS');
+  assert.deepEqual(sess.game.bet.levels, [20000, 50000, 100000, 200000]);
+  assert.equal(sess.game.bet.byCurrency, undefined);
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100 } })).status, 400); // ficha de USD no vale en ARS
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 50000 } })).status, 200);
+  // Un casino en USD sigue con las fichas base
+  const usd = (await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Dólar' } })).body;
+  const su = (await req('/api/v1/operator/sessions', { method: 'POST', headers: { 'x-api-key': usd.apiKey }, body: { playerId: 'u1', gameId: 'sticky-wilds' } })).body;
+  assert.deepEqual((await req('/api/v1/session', { headers: { authorization: `Bearer ${su.token}` } })).body.game.bet.levels, g.draft.bet.levels);
+
+  // Límites del operador: mínimo 50.000 y máximo 100.000 (centavos)
+  const lim = await req(`/api/admin/operators/${op.id}`, { method: 'PATCH', headers: ADMIN, body: { betLimits: { ARS: { min: 50000, max: 100000 } } } });
+  assert.deepEqual(lim.body.betLimits, { ARS: { min: 50000, max: 100000 } });
+  assert.equal((await req(`/api/admin/operators/${op.id}`, { method: 'PATCH', headers: ADMIN, body: { betLimits: { ARS: { min: 9, max: 1 } } } })).status, 400);
+  s = (await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'a1', gameId: 'sticky-wilds' } })).body;
+  auth = { authorization: `Bearer ${s.token}` };
+  assert.deepEqual((await req('/api/v1/session', { headers: auth })).body.game.bet.levels, [50000, 100000]);
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 200000 } })).status, 400);
+  const cat = (await req('/api/v1/operator/games', { headers: key })).body;
+  assert.ok(cat.length > 0);
+
+  // Craps en ARS: fichas y límites escalados, acotados por el operador
+  const sc = (await req('/api/v1/operator/sessions', { method: 'POST', headers: key, body: { playerId: 'a1', gameId: 'craps' } })).body;
+  const ca = { authorization: `Bearer ${sc.token}` };
+  const cs = (await req('/api/v1/session', { headers: ca })).body;
+  assert.deepEqual(cs.game.bet.levels, [100000].filter((x) => x <= 100000));
+  assert.equal(cs.game.rules.limits.max, 100000);
+  assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: ca, body: { type: 'pass', amount: 200000 } })).status, 400);
+  assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: ca, body: { type: 'pass', amount: 100000 } })).status, 200);
+});
