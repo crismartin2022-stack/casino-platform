@@ -174,6 +174,29 @@ CREATE TABLE IF NOT EXISTS rtp_variants (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS rtp_variants_game ON rtp_variants(game_id, base_math_hash, rtp_target);
+CREATE TABLE IF NOT EXISTS brands (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  logo TEXT,
+  tagline TEXT,
+  color TEXT,
+  bg TEXT,
+  bg_image TEXT,
+  loader TEXT NOT NULL DEFAULT 'bar',
+  min_ms INTEGER NOT NULL DEFAULT 1500,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS game_checks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id TEXT NOT NULL REFERENCES games(id),
+  version INTEGER,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  report TEXT NOT NULL,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_game_checks_game ON game_checks(game_id, id);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor TEXT NOT NULL,
@@ -193,6 +216,7 @@ for (const [table, col, def] of [
   ['games', 'owner_operator_id', 'TEXT'],
   ['sessions', 'variant_id', 'TEXT'],
   ['rounds', 'variant_id', 'TEXT'],
+  ['games', 'brand_id', 'TEXT'],
 ]) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
   if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);

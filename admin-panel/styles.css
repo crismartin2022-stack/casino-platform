@@ -152,3 +152,46 @@ td input { padding: 5px 7px; }
 .heditor .hebar button { margin-left: auto; }
 .heditor .hestage { flex: 1; overflow: hidden; position: relative; }
 .heditor .heframe { box-shadow: 0 20px 60px #000; border-radius: 10px; overflow: hidden; background: #000; }
+
+/* Marcas */
+#gameList .brand-head { display: flex; align-items: center; gap: 8px; margin: 12px 4px 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+#gameList .brand-head img { height: 20px; max-width: 60px; object-fit: contain; }
+#gameList .brand-head b { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gameList .brand-head em { font-style: normal; opacity: .7; }
+.brand-select { width: auto; display: inline-block; padding: 2px 8px; font-size: 12px; border-radius: 99px; }
+.brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.brand-edit { display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+@media (max-width: 900px) { .brand-edit { grid-template-columns: 1fr; } }
+.lp { position: relative; aspect-ratio: 16/10; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #fff; }
+.lp-logo img, .lp-logo video { max-width: 70%; max-height: 90px; object-fit: contain; display: block; margin: auto; animation: lpin .6s cubic-bezier(.2,1.3,.4,1); }
+.lp-logo b { font: 900 26px system-ui; letter-spacing: .05em; }
+.lp.pulse .lp-logo > * { animation: lpin .6s cubic-bezier(.2,1.3,.4,1), lppulse 1.4s ease-in-out .6s infinite; }
+.lp-tag { font: 600 10px system-ui; letter-spacing: .25em; text-transform: uppercase; opacity: .8; }
+.lp-txt { font: 600 11px system-ui; opacity: .8; }
+.lp-bar { width: 60%; height: 6px; border-radius: 99px; background: rgba(255,255,255,.15); overflow: hidden; }
+.lp-bar i { display: block; height: 100%; width: 60%; background: var(--c); box-shadow: 0 0 10px var(--c); animation: lpfill 2s ease-in-out infinite; }
+.lp-ring { width: 42px; height: 42px; border-radius: 50%; background: conic-gradient(var(--c) 65%, rgba(255,255,255,.15) 0); -webkit-mask: radial-gradient(circle, transparent 56%, #000 58%); mask: radial-gradient(circle, transparent 56%, #000 58%); animation: spinring 1.4s linear infinite; }
+@keyframes lpin { from { transform: scale(.6); opacity: 0; } }
+@keyframes lppulse { 50% { transform: scale(1.06); } }
+@keyframes lpfill { from { width: 5%; } to { width: 100%; } }
+@keyframes spinring { to { transform: rotate(360deg); } }
+
+/* Prueba silenciosa */
+.check-report { display: grid; gap: 12px; }
+.check-head { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel2); }
+.check-head .big { font-size: 34px; }
+.check-head b { font-size: 18px; }
+.check-head.ok { border-color: var(--ok); } .check-head.warn { border-color: var(--warn); } .check-head.fail { border-color: #ff5d6c; }
+.check-fixes h3 { margin: 0 0 8px; } .check-fixes ol { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; }
+.check-fixes li.fail { color: #ffb3ba; }
+.check-area h4 { margin: 6px 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted, #9aa); }
+.check-row { display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--panel2); margin-bottom: 4px; }
+.check-row.fail { outline: 1px solid #ff5d6c88; } .check-row.warn { outline: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); }
+.badge.fail { border-color: #ff5d6c; color: #ff5d6c; cursor: pointer; }
+.badge.warn.ck, .badge.ok.ck { cursor: pointer; }
+
+/* Vista previa de los marcadores */
+.meter-prev { display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #0b0a12; justify-content: center; flex-wrap: wrap; }
+.meter-prev .mp { display: flex; flex-direction: column; align-items: center; padding: 4px 14px; min-width: 110px; }
+.meter-prev .mp small { font: 600 10px system-ui; letter-spacing: .12em; opacity: .8; color: #fff; }
+.meter-prev .mp b { color: #fff; font-size: 16px; }

@@ -5,6 +5,7 @@ import { db, one, all, run, tx, audit } from '../db.js';
 import { ROOT, config as appConfig } from '../config.js';
 import { validateConfig, getEngine, ENGINES, buyModesOf } from '../math/index.js';
 import { simulateAsync } from '../math/worker.js';
+import { runCheck, saveCheck } from './checks.js';
 import { HttpError } from '../lib/http.js';
 
 const SEED_DIR = `${ROOT}/backend/games/seed`;
@@ -73,7 +74,7 @@ function rowToGame(r, { withDraft = true } = {}) {
   const pub = r.published_version ? one('SELECT version, math, created_at, note FROM game_versions WHERE game_id = ? AND version = ?', r.id, r.published_version) : null;
   const draft = JSON.parse(r.draft);
   return {
-    id: r.id, engine: r.engine, name: r.name, status: r.status, ownerOperatorId: r.owner_operator_id ?? null,
+    id: r.id, engine: r.engine, name: r.name, status: r.status, ownerOperatorId: r.owner_operator_id ?? null, brandId: r.brand_id ?? null,
     publishedVersion: r.published_version,
     publishedAt: pub?.created_at ?? null,
     math: pub?.math ? JSON.parse(pub.math) : null,
@@ -84,7 +85,8 @@ function rowToGame(r, { withDraft = true } = {}) {
 }
 
 export function listGames({ ownerOperatorId } = {}) {
-  const rows = ownerOperatorId ? all('SELECT * FROM games WHERE owner_operator_id = ? ORDER BY created_at', ownerOperatorId) : all('SELECT * FROM games ORDER BY created_at');
+  const order = "ORDER BY (SELECT name FROM brands b WHERE b.id = games.brand_id) IS NULL, (SELECT name FROM brands b WHERE b.id = games.brand_id) COLLATE NOCASE, name COLLATE NOCASE";
+  const rows = ownerOperatorId ? all(`SELECT * FROM games WHERE owner_operator_id = ? ${order}`, ownerOperatorId) : all(`SELECT * FROM games ${order}`);
   return rows.map((r) => rowToGame(r, { withDraft: false }));
 }
 
@@ -95,7 +97,8 @@ export function createOwnedGame(operatorId, { name, base }, actor) {
   for (let i = 2; one('SELECT id FROM games WHERE id = ?', slug); i++) slug = slug.replace(/(-\d+)?$/, `-${i}`);
   const c = { ...structuredClone(base), id: slug, name: name || base.name };
   c.theme = { ...c.theme, title: name || c.theme?.title };
-  run('INSERT INTO games (id, engine, name, draft, draft_updated_at, owner_operator_id) VALUES (?, ?, ?, ?, ?, ?)', slug, c.engine, c.name, JSON.stringify(c), now(), operatorId);
+  const brand = one('SELECT brand_id FROM games WHERE id = ?', base.id)?.brand_id ?? null;
+  run('INSERT INTO games (id, engine, name, draft, draft_updated_at, owner_operator_id, brand_id) VALUES (?, ?, ?, ?, ?, ?, ?)', slug, c.engine, c.name, JSON.stringify(c), now(), operatorId, brand);
   audit(actor, 'game.create', slug, { engine: c.engine, owner: operatorId, from: base.id });
   return getGame(slug);
 }
@@ -203,6 +206,8 @@ export function patchDraft(id, ops, actor = 'admin') {
   return { config: next, errors };
 }
 
+const gameBrand = (id) => one('SELECT brand_id FROM games WHERE id = ?', id)?.brand_id ?? null;
+
 export async function publish(id, { actor = 'admin', note = '' } = {}) {
   const draft = getDraft(id);
   const errors = validateConfig(draft);
@@ -226,7 +231,10 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
     const dev = Math.abs(sim.rtp - draft.rtpTarget);
     const inCi = draft.rtpTarget >= sim.rtpLow && draft.rtpTarget <= sim.rtpHigh;
     if (dev > appConfig.publishMaxRtpDeviation && !inCi) {
-      throw new HttpError(422, `RTP simulado ${(sim.rtp * 100).toFixed(2)} % fuera de tolerancia respecto al objetivo ${(draft.rtpTarget * 100).toFixed(2)} %. Ajusta la tabla de pagos (agente matemático → tune_rtp).`, math);
+      const msg = `RTP simulado ${(sim.rtp * 100).toFixed(2)} % fuera de tolerancia respecto al objetivo ${(draft.rtpTarget * 100).toFixed(2)} %. Ajusta la tabla de pagos (agente matemático → tune_rtp).`;
+      const check = await runCheck(draft, { gameId: id, brandId: gameBrand(id), math: { ...math, rejected: msg } });
+      saveCheck(id, check, { source: 'publish', actor });
+      throw new HttpError(422, msg, { ...math, check });
     }
     math.buyOptions = [];
     for (const b of buyModesOf(ENGINES[draft.engine], draft)) {
@@ -236,14 +244,21 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
       if (b.mode === 'buy') math.buy = { buyCost: info.cost, rtp: info.rtp, ci: info.ci };
     }
   }
+  // Prueba silenciosa de todas las funciones: si algo falla no se publica; los avisos se informan.
+  const check = await runCheck(draft, { gameId: id, brandId: gameBrand(id), math });
+  if (!check.passed) {
+    saveCheck(id, check, { source: 'publish', actor });
+    throw new HttpError(422, `No se publicó: ${check.summary}`, { check });
+  }
   const version = (last?.version || 0) + 1;
   tx(() => {
     run('INSERT INTO game_versions (game_id, version, config, math_hash, math, note, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
       id, version, JSON.stringify(draft), hash, JSON.stringify(math), note, actor);
     run('UPDATE games SET published_version = ? WHERE id = ?', version, id);
   });
-  audit(actor, 'game.publish', id, { version, math, mathChanged: !last || last.math_hash !== hash });
-  return { version, math, mathChanged: !last || last.math_hash !== hash };
+  saveCheck(id, check, { version, source: 'publish', actor });
+  audit(actor, 'game.publish', id, { version, math, mathChanged: !last || last.math_hash !== hash, check: check.status });
+  return { version, math, mathChanged: !last || last.math_hash !== hash, check };
 }
 
 export function listVersions(id) {
@@ -258,7 +273,7 @@ export function restoreVersion(id, version, actor = 'admin') {
   return c;
 }
 
-export function createGame({ engine, name, id, fromGameId }, actor = 'admin') {
+export function createGame({ engine, name, id, fromGameId, brandId }, actor = 'admin') {
   getEngine(engine);
   const slug = (id || name || engine).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!slug) throw new HttpError(400, 'Nombre inválido');
@@ -269,7 +284,9 @@ export function createGame({ engine, name, id, fromGameId }, actor = 'admin') {
   if (base.engine !== engine) throw new HttpError(400, 'El juego base usa otro motor');
   const c = { ...structuredClone(base), id: slug, name: name || base.name };
   c.theme = { ...c.theme, title: name || c.theme.title };
-  run('INSERT INTO games (id, engine, name, draft, draft_updated_at) VALUES (?, ?, ?, ?, ?)', slug, engine, c.name, JSON.stringify(c), now());
+  const brand = brandId || (fromGameId ? one('SELECT brand_id FROM games WHERE id = ?', fromGameId)?.brand_id : null) || null;
+  if (brand && !one('SELECT id FROM brands WHERE id = ?', brand)) throw new HttpError(404, 'Marca no encontrada');
+  run('INSERT INTO games (id, engine, name, draft, draft_updated_at, brand_id) VALUES (?, ?, ?, ?, ?, ?)', slug, engine, c.name, JSON.stringify(c), now(), brand);
   audit(actor, 'game.create', slug, { engine, fromGameId });
   return getGame(slug);
 }

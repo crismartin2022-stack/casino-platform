@@ -97,6 +97,13 @@ Todas toman los colores de la paleta del juego y funcionan en PC y celular; los 
 - **Plantilla «Tablero de la maqueta»** en Diseño libre: marcadores en recuadros, GIRAR al centro, − valor + MÁX, AUTO y TURBO; en celular pegada abajo con INFO y SONIDO en las esquinas.
 - **Frecuencia del bonus** (Matemática): "bonus cada ~N giros" recalibra los activadores y reajusta el RTP.
 
+## Marcas, prueba silenciosa y marcadores
+
+- **Marcas** (panel → Marcas): nombre, logotipo (imagen, GIF o video), frase, colores, fondo y estilo de carga (barra, anillo o pulso). Al abrir un juego aparece la pantalla de carga con el logo de su marca; el panel agrupa los juegos por marca. Cada juego elige su marca junto al título.
+- **Prueba silenciosa**: al publicar, el sistema juega miles de rondas con semilla fija y revisa configuración, apuestas en 7 monedas, jugadas y premios dentro del tope, reproducción exacta (auditoría), bonus y su frecuencia, compras de bonus, RTP, archivos del diseño (faltantes o pesados), símbolos, sonidos, textos de carteles, botonera, marca y cliente. Si hay **errores no se publica** (el juego en vivo no cambia); los **avisos** se informan. El reporte sugiere arreglos y se pueden enviar al Director con un clic. También hay un botón **🩺 Probar** para el borrador. Tarda 0,2–1,5 s por juego.
+- **Saldo, apuesta y premio** (Diseño → Saldo, apuesta y premio): títulos propios, colores, recuadro con fondo, opacidad, borde, esquinas o imagen y tamaño de los números (`theme.hud.meters`).
+- **Logo y marco**: tamaño del logo y posición vertical del logo y del marco, por separado en PC y celular (`theme.logoScale`, `theme.logoOffsetY`, `theme.logoOffsetYMobile`, `theme.frameOffsetY`, `theme.frameOffsetYMobile`).
+
 ## Monedas
 
 Las fichas de cada juego se definen por moneda (Matemática → Apuestas por moneda, con sugerencia automática a partir de un tipo de cambio)

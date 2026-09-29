@@ -201,6 +201,8 @@ export class BaseEngine {
         cellBorder: t.cellBorder === 'none' ? null : t.cellBorder, frameColor: t.frameColor,
         cellTexture: this.cellTexture, reelsTexture: this.reelsTexture, frameTexture: this.frameTexture,
         frameLayer: t.frameLayer, frameScale: t.frameScale, frameCut: t.frameCut,
+        // Subir/bajar el marco (px de diseño; negativo = arriba). En celular puede tener su propio valor.
+        frameOffsetY: this.offsetY('frame'),
       },
     });
     this.grid.position.set(a.x, a.y);
@@ -214,8 +216,9 @@ export class BaseEngine {
       const logo = new Sprite(this.logoTexture);
       logo.anchor.set(0.5, 1);
       const k = Math.min((this.orientation === 'portrait' ? 640 : 560) / logo.texture.width, (logoBottom - z.y) / logo.texture.height);
-      logo.scale.set(k);
-      logo.position.set(w / 2, logoBottom);
+      // theme.logoScale agranda/achica el logo; theme.logoOffsetY (logoOffsetYMobile) lo sube o baja.
+      logo.scale.set(k * Math.min(1.8, Math.max(0.4, Number(t.logoScale) || 1)));
+      logo.position.set(w / 2, logoBottom + this.offsetY('logo'));
       this.world.addChild(logo);
     } else {
       const title = new Text({
@@ -229,8 +232,8 @@ export class BaseEngine {
       });
       title.anchor.set(0.5, 1);
       const k = Math.min(1, (logoBottom - z.y) / Math.max(1, title.height));
-      title.scale.set(k);
-      title.position.set(w / 2, logoBottom);
+      title.scale.set(k * Math.min(1.8, Math.max(0.4, Number(t.logoScale) || 1)));
+      title.position.set(w / 2, logoBottom + this.offsetY('logo'));
       this.world.addChild(title);
     }
     // Frase bajo los rodillos (theme.tagline), en celular entre rodillos y botonera
@@ -419,6 +422,13 @@ export class BaseEngine {
   }
 
   /** Texto de un cartel: el que puso el diseñador o el de fábrica. */
+  /** Desplazamiento vertical (px de diseño) del logo o del marco: theme.<k>OffsetY en PC y theme.<k>OffsetYMobile en celular. */
+  offsetY(k) {
+    const t = this.game.theme || {};
+    const v = this.orientation === 'portrait' ? (t[`${k}OffsetYMobile`] ?? t[`${k}OffsetY`]) : t[`${k}OffsetY`];
+    return Math.max(-300, Math.min(300, Number(v) || 0));
+  }
+
   msg(key, vars = {}) {
     const txt = this.game.theme?.messages?.texts?.[key];
     return String(txt != null && txt !== '' ? txt : DEFAULT_TEXTS[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');

@@ -135,9 +135,23 @@ function setupOperatorShell() {
 
 // ------------------------------------------------------------------ Juegos
 async function loadGames() {
-  S.games = await api('/api/admin/games');
-  $('#gameList').innerHTML = S.games.map((g) => `<a data-game="${esc(g.id)}" class="${g.id === S.gameId ? 'on' : ''}">
-    ${esc(g.name)}<small>${esc(g.engine)} · v${g.publishedVersion ?? '—'}${g.hasUnpublishedChanges ? ' · cambios sin publicar' : ''}${g.status !== 'active' ? ' · desactivado' : ''}</small></a>`).join('');
+  [S.games, S.brands] = await Promise.all([api('/api/admin/games'), api('/api/admin/brands').catch(() => [])]);
+  // Agrupados por marca (el servidor ya los ordena por marca y nombre)
+  const groups = new Map();
+  for (const g of S.games) {
+    const k = g.brandId || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(g);
+  }
+  const brandOf = (id) => S.brands.find((b) => b.id === id);
+  const item = (g) => `<a data-game="${esc(g.id)}" class="${g.id === S.gameId ? 'on' : ''}">
+    ${esc(g.name)}<small>${esc(g.engine)} · v${g.publishedVersion ?? '—'}${g.hasUnpublishedChanges ? ' · cambios sin publicar' : ''}${g.status !== 'active' ? ' · desactivado' : ''}</small></a>`;
+  const multi = groups.size > 1 || (groups.size === 1 && !groups.has(''));
+  $('#gameList').innerHTML = [...groups.entries()].map(([k, list]) => {
+    const b = brandOf(k);
+    const head = !multi ? '' : `<div class="brand-head">${b?.logo && !/\.(mp4|webm)(\?|$)/i.test(b.logo) ? `<img src="${esc(b.logo)}" alt="" />` : '<span>🏷</span>'}<b>${esc(b ? b.name : 'Sin marca')}</b><em>${list.length}</em></div>`;
+    return head + list.map(item).join('');
+  }).join('');
   $$('#gameList a').forEach((a) => a.addEventListener('click', () => selectGame(a.dataset.game)));
 }
 
@@ -156,13 +170,24 @@ const selectGame = guard(async (id) => {
 });
 
 async function refreshGame() {
-  S.game = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}`);
+  const [game, checks] = await Promise.all([api(`/api/admin/games/${encodeURIComponent(S.gameId)}`), api(`/api/admin/games/${encodeURIComponent(S.gameId)}/checks`).catch(() => [])]);
+  S.game = game;
+  S.lastCheck = checks[0] || null;
   const g = S.game;
+  const ck = S.lastCheck;
   $('#gameTitle').textContent = g.name;
   $('#gameMeta').innerHTML = `<span class="badge">${esc(g.engine)}</span>
     <span class="badge ${g.publishedVersion ? 'ok' : 'warn'}">${g.publishedVersion ? `publicado v${g.publishedVersion}` : 'sin publicar'}</span>
     ${g.hasUnpublishedChanges ? '<span class="badge warn">borrador con cambios</span>' : ''}
-    ${g.math ? `<span class="badge">RTP ${pct(g.math.rtp)} · volatilidad ${esc(g.math.volatility)}</span>` : ''}`;
+    ${g.math ? `<span class="badge">RTP ${pct(g.math.rtp)} · volatilidad ${esc(g.math.volatility)}</span>` : ''}
+    ${ck ? `<span class="badge ck ${ck.status}" id="lastCheck" title="Ver la última prueba (${esc(ck.created_at)})">🩺 ${ck.status === 'ok' ? 'prueba OK' : ck.status === 'warn' ? `prueba: ${ck.report.counts.warn} aviso(s)` : `prueba: ${ck.report.counts.fail} error(es)`}${ck.version ? ` · v${ck.version}` : ck.source === 'draft' ? ' · borrador' : ''}</span>` : ''}
+    ${isOp() ? '' : `<select id="gameBrand" class="brand-select" title="Marca del juego"><option value="">🏷 Sin marca</option>${(S.brands || []).map((b) => `<option value="${esc(b.id)}" ${g.brandId === b.id ? 'selected' : ''}>🏷 ${esc(b.name)}</option>`).join('')}</select>`}`;
+  $('#lastCheck')?.addEventListener('click', () => showCheck(ck.report, { title: ck.version ? `Prueba de la v${ck.version}` : 'Última prueba' }));
+  $('#gameBrand')?.addEventListener('change', guard(async (e) => {
+    await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/brand`, { method: 'PUT', body: { brandId: e.target.value || null } });
+    toast('Marca del juego actualizada');
+    await loadGames();
+  }));
 }
 
 async function patchDraft(ops, msg = 'Borrador guardado') {
@@ -211,12 +236,54 @@ $('#publishBtn').addEventListener('click', guard(async () => {
   const note = prompt('Nota de la versión (qué cambió):', '');
   if (note === null) return;
   const btn = $('#publishBtn');
-  const r = await busy(btn, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/publish`, { method: 'POST', body: { note } }));
+  let r;
+  try {
+    r = await busy(btn, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/publish`, { method: 'POST', body: { note } }));
+  } catch (e) {
+    // La prueba silenciosa encontró errores: no se publicó. Se muestra el reporte con los arreglos sugeridos.
+    if (e.details?.check) { showCheck(e.details.check, { title: 'No se publicó', publishing: true }); await refreshGame(); return; }
+    throw e;
+  }
   toast(`Publicada v${r.version} · RTP ${pct(r.math.rtp)}${r.mathChanged && !isOp() ? ' (matemática re-simulada)' : ''}${r.rtpVariantsRebuilding ? ` · recalculando ${r.rtpVariantsRebuilding} RTP de operadores` : ''}`);
+  if (r.check) showCheck(r.check, { title: `Publicada v${r.version}`, publishing: true });
   await refreshGame();
   await loadGames();
   if (S.tab === 'versions') renderTab();
 }));
+
+// ------------------------------------------------------------------ Prueba silenciosa
+$('#checkBtn').addEventListener('click', guard(async () => {
+  const r = await busy($('#checkBtn'), () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/check`, { method: 'POST' }));
+  showCheck(r, { title: 'Prueba del borrador' });
+  await refreshGame();
+}));
+
+const CHECK_ICON = { ok: '✅', warn: '⚠️', fail: '❌', info: 'ℹ️' };
+const CHECK_HEAD = { ok: 'Pasó la prueba', warn: 'Pasó la prueba con avisos', fail: 'No pasó la prueba' };
+
+/** Reporte de la prueba silenciosa: resultado, chequeos por área y arreglos sugeridos (se pueden enviar al Director). */
+function showCheck(rep, { title = 'Prueba del juego', publishing = false } = {}) {
+  const areas = [...new Set(rep.checks.map((c) => c.area))];
+  const body = `<div class="check-report">
+    <div class="check-head ${rep.status}"><span class="big">${CHECK_ICON[rep.status]}</span>
+      <div><b>${CHECK_HEAD[rep.status]}</b><div class="muted">${esc(rep.summary)}${publishing && rep.status === 'fail' ? ' El juego en vivo no cambió.' : ''} · ${rep.counts.ok} correctos · ${rep.counts.warn} avisos · ${rep.counts.fail} errores · ${(rep.ms / 1000).toFixed(1)} s</div></div></div>
+    ${rep.fixes.length ? `<div class="card check-fixes"><h3>Arreglos sugeridos</h3><ol>${rep.fixes.map((f) => `<li class="${f.status}">${CHECK_ICON[f.status]} <b>${esc(f.area)}:</b> ${esc(f.text)}${f.agentName ? ` <span class="badge">${esc(f.agentName)}</span>` : ''}</li>`).join('')}</ol>
+      <div class="row"><button class="primary" id="ckSend">🎬 Pedir los arreglos al Director</button><span class="muted">Los agentes corrigen el borrador; después vuelve a probar y publicar.</span></div></div>` : ''}
+    ${areas.map((a) => `<div class="check-area"><h4>${esc(a)}</h4>${rep.checks.filter((c) => c.area === a).map((c) => `<div class="check-row ${c.status}"><span>${CHECK_ICON[c.status]}</span><div><b>${esc(c.label)}</b><div class="muted">${esc(c.detail)}</div></div></div>`).join('')}</div>`).join('')}
+  </div>`;
+  openPicker(title, body, (root, close) => {
+    $('#ckSend', root)?.addEventListener('click', guard(async () => {
+      const prompt = `La prueba automática del juego encontró esto. Corrige el borrador:\n${rep.fixes.map((f, i) => `${i + 1}. [${f.area}${f.agentName ? ` → ${f.agentName}` : ''}] ${f.text}`).join('\n')}`;
+      const { runId } = await api('/api/admin/agents/runs', { method: 'POST', body: { gameId: S.gameId, prompt, agent: 'director' } });
+      close();
+      S.runId = runId;
+      S.tab = 'agents';
+      $$('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'agents'));
+      renderTab();
+      toast('Arreglos enviados al Director');
+    }));
+  });
+}
 
 $('#newGameBtn').addEventListener('click', guard(async () => {
   if (isOp()) return newOwnGame();
@@ -224,6 +291,7 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
   openPicker('Nuevo juego', `<div class="stack">
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
     <div><label>Motor</label><select id="ngEngine">${engines.map((e) => `<option value="${e.id}">${esc(e.name)} — ${esc(e.description)}</option>`).join('')}</select></div>
+    <div><label>Marca</label><select id="ngBrand"><option value="">— Sin marca —</option>${(S.brands || []).map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select></div>
     <div><label>Copiar diseño de (opcional)</label><select id="ngFrom"><option value="">— Plantilla del motor —</option>${S.games.map((g) => `<option value="${esc(g.id)}" data-engine="${esc(g.engine)}">${esc(g.name)}</option>`).join('')}</select></div>
     ${uiPicker()}
     <button class="primary" id="ngCreate">Crear</button></div>`, (root, close) => {
@@ -232,7 +300,7 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
       const engine = $('#ngEngine', root).value;
       const from = $('#ngFrom', root).selectedOptions[0];
       if (from.value && from.dataset.engine !== engine) throw new Error('El juego a copiar debe usar el mismo motor');
-      const g = await api('/api/admin/games', { method: 'POST', body: { name: $('#ngName', root).value, engine, fromGameId: from.value || undefined } });
+      const g = await api('/api/admin/games', { method: 'POST', body: { name: $('#ngName', root).value, engine, fromGameId: from.value || undefined, brandId: $('#ngBrand', root).value || undefined } });
       await applyUiChoice(root, g.id, engine);
       close();
       await loadGames();
@@ -476,8 +544,8 @@ function openPicker(title, html, onMount) {
 
 /** Elegir o subir un asset. kind: image | sound | font; con { animated: true } también acepta GIF y video (fondos). */
 async function pickAsset(kind, { animated = false } = {}) {
-  let list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=${kind}`);
-  if (animated) list = [...list, ...(await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=video`))];
+  let list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=${kind}`);
+  if (animated) list = [...list, ...(await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=video`))];
   const accept = { image: `image/png,image/jpeg,image/webp,image/svg+xml,image/gif${animated ? ',video/mp4,video/webm' : ''}`, sound: 'audio/mpeg,audio/wav,audio/ogg', font: '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf' }[kind];
   const title = { image: animated ? 'Elegir imagen, GIF o video' : 'Elegir imagen', sound: 'Elegir sonido', font: 'Elegir tipografía' }[kind];
   return new Promise((resolve) => {
@@ -496,7 +564,7 @@ async function pickAsset(kind, { animated = false } = {}) {
 
 async function uploadFile(file, kind) {
   if (!file) throw new Error('Selecciona un archivo');
-  return api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=${kind}&name=${encodeURIComponent(file.name)}`, {
+  return api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=${kind}&name=${encodeURIComponent(file.name)}`, {
     method: 'POST', raw: true, body: file, headers: { 'content-type': file.type || 'application/octet-stream' },
   });
 }
@@ -594,7 +662,7 @@ async function addRefs(files) {
   for (const f of files) {
     if (S.refs.length >= 6) { toast('Máximo 6 imágenes por mensaje', true); break; }
     const small = await shrinkImage(f);
-    const a = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=image&reference=1&name=${encodeURIComponent('Referencia: ' + f.name)}`, {
+    const a = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=image&reference=1&name=${encodeURIComponent('Referencia: ' + f.name)}`, {
       method: 'POST', raw: true, body: small, headers: { 'content-type': small.type || 'image/jpeg' },
     });
     S.refs.push({ id: a.id, url: a.url });
@@ -781,6 +849,7 @@ async function tabDesign(v) {
     ${t[k] ? thumb(t[k]) : '<span class="muted">Sin imagen</span>'}
     <button class="small" data-img="${k}">Elegir…</button>${t[k] ? `<button class="small danger" data-clear="${k}">Quitar</button>` : ''}</div></div>`;
   const curUi = t.hud?.layout || 'pill';
+  const slider = (id, label, val, min, max, step, unit) => `<div><label>${label} (<span id="${id}V">${unit === '%' ? Math.round(val * 100) : val}</span> ${unit})</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-unit="${unit}" /></div>`;
   const isTableGame = engineInfo(S.game.engine).kind === 'table';
   v.innerHTML = `<div class="stack">
     ${isTableGame ? '' : `<div class="card stack"><h3 style="margin:0">Interfaz del juego</h3>
@@ -805,6 +874,17 @@ async function tabDesign(v) {
       ${imgField('logo', 'Logo')}${imgField('reelsBackground', 'Fondo detrás de los rodillos')}
       ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}
     </div></div>
+    <div class="card stack"><h3 style="margin:0">Logo y marco: tamaño y posición</h3>
+      <p class="muted" style="margin:0">Mueve el logo${isTableGame ? '' : ' y el marco decorativo'} hacia arriba (negativo) o hacia abajo (positivo). PC y celular se ajustan por separado; mira el cambio en ▶ Vista previa.</p>
+      <div class="grid2">
+        ${slider('pLogoScale', 'Tamaño del logo', t.logoScale ?? 1, 0.4, 1.8, 0.05, '%')}
+        <div></div>
+        ${slider('pLogoY', 'Logo — subir / bajar en PC', t.logoOffsetY ?? 0, -200, 200, 2, 'px')}
+        ${slider('pLogoYM', 'Logo — subir / bajar en celular', t.logoOffsetYMobile ?? t.logoOffsetY ?? 0, -200, 200, 2, 'px')}
+        ${isTableGame ? '' : `${slider('pFrameY', 'Marco — subir / bajar en PC', t.frameOffsetY ?? 0, -150, 150, 2, 'px')}
+        ${slider('pFrameYM', 'Marco — subir / bajar en celular', t.frameOffsetYMobile ?? t.frameOffsetY ?? 0, -150, 150, 2, 'px')}`}
+      </div>
+      <div class="row"><button class="small" id="pReset">Volver a la posición original</button></div></div>
     ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) : ''}
     <div class="card stack" ${engineInfo(S.game.engine).kind === 'table' ? 'hidden' : ''}><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
       <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
@@ -828,6 +908,7 @@ async function tabDesign(v) {
       <div><label>Tamaño general de la interfaz (<span id="hScaleV">${Math.round((t.hud?.scale || 1) * 100)}</span> %)</label><input id="hScale" type="range" min="0.8" max="1.4" step="0.05" value="${t.hud?.scale || 1}" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
     </div></div>
+    ${isTableGame ? '' : metersCard(t.hud?.meters || {}, p)}
     <div class="card stack"><h3 style="margin:0">Botones del juego</h3>
       <div class="grid2">
         <div><label>Forma</label><select id="bShape">${[['round', 'Redondos'], ['rounded', 'Esquinas suaves'], ['square', 'Cuadrados'], ['pill', 'Píldora']].map(([v, l]) => `<option value="${v}" ${(B.shape || 'round') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -878,6 +959,12 @@ async function tabDesign(v) {
   $$('[data-clear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     await patchDraft([{ op: 'set', path: `theme.${b.dataset.clear}`, value: null }]); renderTab();
   })));
+  $$('input[type=range][data-unit]', v).forEach((i) => i.addEventListener('input', () => { $(`#${i.id}V`, v).textContent = i.dataset.unit === '%' ? Math.round(i.value * 100) : i.value; }));
+  $('#pReset', v).addEventListener('click', guard(async () => {
+    await patchDraft(['logoScale', 'logoOffsetY', 'logoOffsetYMobile', 'frameOffsetY', 'frameOffsetYMobile'].map((k) => ({ op: 'set', path: `theme.${k}`, value: null })), 'Logo y marco en su posición original');
+    renderTab();
+  }));
+  bindMetersCard(v);
   bindDiceCard(v);
   bindCustomHudCard(v);
   bindMessagesCard(v);
@@ -885,7 +972,7 @@ async function tabDesign(v) {
   $$('[data-fontup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const a = await pickAsset('font');
     if (!a) return;
-    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=font`)).find((x) => x.url === a) : a;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=font`)).find((x) => x.url === a) : a;
     const fam = fontFamilyOf(asset || { filename: 'Fuente propia' });
     const url = asset?.url || a;
     const base = b.dataset.fontup === 'hud' ? 'theme.hud' : 'theme';
@@ -915,12 +1002,95 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.frameScale', value: Number($('#lFrameScale').value) },
       { op: 'set', path: 'theme.frameCut', value: $('#lFrameCut').checked },
       { op: 'set', path: 'theme.tagline', value: $('#lTag').value.trim() || null },
+      { op: 'set', path: 'theme.logoScale', value: Number($('#pLogoScale').value) === 1 ? null : Number($('#pLogoScale').value) },
+      { op: 'set', path: 'theme.logoOffsetY', value: Number($('#pLogoY').value) || null },
+      { op: 'set', path: 'theme.logoOffsetYMobile', value: Number($('#pLogoYM').value) || null },
+      ...($('#pFrameY') ? [{ op: 'set', path: 'theme.frameOffsetY', value: Number($('#pFrameY').value) || null }, { op: 'set', path: 'theme.frameOffsetYMobile', value: Number($('#pFrameYM').value) || null }] : []),
+      ...($('#mCard') ? [{ op: 'set', path: 'theme.hud.meters', value: readMeters(v, t.hud?.meters || {}) }] : []),
       { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
       ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
     loadGames();
   }));
+}
+
+// ---- Marcadores de la botonera (SALDO / APUESTA / PREMIO) ----
+function metersCard(M, p) {
+  const L = M.labels || {};
+  const box = !!(M.bg || M.border || M.bgImage);
+  const colors = !!(M.labelColor || M.valueColor || M.winColor);
+  const bgHex = (M.bg || '#000000b8').slice(0, 7), bgA = M.bg && M.bg.length === 9 ? parseInt(M.bg.slice(7), 16) / 255 : 0.72;
+  return `<div class="card stack" id="mCard"><h3 style="margin:0">Saldo, apuesta y premio</h3>
+    <p class="muted" style="margin:0">Títulos, colores y recuadro de los marcadores de la botonera. En Diseño libre además se mueven y cambian de tamaño en el editor.</p>
+    <div class="meter-prev" id="mPrev">${['SALDO|1.000,00|saldo', 'APUESTA|1,00|apuesta', 'PREMIO|25,00|premio'].map((x) => { const [a, b, c] = x.split('|'); return `<div class="mp ${c}"><small>${a}</small><b>${b}</b></div>`; }).join('')}</div>
+    <div class="grid2">
+      <div><label>Título de SALDO</label><input id="mLb" value="${esc(L.balance || '')}" placeholder="SALDO" /></div>
+      <div><label>Título de APUESTA</label><input id="mLa" value="${esc(L.bet || '')}" placeholder="APUESTA" /></div>
+      <div><label>Título de PREMIO</label><input id="mLp" value="${esc(L.win || '')}" placeholder="PREMIO" /></div>
+      <div><label>Tamaño de los números (<span id="mVsV">${Math.round((M.valueScale || 1) * 100)}</span> %)</label><input id="mVs" type="range" min="0.7" max="1.6" step="0.05" value="${M.valueScale || 1}" /></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="mShow" style="width:auto" ${M.showLabels !== false ? 'checked' : ''} /> Mostrar los títulos</label>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="mColors" style="width:auto" ${colors ? 'checked' : ''} /> Colores propios</label>
+      <div><label>Color del título</label><input type="color" id="mCl" value="${esc(M.labelColor || p.text || '#ffffff')}" /></div>
+      <div><label>Color del número</label><input type="color" id="mCv" value="${esc(M.valueColor || p.text || '#ffffff')}" /></div>
+      <div><label>Color del número de PREMIO</label><input type="color" id="mCw" value="${esc(M.winColor || p.accent || '#ffd460')}" /></div>
+      <div></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="mBox" style="width:auto" ${box ? 'checked' : ''} /> Recuadro</label>
+      <div></div>
+      <div><label>Fondo del recuadro</label><input type="color" id="mBg" value="${esc(bgHex)}" /></div>
+      <div><label>Opacidad del fondo (<span id="mBaV">${Math.round(bgA * 100)}</span> %)</label><input id="mBa" type="range" min="0" max="1" step="0.05" value="${bgA}" /></div>
+      <div><label>Borde del recuadro</label><input type="color" id="mBd" value="${esc(M.border || p.accent || '#ffd460')}" /></div>
+      <div><label>Esquinas (<span id="mRV">${M.radius ?? 10}</span> px)</label><input id="mR" type="range" min="0" max="40" step="1" value="${M.radius ?? 10}" /></div>
+      <div><label>Imagen del recuadro <span class="muted">(opcional)</span></label><div class="row">${M.bgImage ? `<img src="${esc(M.bgImage)}" style="height:40px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
+        <button class="small" id="mImg">Elegir…</button>${M.bgImage ? '<button class="small danger" id="mImgX">Quitar</button>' : ''}</div></div>
+    </div>
+    <div class="row"><button class="small" id="mReset">Volver al estilo de la interfaz</button><span class="muted">Se guarda con «Guardar diseño».</span></div></div>`;
+}
+
+function readMeters(v, cur) {
+  const on = (id) => $(id, v).checked;
+  const a = Math.round(Number($('#mBa', v).value) * 255).toString(16).padStart(2, '0');
+  const box = on('#mBox'), colors = on('#mColors');
+  return {
+    labels: { balance: $('#mLb', v).value.trim() || null, bet: $('#mLa', v).value.trim() || null, win: $('#mLp', v).value.trim() || null },
+    showLabels: on('#mShow') ? null : false,
+    labelColor: colors ? $('#mCl', v).value : null, valueColor: colors ? $('#mCv', v).value : null, winColor: colors ? $('#mCw', v).value : null,
+    bg: box ? `${$('#mBg', v).value}${a}` : null, border: box ? $('#mBd', v).value : null, radius: box ? Number($('#mR', v).value) : null,
+    bgImage: box ? cur.bgImage || null : null,
+    valueScale: Number($('#mVs', v).value) === 1 ? null : Number($('#mVs', v).value),
+  };
+}
+
+function bindMetersCard(v) {
+  if (!$('#mCard', v)) return;
+  const prev = () => {
+    const m = readMeters(v, S.game.draft.theme?.hud?.meters || {});
+    $$('#mPrev .mp', v).forEach((el) => {
+      const k = el.classList.contains('saldo') ? 'balance' : el.classList.contains('apuesta') ? 'bet' : 'win';
+      $('small', el).textContent = m.labels[k] || { balance: 'SALDO', bet: 'APUESTA', win: 'PREMIO' }[k];
+      $('small', el).style.display = m.showLabels === false ? 'none' : '';
+      $('small', el).style.color = m.labelColor || '';
+      $('b', el).style.color = (k === 'win' ? m.winColor : null) || m.valueColor || '';
+      $('b', el).style.fontSize = `${16 * (m.valueScale || 1)}px`;
+      el.style.background = m.bg ? `${m.bgImage ? `url("${m.bgImage}") center / 100% 100% no-repeat, ` : ''}${m.bg}` : 'transparent';
+      el.style.border = `2px solid ${m.border || 'transparent'}`;
+      el.style.borderRadius = `${m.radius ?? 10}px`;
+    });
+  };
+  $$('#mCard input', v).forEach((i) => i.addEventListener('input', () => {
+    const o = $(`#${i.id}V`, v); if (o) o.textContent = i.id === 'mR' ? i.value : Math.round(i.value * 100);
+    prev();
+  }));
+  prev();
+  $('#mImg', v).addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (!url) return;
+    const cur = S.game.draft.theme?.hud?.meters || {};
+    await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: { ...readMeters(v, cur), bgImage: url, bg: readMeters(v, cur).bg || '#00000000' } }], 'Imagen de los marcadores aplicada');
+    renderTab();
+  }));
+  $('#mImgX', v)?.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hud.meters.bgImage', value: null }]); renderTab(); }));
+  $('#mReset', v).addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: null }], 'Marcadores con el estilo de la interfaz'); renderTab(); }));
 }
 
 // ---- Dados (juegos de mesa): colores, forma, tamaño e imagen propia por cara ----
@@ -1321,7 +1491,7 @@ function currencyCard(v) {
 
 // ------------------------------------------------------------------ Pestaña: Assets
 async function tabAssets(v) {
-  const list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}`);
+  const list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}`);
   v.innerHTML = `<div class="stack"><div class="row"><label style="margin:0">Subir:</label><input type="file" id="aUp" multiple style="max-width:340px" accept="image/*,audio/*,video/mp4,video/webm,.woff2,.woff,.ttf,.otf" /></div>
     <div class="gallery">${list.map((a) => assetTile(a)).join('') || '<p class="muted">Sin assets todavía.</p>'}</div></div>`;
   $('#aUp').addEventListener('change', guard(async (e) => {
@@ -1875,6 +2045,70 @@ async function newOwnGame() {
     }));
   });
 }
+
+// ------------------------------------------------------------------ Marcas (estudios)
+function loaderPreview(b) {
+  const isVid = /\.(mp4|webm)(\?|$)/i.test(b.logo || '');
+  const logo = b.logo ? (isVid ? `<video src="${esc(b.logo)}" muted autoplay loop playsinline></video>` : `<img src="${esc(b.logo)}" alt="" />`) : `<b style="color:${esc(b.color || '#ffd460')}">${esc(b.name || 'Marca')}</b>`;
+  const bar = b.loader === 'ring' ? `<div class="lp-ring" style="--c:${esc(b.color || '#ffd460')}"></div>` : `<div class="lp-bar" style="--c:${esc(b.color || '#ffd460')};${b.loader === 'pulse' ? 'height:3px' : ''}"><i></i></div>`;
+  return `<div class="lp ${b.loader === 'pulse' ? 'pulse' : ''}" style="background:${esc(b.bg || '#05060c')} ${b.bgImage ? `url('${esc(b.bgImage)}') center/cover` : ''}">
+    <div class="lp-logo">${logo}</div>${b.tagline ? `<div class="lp-tag">${esc(b.tagline)}</div>` : ''}<div class="lp-txt">Cargando…</div>${bar}</div>`;
+}
+
+VIEWS.brands = async function viewBrands(v, openId = null) {
+  const list = await api('/api/admin/brands');
+  S.brands = list;
+  v.innerHTML = `<div class="stack"><h2 style="margin:0">Marcas</h2>
+    <p class="muted">Cada juego pertenece a una marca (tu estudio o línea de juegos). Al abrir el juego aparece la <b>pantalla de carga con el logo de la marca</b>, y en el panel los juegos quedan agrupados por marca.
+      El logo puede ser imagen, GIF o video.</p>
+    <div class="brand-grid">${list.map((b) => `<div class="card stack" style="gap:8px">${loaderPreview(b)}
+      <div class="row" style="justify-content:space-between"><b>${esc(b.name)}</b><span class="muted">${b.games} juego(s)</span></div>
+      <div class="row"><button class="small primary" data-bedit="${esc(b.id)}">Editar</button>${b.games ? '' : `<button class="small danger" data-bdel="${esc(b.id)}">Borrar</button>`}</div></div>`).join('')}
+      <div class="card stack" style="justify-content:center;align-items:center;min-height:200px"><button class="primary" id="bNew">＋ Nueva marca</button></div></div>
+    <div id="bEditor"></div></div>`;
+  const edit = (b) => {
+    const cur = { name: '', logo: null, tagline: '', color: '#ffd460', bg: '#05060c', bgImage: null, loader: 'bar', minMs: 1500, ...(b || {}) };
+    $('#bEditor', v).innerHTML = `<div class="card stack"><h3 style="margin:0">${b ? `Editar «${esc(b.name)}»` : 'Nueva marca'}</h3>
+      <div class="brand-edit"><div class="stack">
+        <div class="grid2">
+          <div><label>Nombre</label><input id="bName" value="${esc(cur.name)}" placeholder="Ej. Dan Play Studios" /></div>
+          <div><label>Frase bajo el logo (opcional)</label><input id="bTag" value="${esc(cur.tagline || '')}" placeholder="Ej. Juegos con alma" /></div>
+          <div><label>Logotipo (imagen, GIF o video)</label><div class="row"><span id="bLogoTxt" class="muted">${cur.logo ? 'Cargado' : 'Sin logo (se muestra el nombre)'}</span><button class="small" id="bLogo">Elegir…</button><button class="small danger" id="bLogoClear" ${cur.logo ? '' : 'hidden'}>Quitar</button></div></div>
+          <div><label>Imagen de fondo de la carga (opcional)</label><div class="row"><span id="bBgTxt" class="muted">${cur.bgImage ? 'Cargada' : 'Sin imagen'}</span><button class="small" id="bBg">Elegir…</button><button class="small danger" id="bBgClear" ${cur.bgImage ? '' : 'hidden'}>Quitar</button></div></div>
+          <div><label>Color de fondo</label><input type="color" id="bBgColor" value="${esc(cur.bg || '#05060c')}" /></div>
+          <div><label>Color de la marca (barra de carga)</label><input type="color" id="bColor" value="${esc(cur.color || '#ffd460')}" /></div>
+          <div><label>Estilo de carga</label><select id="bLoader">${[['bar', 'Barra'], ['ring', 'Anillo'], ['pulse', 'Logo que late + línea']].map(([k, l]) => `<option value="${k}" ${cur.loader === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div><label>Tiempo mínimo del logo (<span id="bMinV">${(cur.minMs / 1000).toFixed(1)}</span> s)</label><input type="range" id="bMin" min="0" max="6000" step="250" value="${cur.minMs}" /></div>
+        </div>
+        <div class="row"><button class="primary" id="bSave">${b ? 'Guardar marca' : 'Crear marca'}</button><button class="ghost" id="bCancel">Cancelar</button></div>
+      </div><div><label>Vista previa de la carga</label><div id="bPrev"></div></div></div></div>`;
+    const read = () => ({ ...cur, name: $('#bName').value, tagline: $('#bTag').value, bg: $('#bBgColor').value, color: $('#bColor').value, loader: $('#bLoader').value, minMs: Number($('#bMin').value) });
+    const redraw = () => { $('#bPrev').innerHTML = loaderPreview(read()); $('#bMinV').textContent = (Number($('#bMin').value) / 1000).toFixed(1); };
+    $$('#bEditor input, #bEditor select').forEach((i) => i.addEventListener('input', redraw));
+    $('#bLogo').addEventListener('click', guard(async () => { const u = await pickAsset('image', { animated: true }); if (u) { cur.logo = u; $('#bLogoTxt').textContent = 'Cargado'; $('#bLogoClear').hidden = false; redraw(); } }));
+    $('#bLogoClear').addEventListener('click', () => { cur.logo = null; $('#bLogoTxt').textContent = 'Sin logo (se muestra el nombre)'; $('#bLogoClear').hidden = true; redraw(); });
+    $('#bBg').addEventListener('click', guard(async () => { const u = await pickAsset('image'); if (u) { cur.bgImage = u; $('#bBgTxt').textContent = 'Cargada'; $('#bBgClear').hidden = false; redraw(); } }));
+    $('#bBgClear').addEventListener('click', () => { cur.bgImage = null; $('#bBgTxt').textContent = 'Sin imagen'; $('#bBgClear').hidden = true; redraw(); });
+    $('#bCancel').addEventListener('click', () => { $('#bEditor', v).innerHTML = ''; });
+    $('#bSave').addEventListener('click', guard(async () => {
+      const body = read();
+      const r = b ? await api(`/api/admin/brands/${b.id}`, { method: 'PATCH', body }) : await api('/api/admin/brands', { method: 'POST', body });
+      toast(b ? 'Marca guardada' : `Marca «${r.name}» creada. Asígnala a tus juegos desde el selector 🏷 de cada juego.`);
+      await loadGames();
+      VIEWS.brands(v);
+    }));
+    redraw();
+    $('#bEditor', v).scrollIntoView({ behavior: 'smooth' });
+  };
+  $('#bNew', v).addEventListener('click', () => edit(null));
+  $$('[data-bedit]', v).forEach((b) => b.addEventListener('click', () => edit(list.find((x) => x.id === b.dataset.bedit))));
+  $$('[data-bdel]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    if (!confirm('¿Borrar esta marca?')) return;
+    await api(`/api/admin/brands/${b.dataset.bdel}`, { method: 'DELETE' });
+    VIEWS.brands(v);
+  })));
+  if (openId) edit(list.find((x) => x.id === openId));
+};
 
 VIEWS.operators = viewOperators;
 VIEWS.operator = viewOperator;

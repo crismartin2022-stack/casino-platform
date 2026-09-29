@@ -112,7 +112,20 @@ export class Hud {
     if (HUD.barBorder) css.setProperty('--bar-border', HUD.barBorder);
     if (HUD.spinSize) css.setProperty('--spin-size', `${Math.min(130, Math.max(56, Number(HUD.spinSize)))}px`);
 
-    const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, label), el);
+    // Marcadores SALDO / APUESTA / PREMIO editables (theme.hud.meters): títulos, colores, recuadro con fondo o imagen.
+    const M = HUD.meters || {};
+    const LBL = { saldo: M.labels?.balance, apuesta: M.labels?.bet, premio: M.labels?.win };
+    const lbl = (label, cls) => (LBL[cls] != null && String(LBL[cls]).trim() !== '' ? String(LBL[cls]) : label);
+    this.meterLabel = lbl;
+    const vars = { labelColor: '--m-label', valueColor: '--m-value', winColor: '--m-win', bg: '--m-bg', border: '--m-border' };
+    for (const [k, v] of Object.entries(vars)) { if (M[k]) css.setProperty(v, M[k]); else css.removeProperty?.(v); }
+    if (M.bgImage) css.setProperty('--m-img', `url("${String(M.bgImage).replace(/"/g, '%22')}")`); else css.removeProperty?.('--m-img');
+    if (M.radius != null) css.setProperty('--m-radius', `${Math.max(0, Math.min(40, Number(M.radius) || 0))}px`); else css.removeProperty?.('--m-radius');
+    if (M.valueScale) css.setProperty('--m-vs', String(Math.max(0.7, Math.min(1.6, Number(M.valueScale) || 1)))); else css.removeProperty?.('--m-vs');
+    const meterOn = Object.keys(vars).some((k) => M[k]) || M.bgImage || M.radius != null || M.valueScale || M.showLabels === false;
+    if (meterOn) root.dataset.meters = [M.bg || M.bgImage || M.border ? 'box' : '', M.showLabels === false ? 'nolabel' : '', 'on'].filter(Boolean).join(' ');
+    else delete root.dataset.meters;
+    const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, lbl(label, cls)), el);
     this.onInfo = onInfo;
     this.onHistory = onHistory;
     if (this.isCustom) {
@@ -184,7 +197,7 @@ export class Hud {
       h('div', { class: 'sk-topbtns' }, this.rotateBtn, this.soundBtn, this.fullBtn));
     this.dock = h('div', { class: 'sk-dock' },
       h('div', { class: 'sk-deco' }),
-      h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, 'APUESTA'), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus, this.maxBtn)),
+      h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, this.meterLabel('APUESTA', 'apuesta')), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus, this.maxBtn)),
       h('div', { class: 'sk-spinwrap' }, h('div', { class: 'sk-ring' }), this.spinBtn),
       h('div', { class: 'sk-right' }, stat('APUESTA', this.betEl, 'apuesta'), stat('PREMIO', this.winEl, 'premio'), h('div', { class: 'autos' }, this.autoBtn, this.turboBtn)));
     this.fx = h('div', { class: 'fx' });

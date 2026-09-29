@@ -163,6 +163,20 @@ Tiempo máximo de respuesta: 8 s.
 | POST | `/api/admin/operators/:id/users/:uid/reset-password` | Nueva contraseña temporal |
 | GET / POST | `/api/admin/games/:id/rtp-variants` | Variantes de RTP de un juego · `{ target }` calcula una nueva |
 
+### Marcas y prueba silenciosa
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/admin/brands` | Marcas (con cantidad de juegos) |
+| POST | `/api/admin/brands` | Crear `{ name, logo, tagline, color, bg, bgImage, loader: bar\|ring\|pulse, minMs }` |
+| PATCH / DELETE | `/api/admin/brands/:id` | Editar / borrar (409 si tiene juegos) |
+| PUT | `/api/admin/games/:id/brand` | Asignar marca `{ brandId }` (null = sin marca) |
+| POST | `/api/admin/games/:id/check` | Prueba silenciosa del borrador → `{ status: ok\|warn\|fail, passed, summary, counts, checks[], fixes[] }` |
+| GET | `/api/admin/games/:id/checks` | Últimas pruebas (incluye las de cada publicación, con su versión) |
+
+`POST /publish` ejecuta la prueba: si `status = fail` responde **422** con `details.check` y no publica; si pasa, la respuesta incluye `check`.
+`GET /api/v1/session` y `GET /api/v1/games` incluyen `brand: { name, logo, tagline, color, bg, bgImage, loader, minMs }` para la pantalla de carga.
+
 ### Monedas y límites de apuesta
 
 Todas las cantidades van en centavos de la moneda de la sesión (la del jugador, o la del operador si no se indica). El RTP no depende de la moneda: los premios son múltiplos de la apuesta.

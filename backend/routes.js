@@ -9,6 +9,8 @@ import * as table from './services/table.js';
 import * as assets from './services/assets.js';
 import * as agents from './agents/runner.js';
 import * as operators from './services/operators.js';
+import * as brands from './services/brands.js';
+import * as checks from './services/checks.js';
 import { ensureAssignedVariants, buildVariant, listVariants } from './services/variants.js';
 import { engineList, getEngine, LINE_ENGINES } from './math/index.js';
 import { simulateAsync, tuneAsync, resizeAsync, featureAsync } from './math/worker.js';
@@ -46,7 +48,7 @@ export function registerRoutes(r) {
 
   r.get('/api/v1/games', (req, res) => json(res, games.listGames()
     .filter((g) => g.publishedVersion && g.status === 'active' && !g.ownerOperatorId)
-    .map((g) => ({ id: g.id, name: g.name, engine: g.engine, version: g.publishedVersion, rtp: g.math?.rtp ?? null, volatility: g.math?.volatility ?? null }))));
+    .map((g) => ({ id: g.id, name: g.name, engine: g.engine, version: g.publishedVersion, rtp: g.math?.rtp ?? null, volatility: g.math?.volatility ?? null, brand: brands.publicBrand(g.brandId) }))));
 
   r.get('/api/v1/games/:id', (req, res, { params }) => {
     const g = games.getGame(params.id);
@@ -67,7 +69,7 @@ export function registerRoutes(r) {
     const s = wallets.getSession(bearer(req));
     const { version, config: c } = rounds.loadConfigFor(s);
     const math = s.source === 'draft' ? null : rounds.mathFor(s, games.getGame(s.game_id).math);
-    json(res, { gameId: s.game_id, mode: s.mode, source: s.source, currency: s.currency,
+    json(res, { gameId: s.game_id, mode: s.mode, source: s.source, currency: s.currency, brand: brands.publicBrand(games.getGame(s.game_id).brandId),
       game: { ...games.publicConfig(s.game_id, c, version), math: math ? { rtp: math.rtp, volatility: math.volatility } : null } });
   });
 
@@ -175,12 +177,26 @@ export function registerRoutes(r) {
     const rebuilding = out.mathChanged ? ensureAssignedVariants(params.id, actor) : [];
     json(res, { ...out, rtpVariantsRebuilding: rebuilding.length });
   }));
+  // Prueba silenciosa a pedido (sobre el borrador) e historial de pruebas (incluye las de cada publicación)
+  r.post('/api/admin/games/:id/check', G(async (req, res, { params, actor }) => {
+    const g = games.getGame(params.id);
+    const report = await checks.runCheck(games.getDraft(params.id), { gameId: params.id, brandId: g.brandId });
+    checks.saveCheck(params.id, report, { source: 'draft', actor });
+    json(res, report);
+  }));
+  r.get('/api/admin/games/:id/checks', G((req, res, { params }) => json(res, checks.listChecks(params.id))));
   r.get('/api/admin/games/:id/versions', G((req, res, { params }) => json(res, games.listVersions(params.id))));
   r.post('/api/admin/games/:id/restore/:version', G((req, res, { params, actor }) => json(res, games.restoreVersion(params.id, Number(params.version), actor))));
   r.post('/api/admin/games/:id/status', G(async (req, res, { params, actor }) => {
     games.setStatus(params.id, (await readJson(req)).status, actor);
     json(res, { ok: true });
   }));
+  // Marcas (estudios): logotipo, pantalla de carga y agrupación de juegos
+  r.get('/api/admin/brands', (req, res) => { principal(req); json(res, brands.listBrands()); });
+  r.post('/api/admin/brands', A(async (req, res, { actor }) => json(res, brands.createBrand(await readJson(req), actor), 201)));
+  r.patch('/api/admin/brands/:id', A(async (req, res, { params, actor }) => json(res, brands.updateBrand(params.id, await readJson(req), actor))));
+  r.delete('/api/admin/brands/:id', A((req, res, { params, actor }) => json(res, brands.deleteBrand(params.id, actor))));
+  r.put('/api/admin/games/:id/brand', A(async (req, res, { params, actor }) => json(res, brands.setGameBrand(params.id, (await readJson(req)).brandId, actor))));
   // Variantes de RTP (solo proveedor)
   r.get('/api/admin/games/:id/rtp-variants', A((req, res, { params }) => json(res, listVariants(params.id))));
   r.post('/api/admin/games/:id/rtp-variants', A(async (req, res, { params, actor }) => json(res, buildVariant(params.id, (await readJson(req)).target, actor), 202)));
