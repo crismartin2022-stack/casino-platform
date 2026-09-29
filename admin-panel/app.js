@@ -249,6 +249,8 @@ function customHudCard(t) {
   return `<div class="card stack" id="chCard"><h3 style="margin:0">✥ Diseño libre de la botonera</h3>
     <p class="muted">Arrastra cada botón, el saldo, la apuesta, el premio y el tablero adonde quieras (también dentro del recuadro de los rodillos) y cambia su tamaño.
       PC y celular se diseñan por separado y se adaptan solos a cualquier pantalla. Los logos de los botones mantienen su proporción: nunca se estiran.</p>
+    <div class="row"><button id="chPreset">🧩 Aplicar plantilla «Tablero de la maqueta»</button>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="chBox" style="width:auto" ${C.statStyle === 'box' ? 'checked' : ''} /> Saldo, apuesta y premio en recuadros</label></div>
     <div class="row"><button class="primary" data-hedit="landscape">✏️ Editar en PC</button><button class="primary" data-hedit="portrait">✏️ Editar en celular</button>
       <button class="ghost" data-hreset="landscape">↺ Restablecer PC</button><button class="ghost" data-hreset="portrait">↺ Restablecer celular</button></div>
     <div class="grid2">
@@ -266,6 +268,12 @@ function customHudCard(t) {
 function bindCustomHudCard(v) {
   if (!$('#chCard', v)) return;
   $$('[data-hedit]', v).forEach((b) => b.addEventListener('click', guard(() => openHudEditor(b.dataset.hedit))));
+  $('#chPreset', v).addEventListener('click', guard(async () => {
+    if (!confirm('Se reemplaza la disposición actual de PC y celular por la plantilla (marcadores en recuadros a la izquierda, GIRAR al centro, apuesta y controles a la derecha). ¿Continuar?')) return;
+    await patchDraft([{ op: 'merge', path: 'theme.hud.custom', value: { preset: 'board', statStyle: 'box', landscape: null, portrait: null } }], 'Plantilla aplicada: mírala en ▶ Vista previa o ajústala con el editor');
+    renderTab();
+  }));
+  $('#chBox', v).addEventListener('change', guard(async (e) => { await patchDraft([{ op: 'set', path: 'theme.hud.custom.statStyle', value: e.target.checked ? 'box' : 'plain' }], 'Marcadores actualizados'); }));
   $$('[data-hreset]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     if (!confirm(`¿Volver a la disposición por defecto en ${b.dataset.hreset === 'portrait' ? 'celular' : 'PC'}?`)) return;
     await patchDraft([{ op: 'set', path: `theme.hud.custom.${b.dataset.hreset}`, value: null }], 'Disposición restablecida');
@@ -315,6 +323,129 @@ async function openHudEditor(orientation) {
   };
   window.addEventListener('message', onMsg);
   $('[data-close]', wrap).addEventListener('click', () => { window.removeEventListener('message', onMsg); window.removeEventListener('resize', fit); wrap.remove(); renderTab(); });
+}
+
+// ---- Carteles y mensajes (theme.messages) ----
+const MSG_KINDS = [['win', 'Premio'], ['big', 'Gran premio y mega premio'], ['feature', 'Bonus: entrada y total'], ['status', 'Contador (giros gratis, re-giros…)']];
+const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe)', ''], ['bigWin', 'Gran premio', 'GRAN PREMIO'], ['megaWin', 'Mega premio', '¡MEGA PREMIO!'],
+  ['freeSpins', 'Entrada a giros gratis ({n} = cantidad)', '{n} GIROS GRATIS'], ['spinOf', 'Contador ({i} = giro actual, {n} = total)', 'GIRO GRATIS {i}/{n}'],
+  ['bonusTotal', 'Total del bonus', 'TOTAL DEL BONUS'], ['respins', 'Re-giros ({n} = restantes)', 'RE-GIROS: {n}'], ['holdWin', 'Entrada Hold & Win', 'HOLD & WIN']];
+const PARTICLES = [['', 'Según la interfaz'], ['none', 'Ninguna'], ['confeti', 'Confeti'], ['monedas', 'Monedas'], ['estrellas', 'Estrellas'], ['gemas', 'Gemas'], ['burbujas', 'Burbujas']];
+const ANIMS = [['pop', 'Rebote'], ['zoom', 'Zoom desde lejos'], ['slide', 'Sube desde abajo'], ['flip', 'Giro 3D'], ['fade', 'Aparece suave'], ['shake', 'Rebote + temblor'], ['none', 'Sin animación']];
+
+function messagesCard(t) {
+  const M = t.messages || {};
+  const S2 = M.styles || {};
+  const col = (id, val, def) => `<input type="color" id="${id}" value="${esc(val && String(val).startsWith('#') ? val : def)}" style="width:54px" />`;
+  const row = ([k, label]) => {
+    const st = S2[k] || {};
+    return `<div class="card stack" data-msg="${k}" style="background:var(--panel2)"><div class="row" style="justify-content:space-between"><b>${label}</b><button class="small" data-demo="${k === 'big' ? 'big' : k}">▶ Probar</button></div>
+      <div class="grid2">
+        <div><label>Imagen o GIF de fondo</label><div class="row">${st.image ? `<img src="${esc(st.image)}" style="height:40px;max-width:160px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">Sin imagen</span>'}
+          <button class="small" data-mimg>Elegir…</button>${st.image ? '<button class="small danger" data-mimgclear>Quitar</button>' : ''}</div></div>
+        <div><label>Colores: fondo · borde · título · importe</label><div class="row" style="gap:6px">${col(`m-${k}-bg`, st.bg, '#000000')}${col(`m-${k}-border`, st.border, '#ffd460')}${col(`m-${k}-title`, st.title, '#ffd460')}${col(`m-${k}-value`, st.value, '#ffffff')}</div>
+          <label class="row" style="gap:6px;margin:4px 0 0;color:var(--text)"><input type="checkbox" id="m-${k}-noborder" style="width:auto" ${st.border === 'none' ? 'checked' : ''} /> sin borde</label>
+          <label class="row" style="gap:6px;margin:4px 0 0;color:var(--text)"><input type="checkbox" id="m-${k}-usecolors" style="width:auto" ${st.bg || st.title || st.value ? 'checked' : ''} /> usar estos colores (si no, los de la interfaz)</label></div>
+        <div><label>Tipografía</label><input id="m-${k}-font" value="${esc(st.font || '')}" placeholder="La de la botonera" ${st.fontUrl ? 'readonly' : ''} />
+          <div class="row" style="margin-top:4px"><button class="small" data-mfont>Subir…</button>${st.fontUrl ? '<button class="small danger" data-mfontclear>Quitar</button>' : ''}</div></div>
+        <div><label>Tamaño (<span id="m-${k}-scaleV">${Math.round((st.scale || 1) * 100)}</span> %)</label><input type="range" id="m-${k}-scale" min="0.6" max="2" step="0.05" value="${st.scale || 1}" /></div>
+        ${k === 'status' ? `<div><label>Posición</label><select id="m-${k}-pos">${[['', 'Arriba de los rodillos'], ['center', 'Centro de los rodillos'], ['bottom', 'Debajo de los rodillos']].map(([v2, l]) => `<option value="${v2}" ${(st.position || '') === v2 ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`
+      : `<div><label>Animación de entrada</label><select id="m-${k}-anim">${ANIMS.map(([v2, l]) => `<option value="${v2}" ${(st.anim || 'pop') === v2 ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label>Posición</label><select id="m-${k}-pos">${[['center', 'Centro de los rodillos'], ['top', 'Arriba'], ['bottom', 'Abajo']].map(([v2, l]) => `<option value="${v2}" ${(st.position || 'center') === v2 ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label>Duración (segundos, vacío = automática)</label><input id="m-${k}-dur" type="number" min="0.4" max="10" step="0.1" value="${st.duration ?? ''}" style="width:120px" /></div>
+        <div><label>Partículas</label><select id="m-${k}-part">${PARTICLES.map(([v2, l]) => `<option value="${v2}" ${(st.particles || '') === v2 ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`}
+      </div></div>`;
+  };
+  return `<div class="card stack" id="msgCard"><h3 style="margin:0">🪧 Carteles y mensajes</h3>
+    <p class="muted">Diseña los avisos del juego: premio, gran premio, entrada y total del bonus y el contador de giros gratis. Cada uno puede llevar una imagen o GIF de fondo, colores, tipografía, tamaño, animación y partículas. «▶ Probar» lo muestra en la vista previa.</p>
+    ${MSG_KINDS.map(row).join('')}
+    <div class="card stack" style="background:var(--panel2)"><b>Textos</b><div class="grid2">
+      ${MSG_TEXTS.map(([k, l, d]) => `<div><label>${l}</label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(d || '(solo el importe)')}" /></div>`).join('')}
+      <div><label>«Gran premio» desde (× la apuesta)</label><input id="mBig" type="number" min="2" max="1000" value="${M.thresholds?.big ?? 15}" style="width:110px" /></div>
+      <div><label>«Mega premio» desde (× la apuesta)</label><input id="mMega" type="number" min="3" max="5000" value="${M.thresholds?.mega ?? 50}" style="width:110px" /></div>
+    </div></div>
+    <div class="row"><button class="primary" id="msgSave">Guardar carteles</button><button data-demo="mega">▶ Probar mega premio</button></div></div>`;
+}
+
+/** Abre la vista previa (si hace falta), espera al juego y le pide un cartel de ejemplo. */
+async function demoInPreview(kind) {
+  if ($('#previewPane').hidden) { $('#previewPane').hidden = false; await reloadPreview(true); }
+  const frame = $('#previewFrame');
+  for (let i = 0; i < 60; i++) {
+    if (frame.contentWindow?.engine?.hud && !frame.contentWindow.engine.busy) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  frame.contentWindow?.postMessage({ type: 'demo', kind }, '*');
+}
+
+function bindMessagesCard(v) {
+  if (!$('#msgCard', v)) return;
+  $$('#msgCard [data-demo]', v).forEach((b) => b.addEventListener('click', guard(() => demoInPreview(b.dataset.demo))));
+  for (const [k] of MSG_KINDS) {
+    const box = $(`[data-msg="${k}"]`, v);
+    $(`#m-${k}-scale`, v).addEventListener('input', (e) => { $(`#m-${k}-scaleV`, v).textContent = Math.round(e.target.value * 100); });
+    $('[data-mimg]', box).addEventListener('click', guard(async () => {
+      const url = await pickAsset('image');
+      if (url) { await patchDraft([{ op: 'set', path: `theme.messages.styles.${k}.image`, value: url }], 'Imagen del cartel aplicada'); renderTab(); }
+    }));
+    $('[data-mimgclear]', box)?.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: `theme.messages.styles.${k}.image`, value: null }], 'Imagen quitada'); renderTab(); }));
+    $('[data-mfont]', box).addEventListener('click', guard(async () => {
+      const a = await pickAsset('font');
+      if (!a) return;
+      await patchDraft([{ op: 'set', path: `theme.messages.styles.${k}.font`, value: fontFamilyOf(a) }, { op: 'set', path: `theme.messages.styles.${k}.fontUrl`, value: a.url }], 'Tipografía aplicada');
+      renderTab();
+    }));
+    $('[data-mfontclear]', box)?.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: `theme.messages.styles.${k}.fontUrl`, value: null }, { op: 'set', path: `theme.messages.styles.${k}.font`, value: null }], 'Tipografía quitada'); renderTab(); }));
+  }
+  $('#msgSave', v).addEventListener('click', guard(async () => {
+    const cur = S.game.draft.theme?.messages?.styles || {};
+    const styles = {};
+    for (const [k] of MSG_KINDS) {
+      const g = (id) => $(`#m-${k}-${id}`, v);
+      const use = g('usecolors').checked;
+      styles[k] = {
+        ...cur[k],
+        bg: use ? g('bg').value + 'd9' : null, title: use ? g('title').value : null, value: use ? g('value').value : null,
+        border: g('noborder').checked ? 'none' : use ? g('border').value : null,
+        font: cur[k]?.fontUrl ? cur[k].font : (g('font').value.trim() || null),
+        scale: Number(g('scale').value), position: g('pos').value || null,
+        ...(k === 'status' ? {} : { anim: g('anim').value, duration: g('dur').value ? Number(g('dur').value) : null, particles: g('part').value || null }),
+      };
+    }
+    const texts = Object.fromEntries($$('[data-mtext]', v).map((i) => [i.dataset.mtext, i.value.trim() || null]));
+    await patchDraft([
+      { op: 'set', path: 'theme.messages.styles', value: styles },
+      { op: 'set', path: 'theme.messages.texts', value: texts },
+      { op: 'set', path: 'theme.messages.thresholds', value: { big: Number($('#mBig', v).value) || 15, mega: Number($('#mMega', v).value) || 50 } },
+    ], 'Carteles guardados: prueba cada uno con ▶ Probar');
+  }));
+}
+
+// ---- Ambiente del bonus (theme.bonus): presentación, fondos y cierre con imagen, GIF o video ----
+function bonusCard(t) {
+  const B = t.bonus || {};
+  const media = (u) => (!u ? '<span class="muted">Nada</span>' : /\.(mp4|webm)(\?|$)/i.test(u) ? `<video src="${esc(u)}" muted loop autoplay playsinline style="height:44px;border-radius:6px"></video>` : `<img src="${esc(u)}" style="height:44px;max-width:160px;object-fit:contain;border-radius:6px;background:#0006" />`);
+  const f = (k, label, secs) => `<div><label>${label}</label><div class="row">${media(B[k])}<button class="small" data-bmedia="${k}">Elegir…</button>${B[k] ? `<button class="small danger" data-bclear="${k}">Quitar</button>` : ''}</div>
+    ${secs ? `<div class="row" style="margin-top:4px"><span class="muted">Duración máx.</span><input data-bsecs="${secs}" type="number" min="1" max="15" step="0.5" value="${B[secs] ?? 3}" style="width:80px" /><span class="muted">s (un video termina solo)</span></div>` : ''}</div>`;
+  return `<div class="card stack" id="bonusCard"><h3 style="margin:0">🎁 Ambiente del bonus</h3>
+    <p class="muted">Durante los giros gratis (o el bonus) el juego puede cambiar de ambiente: una presentación a pantalla completa al entrar, fondos propios mientras dura y un cierre al terminar. Todo acepta imagen, GIF o video (MP4/WebM).</p>
+    <div class="grid2">${f('intro', 'Presentación al entrar', 'introSeconds')}${f('outro', 'Cierre al terminar', 'outroSeconds')}
+      ${f('background', 'Fondo PC durante el bonus')}${f('backgroundMobile', 'Fondo celular durante el bonus')}${f('reelsBackground', 'Fondo de rodillos durante el bonus')}</div>
+    <div class="row"><button class="primary" id="bnSave">Guardar duraciones</button><button data-demo="feature">▶ Probar el bonus</button><span class="muted">También puedes usar 🎁 FORZAR BONUS en la vista previa para ver un bonus real.</span></div></div>`;
+}
+
+function bindBonusCard(v) {
+  if (!$('#bonusCard', v)) return;
+  $$('#bonusCard [data-demo]', v).forEach((b) => b.addEventListener('click', guard(() => demoInPreview(b.dataset.demo))));
+  $$('[data-bmedia]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image', { animated: true });
+    if (url) { await patchDraft([{ op: 'set', path: `theme.bonus.${b.dataset.bmedia}`, value: url }], 'Aplicado al bonus'); renderTab(); }
+  })));
+  $$('[data-bclear]', v).forEach((b) => b.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: `theme.bonus.${b.dataset.bclear}`, value: null }], 'Quitado'); renderTab(); })));
+  $('#bnSave', v).addEventListener('click', guard(async () => {
+    const ops = $$('[data-bsecs]', v).map((i) => ({ op: 'set', path: `theme.bonus.${i.dataset.bsecs}`, value: Number(i.value) || 3 }));
+    await patchDraft(ops, 'Duraciones guardadas');
+  }));
 }
 
 // ---- Selector de interfaz al crear un juego ----
@@ -657,6 +788,7 @@ async function tabDesign(v) {
       <div class="ui-grid">${UIS.map(([k, n, d, pal]) => `<button class="ui-tile ${curUi === k ? 'on' : ''}" data-ui="${k}">${uiMock(k, curUi === k ? (t.palette || pal) : pal)}<b>${n}</b><span class="muted">${d}</span></button>`).join('')}</div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="uiPal" style="width:auto" checked /> Aplicar también los colores sugeridos de la interfaz (luego puedes cambiarlos en Paleta)</label></div>`}
     ${!isTableGame && curUi === 'custom' ? customHudCard(t) : ''}
+    ${isTableGame ? '' : messagesCard(t) + bonusCard(t)}
     <div class="card stack"><h3 style="margin:0">Identidad</h3>
       <div class="grid2">
         <div><label>Nombre del juego</label><input id="dName" value="${esc(S.game.draft.name)}" /></div>
@@ -748,6 +880,8 @@ async function tabDesign(v) {
   })));
   bindDiceCard(v);
   bindCustomHudCard(v);
+  bindMessagesCard(v);
+  bindBonusCard(v);
   $$('[data-fontup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const a = await pickAsset('font');
     if (!a) return;

@@ -97,6 +97,12 @@ BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los ro
     x,y = centro; s = alto en px de diseño (el ancho sale de la proporción del logo, nunca se deforma). Jerarquía recomendada: spin 100 %,
     minus/plus/auto/turbo ≈58 %, max (ovalado) a la altura de los chicos junto al plus, info/sound ≈45 % en los extremos, separación pareja.
   Elige la que mejor encaje con la temática (p. ej. egipcio/lujo → real, cyberpunk → neon, volcán/dragón → brasa, fantasía → cristal, retro → arcade).
+CARTELES (theme.messages): styles.{win|big|feature|status}: { image (fondo del cartel; la pone el Artista), bg, border ("none" sin borde), title, value (colores),
+  font, scale (0.6-2), anim ("pop"|"zoom"|"slide"|"flip"|"fade"|"shake"|"none"), position ("center"|"top"|"bottom"), duration (s),
+  particles ("confeti"|"monedas"|"estrellas"|"gemas"|"burbujas"|"none") }; texts: { win, bigWin, megaWin, freeSpins ("{n} GIROS GRATIS"),
+  spinOf ("GIRO GRATIS {i}/{n}"), bonusTotal, respins ("RE-GIROS: {n}"), holdWin }; thresholds: { big: 15, mega: 50 } (× la apuesta).
+AMBIENTE DEL BONUS (theme.bonus): intro/outro (imagen, GIF o video a pantalla completa; introSeconds/outroSeconds), background, backgroundMobile,
+  reelsBackground (fondos solo durante el bonus). Las imágenes las crea el Artista.
 RODILLOS: theme.symbolScale (0.6-1, cuánto de la celda ocupa el símbolo; 0.92 por defecto), theme.cellGap (0-16 px entre celdas),
   theme.cellColor, theme.cellAlpha (0-1), theme.cellRadius, theme.cellBorder (color o "none"), theme.frameColor,
   theme.frameLayer ("back" | "front": marco de imagen detrás o delante de los rodillos; front solo si el marco tiene el centro transparente), theme.frameScale (0.9-1.6, tamaño del marco),

@@ -419,6 +419,11 @@
     #hud[data-layout="custom"] .citem > .spin.img img { height: var(--sz); max-width: none; }
     #hud[data-layout="custom"] .cstat .stat small { font-size: calc(var(--sz) * .22); }
     #hud[data-layout="custom"] .cstat .stat b { font-size: calc(var(--sz) * .4); }
+    #hud[data-layout="custom"] .cstat.box .stat { min-width: calc(var(--sz) * 3.4); padding: calc(var(--sz) * .1) calc(var(--sz) * .25); border-radius: calc(var(--sz) * .16);
+      background: var(--statbox-bg, rgba(0,0,0,.72)); border: 2px solid color-mix(in srgb, var(--accent) 75%, #000); box-shadow: inset 0 0 12px rgba(0,0,0,.8), 0 2px 8px rgba(0,0,0,.5); }
+    #hud[data-layout="custom"] .cbetval { min-width: calc(var(--sz) * 1.6); height: var(--sz); display: grid; place-items: center; border-radius: 999px; background: rgba(0,0,0,.72);
+      border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+    #hud[data-layout="custom"] .cbetval b { font-size: calc(var(--sz) * .42); }
     #hud[data-layout="custom"] .cboard { position: absolute; transform: translate(-50%, -50%); z-index: 2; border-radius: var(--cb-radius, 26px);
       background: var(--cb-color, linear-gradient(180deg, color-mix(in srgb, var(--panel) 80%, #fff 8%), color-mix(in srgb, var(--panel) 85%, #000)));
       border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 10px 30px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.15); }
@@ -437,6 +442,49 @@
     .ceditbar button { background: #1b2340; color: #fff; border: 1px solid #3a4670; border-radius: 8px; padding: 6px 9px; font: 600 12px system-ui; }
     .ceditbar button:disabled { opacity: .4; }
     .ceditbar .cinfo { padding: 0 6px; align-self: center; color: #9fe3ff; min-width: 220px; }
+
+
+    /* =====================================================================
+       CARTELES DISEÑABLES (theme.messages.styles): imagen/GIF de fondo, colores, borde, tipografía, tamaño,
+       animación de entrada y posición. Las variables vacías caen en el estilo de la interfaz.
+       ===================================================================== */
+    #hud .banner { font-family: var(--bn-font, var(--font)); background-color: var(--bn-bg, rgba(0,0,0,.74)); border-color: var(--bn-border, var(--accent));
+      font-size: calc(1em * var(--bn-scale, 1)); }
+    #hud .banner small { color: var(--bn-title, var(--accent)); font-size: calc(clamp(14px, 2.4vw, 24px) * var(--bn-scale, 1)); }
+    #hud .banner b { color: var(--bn-value, inherit); font-size: calc(clamp(30px, 6vw, 68px) * var(--bn-scale, 1)); }
+    #hud .banner.hasimg { background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: transparent !important; box-shadow: none !important;
+      padding: calc(34px * var(--bn-scale, 1)) calc(70px * var(--bn-scale, 1)); min-width: min(90vw, calc(420px * var(--bn-scale, 1))); }
+    #hud .banner.hasimg b { -webkit-text-fill-color: currentColor; background: none; text-shadow: 0 3px 0 #000, 0 0 18px rgba(0,0,0,.8); }
+    #hud .banner[data-pos="top"] { top: calc(var(--gy) + 80px); }
+    #hud .banner[data-pos="bottom"] { top: calc(var(--gb) - 90px); }
+    #hud .banner[data-anim="zoom"] { animation: bnzoom .45s cubic-bezier(.2,1.4,.4,1); }
+    #hud .banner[data-anim="slide"] { animation: bnslide .45s cubic-bezier(.2,1.2,.4,1); }
+    #hud .banner[data-anim="flip"] { animation: bnflip .55s ease-out; }
+    #hud .banner[data-anim="fade"] { animation: bnfade .5s ease-out; }
+    #hud .banner[data-anim="shake"] { animation: pop .3s cubic-bezier(.2,1.6,.4,1), bnshake .5s .3s; }
+    #hud .banner[data-anim="none"] { animation: none; }
+    @keyframes bnzoom { from { transform: translate(-50%, -50%) scale(3); opacity: 0; } }
+    @keyframes bnslide { from { transform: translate(-50%, 60vh); opacity: 0; } }
+    @keyframes bnflip { from { transform: translate(-50%, -50%) perspective(600px) rotateX(90deg); opacity: 0; } }
+    @keyframes bnfade { from { opacity: 0; } }
+    @keyframes bnshake { 20%, 60% { transform: translate(calc(-50% - 10px), -50%); } 40%, 80% { transform: translate(calc(-50% + 10px), -50%); } }
+    #hud .status { font-family: var(--st-font, inherit); background-color: var(--st-bg, rgba(0,0,0,.65)); color: var(--st-value, inherit);
+      border: 1px solid var(--st-border, transparent); font-size: calc(clamp(12px, 1.6vw, 15px) * var(--st-scale, 1)); }
+    #hud .status.hasimg { background-size: 100% 100%; background-repeat: no-repeat; padding: calc(10px * var(--st-scale, 1)) calc(34px * var(--st-scale, 1)); border: 0; }
+    #hud .status[data-pos="bottom"] { top: calc(var(--gb) + 8px); transform: translate(-50%, 0); }
+    #hud .status[data-pos="center"] { top: calc((var(--gy) + var(--gb)) / 2); transform: translate(-50%, -50%); }
+    /* Partículas elegidas en el diseño del cartel (tienen prioridad sobre las de la interfaz) */
+    #hud .fx[data-shape] i { animation-name: fxfly; border: 0; box-shadow: none; }
+    #hud .fx[data-shape="confeti"] i { width: 9px; height: 14px; margin: -7px; border-radius: 2px; background: var(--accent); }
+    #hud .fx[data-shape="confeti"] i:nth-child(3n) { background: var(--primary); } #hud .fx[data-shape="confeti"] i:nth-child(3n+1) { background: #fff; }
+    #hud .fx[data-shape="monedas"] i { width: 24px; height: 24px; margin: -12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6c9, #ffd460 45%, #8a6408); box-shadow: inset 0 0 0 3px #8a640888; animation-name: coin; }
+    #hud .fx[data-shape="estrellas"] i { width: 22px; height: 22px; margin: -11px; background: var(--accent); clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+    #hud .fx[data-shape="burbujas"] i { width: 22px; height: 22px; margin: -11px; border-radius: 50%; border: 2px solid rgba(255,255,255,.8); background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.7), transparent 60%); }
+    #hud .fx[data-shape="gemas"] i { width: 18px; height: 18px; margin: -9px; background: linear-gradient(135deg, #7ef9ff, #2b8cff 60%, #0a2a6b); clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%); }
+    /* Presentación del bonus a pantalla completa (imagen, GIF o video) */
+    .bonus-intro { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: #000c; animation: bnfade .35s; cursor: pointer; }
+    .bonus-intro img, .bonus-intro video { position: static !important; max-width: 100vw; max-height: 100vh; width: 100%; height: 100%; object-fit: contain; }
+    .bonus-intro small { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font: 600 12px system-ui; opacity: .7; }
 
     #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; background: #05060c; font: 600 15px system-ui; }
     #loader .bar2 { width: min(320px, 70vw); height: 8px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 12px; }
@@ -475,6 +523,29 @@
       });
       await engine.init(progress);
       window.engine = engine; // útil para depurar desde la consola
+      // Vista previa del borrador: el panel puede pedir ver un cartel o el bonus de ejemplo para diseñarlos
+      if (session.source === 'draft') {
+        window.addEventListener('message', async (e) => {
+          const d = e.data || {};
+          if (d.type !== 'demo' || e.source !== window.parent || !engine.hud || engine.busy) return;
+          const bet = engine.hud.bet;
+          engine.currentBet = bet;
+          engine.busy = true;
+          try {
+            if (d.kind === 'win') await engine.presentTotal(bet * 5, bet);
+            else if (d.kind === 'big') await engine.presentTotal(bet * 20, bet);
+            else if (d.kind === 'mega') await engine.presentTotal(bet * 80, bet);
+            else if (d.kind === 'status') { engine.hud.setStatus(engine.msg('spinOf', { i: 3, n: 10 })); setTimeout(() => engine.hud.setStatus(''), 3000); }
+            else if (d.kind === 'feature') {
+              await engine.featureIntro(engine.msg('freeSpins', { n: 10 }), 'BONUS');
+              engine.hud.setStatus(engine.msg('spinOf', { i: 1, n: 10 }));
+              await new Promise((r) => setTimeout(r, 1500));
+              engine.hud.setStatus('');
+              await engine.featureOutro(12.5);
+            }
+          } finally { engine.busy = false; }
+        });
+      }
       document.getElementById('loader').remove();
     }
 

@@ -67,6 +67,7 @@ export class Hud {
 
     this.balanceEl = h('b', {}, '—');
     this.betEl = h('b', {}, '');
+    this.betValEl = h('b', {}, ''); // solo el número (para "− 1.00 +")
     this.winEl = h('b', {}, formatMoney(0, currency));
     const HUD = t.hud || {};
     this.skin = SKINS[HUD.layout] ? HUD.layout : null;
@@ -92,6 +93,10 @@ export class Hud {
     this.infoBtn = this.makeButton('info', 'chip menu', '☰', 'Menú: reglas y pagos', () => onInfo());
     this.banner = h('div', { class: 'banner', hidden: true });
     this.status = h('div', { class: 'status' });
+    // Carteles diseñables (theme.messages.styles.{win|big|feature|status})
+    this.msgStyles = t.messages?.styles || {};
+    applyMsgStyle(this.status, this.msgStyles.status || {}, 'st');
+    if (this.msgStyles.status?.position) this.status.dataset.pos = this.msgStyles.status.position;
     this.modal = h('div', { class: 'modal', hidden: true, onclick: (e) => { if (e.target === this.modal) this.closeModal(); } });
 
     // Estilo de la botonera (theme.hud): pill = píldora centrada bajo los rodillos (por defecto), classic = barra inferior,
@@ -127,6 +132,7 @@ export class Hud {
       });
       return;
     }
+    this.fx = h('div', { class: 'fx' });
     this.bar = h('div', { class: 'bar' },
       this.infoBtn,
       stat('SALDO', this.balanceEl, 'saldo'),
@@ -145,6 +151,7 @@ export class Hud {
       this.banner, this.status,
       this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null,
       this.bar,
+      this.fx,
       this.modal,
     ].filter(Boolean));
     this.renderBet();
@@ -246,8 +253,9 @@ export class Hud {
   }
 
   /** Lluvia de partículas con la forma de cada estilo (monedas, brasas, píxeles…). */
-  celebrate(power = 1) {
-    if (!this.fx || typeof document === 'undefined') return;
+  celebrate(power = 1, shape = 'skin') {
+    if (!this.fx || typeof document === 'undefined' || typeof document.createDocumentFragment !== 'function') return;
+    if (shape && shape !== 'skin') this.fx.dataset.shape = shape; else delete this.fx.dataset.shape;
     const n = Math.round(14 + 40 * Math.min(1, power));
     const frag = document.createDocumentFragment();
     for (let i = 0; i < n; i++) {
@@ -339,6 +347,7 @@ export class Hud {
 
   renderBet() {
     this.betEl.textContent = this.fmt(this.bet);
+    this.betValEl.textContent = (this.bet / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (this.betChips) {
       // Ventana de fichas alrededor de la apuesta actual (todas si entran)
       const max = window.innerWidth < 420 ? 4 : window.innerWidth < 760 ? 5 : 7;
@@ -419,8 +428,16 @@ export class Hud {
 
   /** Mensaje grande en pantalla. kind: win | big | feature | info */
   async showBanner(html, { kind = 'win', ms = 1400 } = {}) {
-    if (this.skin && kind !== 'info') this.celebrate(kind === 'big' ? 1.2 : kind === 'feature' ? 0.8 : 0.25);
+    const st = this.msgStyles[kind] || {};
+    // Partículas: las de la interfaz (skins) o las elegidas en el diseño del cartel
+    const shape = st.particles || (this.skin ? 'skin' : kind === 'big' ? 'confeti' : 'none');
+    if (kind !== 'info' && shape !== 'none') this.celebrate(kind === 'big' ? 1.2 : kind === 'feature' ? 0.8 : 0.25, shape);
+    if (st.duration) ms = Math.max(400, Math.min(10000, Number(st.duration) * 1000));
     this.banner.className = `banner ${kind}`;
+    this.banner.removeAttribute?.('style');
+    applyMsgStyle(this.banner, st, 'bn');
+    this.banner.dataset.anim = st.anim || 'pop';
+    this.banner.dataset.pos = st.position || 'center';
     this.banner.innerHTML = html;
     this.banner.hidden = false;
     await new Promise((r) => setTimeout(r, this.turbo ? ms * 0.5 : ms));
@@ -458,6 +475,19 @@ export class Hud {
     this.stopAuto();
     this.openModal(h('div', { class: 'confirm' }, h('h2', {}, 'Aviso'), h('p', {}, msg)));
   }
+}
+
+/** Aplica el diseño de un cartel: imagen de fondo (o GIF), colores, borde, tipografía y tamaño. */
+function applyMsgStyle(el, st, p) {
+  if (!el || !st) return;
+  const set = (k, v) => { if (v != null && v !== '') el.style?.setProperty?.(`--${p}-${k}`, String(v)); };
+  set('bg', st.bg); set('border', st.border === 'none' ? 'transparent' : st.border); set('title', st.title); set('value', st.value ?? st.color);
+  if (st.font) set('font', `'${st.font}', system-ui, sans-serif`);
+  if (st.scale) set('scale', Math.min(2.5, Math.max(0.5, Number(st.scale))));
+  if (st.image) {
+    if (el.style) el.style.backgroundImage = `url("${String(st.image).replace(/"/g, '%22')}")`;
+    el.classList?.add('hasimg');
+  } else el.classList?.remove('hasimg');
 }
 
 export { h };

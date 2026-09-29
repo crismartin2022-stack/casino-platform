@@ -39,7 +39,7 @@ export class MegawaysCascadeEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (!fs) { this.hud.setStatus(''); return; }
     await this.grid.highlight(result.base.scatters, { times: 3 });
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, 'EL MULTIPLICADOR NO SE REINICIA');
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), 'EL MULTIPLICADOR NO SE REINICIA');
     let i = 0;
     for (const s of fs.spins) {
       i++;

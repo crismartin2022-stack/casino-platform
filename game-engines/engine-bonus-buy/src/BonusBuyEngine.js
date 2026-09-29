@@ -52,11 +52,11 @@ export class BonusBuyEngine extends BaseEngine {
     if (!fs) return;
     if (result.base) await this.grid.highlight(result.base.scatters, { times: 3 });
     else await this.grid.stop(this.randomGrid());
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, fs.sticky ? 'WILDS FIJOS' : `TODOS LOS PREMIOS ×${fs.multiplier}`);
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), fs.sticky ? 'WILDS FIJOS' : `TODOS LOS PREMIOS ×${fs.multiplier}`);
     let i = 0;
     for (const s of fs.spins) {
       i++;
-      this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length}${fs.multiplier > 1 ? ` · ×${fs.multiplier}` : ''}${fs.sticky ? ` · ${s.held.length} WILDS FIJOS` : ''}`);
+      this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })}${fs.multiplier > 1 ? ` · ×${fs.multiplier}` : ''}${fs.sticky ? ` · ${s.held.length} WILDS FIJOS` : ''}`);
       this.grid.undim();
       this.grid.startSpin();
       await wait(this.hud.turbo ? 100 : 260);

@@ -66,11 +66,11 @@ export class ScatterPaysEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (!fs) return;
     if (result.base) await this.grid.highlight(result.base.scatters, { times: 3 });
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, 'LOS MULTIPLICADORES SE ACUMULAN');
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), 'LOS MULTIPLICADORES SE ACUMULAN');
     let i = 0, acc = 0;
     for (const s of fs.spins) {
       i++;
-      this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length} · MULTIPLICADOR ACUMULADO ×${acc || 0}`);
+      this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })} · MULTIPLICADOR ACUMULADO ×${acc || 0}`);
       this.clearMults();
       this.grid.undim();
       this.grid.startSpin();

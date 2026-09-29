@@ -24,7 +24,7 @@ export class MegawaysEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (!fs) { this.hud.setStatus(''); return; }
     await this.grid.highlight(result.base.scatters, { times: 3 });
-    await this.featureIntro(`${fs.awarded} GIROS GRATIS`, '¡BONUS!');
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), '¡BONUS!');
     let i = 0;
     for (const s of fs.spins) {
       i++;
@@ -32,7 +32,7 @@ export class MegawaysEngine extends BaseEngine {
       this.grid.startSpin();
       await wait(this.hud.turbo ? 100 : 260);
       await this.stopReels(s.grid, { scatterId: this.scatterId() });
-      this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length} · ×${s.multiplier} · ${s.ways.toLocaleString('es')} FORMAS`);
+      this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })} · ×${s.multiplier} · ${s.ways.toLocaleString('es')} FORMAS`);
       await this.presentWins(s.wins, s.win);
     }
     this.hud.setStatus('');

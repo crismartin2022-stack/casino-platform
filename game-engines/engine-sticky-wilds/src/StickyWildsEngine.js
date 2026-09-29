@@ -60,11 +60,11 @@ export class StickyWildsEngine extends BaseEngine {
     }
     const fs = result.freeSpins;
     if (fs) {
-      await this.featureIntro(`${fs.awarded} GIROS GRATIS`, fs.mode === 'walking' ? 'COMODINES CAMINANTES' : 'COMODINES FIJOS');
+      await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), fs.mode === 'walking' ? 'COMODINES CAMINANTES' : 'COMODINES FIJOS');
       let i = 0;
       for (const s of fs.spins) {
         i++;
-        this.hud.setStatus(`GIRO GRATIS ${i}/${fs.spins.length} · ${s.held.length} COMODINES ${fs.mode === 'walking' ? 'CAMINANDO' : 'FIJOS'}`);
+        this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })} · ${s.held.length} COMODINES ${fs.mode === 'walking' ? 'CAMINANDO' : 'FIJOS'}`);
         this.grid.undim();
         this.grid.startSpin();
         await wait(this.hud.turbo ? 100 : 260);
