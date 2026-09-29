@@ -59,9 +59,9 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 10 juegos publicados', async () => {
+test('lista los 11 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cluster-pays', 'colossal-reels', 'expanding-symbol', 'hold-win',
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win',
     'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
@@ -97,6 +97,40 @@ test('bonus buy cobra el precio de compra', async () => {
   const r = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.token}` }, body: { bet: 100, mode: 'buy' } });
   assert.equal(r.body.cost, 100 * sess.game.rules.buyCost);
   assert.ok(r.body.result.freeSpins.spins.length >= 10);
+});
+
+test('craps: apostar, tirar, saldo coherente, retirar y verificar', async () => {
+  const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'craps' } });
+  const auth = { authorization: `Bearer ${s.token}` };
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100 } })).status, 400);
+  assert.equal((await req('/api/v1/table/roll', { method: 'POST', headers: auth, body: {} })).status, 400); // sin apuestas
+  let t = (await req('/api/v1/table', { headers: auth })).body;
+  assert.equal(t.phase, 'comeOut');
+  let balance = t.balance;
+  const bad = await req('/api/v1/table/bets', { method: 'POST', headers: auth, body: { type: 'come', amount: 500 } });
+  assert.equal(bad.status, 400); // Come solo con punto
+  for (let i = 0; i < 60; i++) {
+    t = (await req('/api/v1/table', { headers: auth })).body;
+    if (t.phase === 'comeOut' && !t.bets.some((b) => b.type === 'pass')) await req('/api/v1/table/bets', { method: 'POST', headers: auth, body: { type: 'pass', amount: 500 } });
+    if (t.phase === 'point' && !t.bets.some((b) => b.type === 'place' && b.number === 8)) await req('/api/v1/table/bets', { method: 'POST', headers: auth, body: { type: 'place', number: 8, amount: 600 } });
+    await req('/api/v1/table/bets', { method: 'POST', headers: auth, body: { type: 'field', amount: 100 } });
+    const r = await req('/api/v1/table/roll', { method: 'POST', headers: auth, body: { clientRoundId: `r${i}` } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.balance, balance - r.body.cost + r.body.win);
+    balance = r.body.balance;
+    if (i === 5) {
+      const rep = await req(`/api/admin/rounds/${r.body.roundId}/replay`, { headers: ADMIN });
+      assert.equal(rep.body.match, true);
+    }
+  }
+  // Retirar un Número activo devuelve el importe
+  t = (await req('/api/v1/table', { headers: auth })).body;
+  const placed = t.bets.find((b) => b.type === 'place' && b.status === 'active');
+  if (placed) {
+    const rm = await req(`/api/v1/table/bets/${placed.id}`, { method: 'DELETE', headers: auth });
+    assert.equal(rm.body.refunded, placed.amount);
+    assert.equal(rm.body.balance, balance + placed.amount);
+  }
 });
 
 test('admin exige token', async () => {

@@ -1,6 +1,6 @@
 # 🎰 Casino Platform
 
-Plataforma de tragamonedas lista para Railway: **10 motores de juego**, **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
+Plataforma de tragamonedas lista para Railway: **11 motores de juego** (10 tragamonedas y Craps de mesa), **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
 
 Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `worker_threads` integrados).
 
@@ -18,6 +18,7 @@ Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `w
 | `expanding-symbol` | 5×3 estilo "Book": libro comodín/scatter y símbolo especial que se expande en giros gratis | El Libro del Desierto |
 | `sticky-wilds` | 5×3, comodines fijos en giros gratis o comodines caminantes con re-giros (configurable) | Forajidos del Oeste |
 | `megaways-cascade` | Megaways con cascadas, multiplicador +0,5 por caída y símbolos misterio | Cascada Infinita |
+| `craps` | Mesa de Craps: Pass/Don't Pass, Come/Don't Come, odds, números, field, hardways. Dados 3D, lanzamiento arrastrando, pagos editables con RTP exacto | Dados de Oro |
 
 **Bonus Buy** incluye un menú de compra (giros gratis, giros gratis con wilds fijos, ruleta de la fortuna y "elige un premio"), y **Hold & Win** tiene monedas especiales (multiplicadoras y +1 re-giro). Cada precio de compra se calcula para respetar el RTP.
 
@@ -27,7 +28,7 @@ Los 10 vienen con la tabla de pagos ajustada a **RTP 96 %** (`npm run simulate` 
 
 ```
 backend/           API, base de datos, billeteras, agentes
-  math/            matemática de los 5 motores, RNG, simulador y ajuste de RTP
+  math/            matemática de los 11 motores, RNG, simulador y ajuste de RTP
   agents/          Director + Diseñador, Artista, Sonido, Matemático (herramientas y permisos)
   ai/providers.js  Claude, Venice y ElevenLabs (fetch directo)
   games/seed/      configuración inicial de los 5 juegos

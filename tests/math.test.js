@@ -9,7 +9,7 @@ const seeds = Object.fromEntries(readdirSync(new URL('../backend/games/seed/', i
   .map((f) => JSON.parse(readFileSync(new URL(`../backend/games/seed/${f}`, import.meta.url), 'utf8')))
   .map((c) => [c.engine, c]));
 
-for (const [id, engine] of Object.entries(ENGINES)) {
+for (const [id, engine] of Object.entries(ENGINES).filter(([, e]) => e.kind !== 'table')) {
   const config = seeds[id];
 
   test(`${id}: la configuración inicial es válida`, () => {
@@ -197,4 +197,81 @@ test('expanding-symbol: la expansión paga según rodillos con el símbolo espec
     }
   }
   assert.ok(seen > 0);
+});
+
+// ---- Craps (juego de mesa) ----
+import * as craps from '../backend/math/craps.js';
+
+test('craps: configuración inicial válida y RTP exacto de las apuestas clásicas', () => {
+  const c = seeds.craps;
+  assert.deepEqual(validateConfig(c), []);
+  const a = craps.analyze(c).perBet;
+  assert.equal(a.pass, 0.9859);       // 244/495 × 2
+  assert.equal(a.dontPass, 0.9864);
+  assert.equal(a.odds, 1);
+  assert.equal(a.place['6'], 0.9848);  // 7:6
+  assert.equal(a.field, 0.9722);       // 2 doble, 12 triple
+});
+
+const fixed = (a, b) => { const d = [a - 1, b - 1]; let i = 0; return { int: () => d[i++] }; };
+
+test('craps: Pass Line gana con 7 en la salida, fija punto y gana/pierde después', () => {
+  const c = seeds.craps;
+  let s = craps.addBet(c, craps.newTableState(), { type: 'pass', amount: 1000 });
+  let r = craps.roll(c, s, fixed(3, 4)); // 7
+  assert.equal(r.cost, 1000); assert.equal(r.payout, 2000); assert.equal(r.state.bets.length, 0);
+  s = craps.addBet(c, r.state, { type: 'pass', amount: 1000 });
+  r = craps.roll(c, s, fixed(2, 4)); // 6 → punto
+  assert.equal(r.state.phase, 'point'); assert.equal(r.state.point, 6); assert.equal(r.payout, 0);
+  // odds 5x en el 6
+  s = craps.addBet(c, r.state, { type: 'odds', on: r.state.bets[0].id, amount: 5000 });
+  assert.throws(() => craps.addBet(c, s, { type: 'odds', on: r.state.bets[0].id, amount: 100 })); // pasa el máximo
+  r = craps.roll(c, s, fixed(3, 3)); // 6 de nuevo: gana pass 1:1 y odds 6:5
+  assert.equal(r.cost, 5000);
+  assert.equal(r.payout, 2000 + 5000 + 6000);
+  assert.equal(r.state.phase, 'comeOut');
+});
+
+test("craps: Don't Pass empata con 12 en la salida y Field paga triple el 12", () => {
+  const c = seeds.craps;
+  let s = craps.addBet(c, craps.newTableState(), { type: 'dontPass', amount: 1000 });
+  s = craps.addBet(c, s, { type: 'field', amount: 1000 });
+  const r = craps.roll(c, s, fixed(6, 6));
+  assert.equal(r.payout, 1000 * 4); // field 3:1 → 4000; don't pass queda en la mesa (bar)
+  assert.equal(r.state.bets.length, 1);
+  assert.equal(r.state.bets[0].type, 'dontPass');
+});
+
+test('craps: Números apagados en la salida, pagan y siguen en la mesa', () => {
+  const c = seeds.craps;
+  let s = craps.addBet(c, craps.newTableState(), { type: 'place', number: 6, amount: 600 });
+  let r = craps.roll(c, s, fixed(3, 3)); // salida con 6: apagada, fija punto
+  assert.equal(r.payout, 0); assert.equal(r.state.point, 6);
+  r = craps.roll(c, r.state, fixed(2, 6)); // 8: nada
+  r = craps.roll(c, r.state, fixed(1, 5)); // 6: gana 7:6 = 700 y la apuesta sigue
+  assert.equal(r.payout, 700);
+  assert.equal(r.state.bets[0].type, 'place');
+});
+
+test('craps: la tirada se reproduce exactamente con los dados grabados', () => {
+  const c = seeds.craps;
+  const rng = seededRng(4);
+  let s = craps.newTableState();
+  for (let i = 0; i < 500; i++) {
+    if (!s.bets.length) s = craps.addBet(c, s, { type: s.phase === 'comeOut' ? 'pass' : 'field', amount: 500 });
+    const rec = recordingRng(rng);
+    const r = craps.roll(c, s, rec);
+    const again = craps.roll(c, r.before, replayRng(rec.draws));
+    assert.equal(again.payout, r.payout);
+    assert.deepEqual(again.dice, r.dice);
+    s = r.state;
+  }
+});
+
+test('craps: rechaza pagos que dejan el RTP fuera de 85 %–110 %', () => {
+  const c = structuredClone(seeds.craps);
+  c.rules.pays.field = { 2: 3, 12: 3 }; // 100 % → válido
+  assert.deepEqual(validateConfig(c), []);
+  c.rules.bets.any7 = true; // Any 7 a 4:1 = 83,3 %
+  assert.ok(validateConfig(c).some((e) => e.includes('Any 7')));
 });

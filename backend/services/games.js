@@ -19,8 +19,8 @@ export function stableStringify(v) {
 /** Huella de todo lo que afecta al RTP. Si no cambia, publicar no requiere re-simular. */
 export function mathHash(c) {
   const mathPart = {
-    engine: c.engine, grid: c.grid, reels: c.reels, freeSpinReels: c.freeSpinReels ?? null, rules: c.rules,
-    symbols: c.symbols.map((s) => ({ id: s.id, type: s.type || 'regular', pays: s.pays || {} })),
+    engine: c.engine, grid: c.grid ?? null, reels: c.reels ?? null, freeSpinReels: c.freeSpinReels ?? null, rules: c.rules,
+    symbols: (c.symbols || []).map((s) => ({ id: s.id, type: s.type || 'regular', pays: s.pays || {} })),
   };
   return createHash('sha256').update(stableStringify(mathPart)).digest('hex').slice(0, 16);
 }
@@ -174,6 +174,10 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
   const hash = mathHash(draft);
   const last = one('SELECT version, math_hash, math FROM game_versions WHERE game_id = ? ORDER BY version DESC LIMIT 1', id);
   let math = last && last.math_hash === hash ? JSON.parse(last.math) : null;
+  if (!math && ENGINES[draft.engine].kind === 'table') {
+    const a = ENGINES[draft.engine].analyze(draft);
+    math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, hitFrequency: a.hitFrequency, exact: true };
+  }
   if (!math) {
     const sim = await simulateAsync(draft, { spins: appConfig.publishSimSpins, seed: Date.now() & 0x7fffffff, timeBudgetMs: 60_000 });
     math = { rtp: sim.rtp, ci: [sim.rtpLow, sim.rtpHigh], hitFrequency: sim.hitFrequency, featureEvery: sim.featureEvery, volatility: sim.volatility, spins: sim.spins };

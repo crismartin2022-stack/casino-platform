@@ -5,6 +5,7 @@ import { config, providers } from './config.js';
 import * as games from './services/games.js';
 import * as wallets from './services/wallets.js';
 import * as rounds from './services/rounds.js';
+import * as table from './services/table.js';
 import * as assets from './services/assets.js';
 import * as agents from './agents/runner.js';
 import { engineList, getEngine, LINE_ENGINES } from './math/index.js';
@@ -71,6 +72,22 @@ export function registerRoutes(r) {
       bet: Number(body.bet), mode: body.mode || 'base', clientRoundId: body.clientRoundId ? String(body.clientRoundId).slice(0, 64) : null,
     });
     json(res, out);
+  });
+
+  // Juegos de mesa (Craps)
+  r.get('/api/v1/table', async (req, res) => json(res, await table.getTable(bearer(req))));
+  r.post('/api/v1/table/bets', async (req, res) => {
+    const token = bearer(req);
+    spinLimit(token || clientIp(req));
+    const b = await readJson(req);
+    json(res, await table.placeBet(token, { type: String(b.type), amount: Number(b.amount), number: b.number != null ? Number(b.number) : undefined, on: b.on ? String(b.on) : undefined }));
+  });
+  r.delete('/api/v1/table/bets/:id', async (req, res, { params }) => json(res, await table.removeBet(bearer(req), params.id)));
+  r.post('/api/v1/table/roll', async (req, res) => {
+    const token = bearer(req);
+    spinLimit(token || clientIp(req));
+    const b = await readJson(req);
+    json(res, await table.rollDice(token, { clientRoundId: b.clientRoundId ? String(b.clientRoundId).slice(0, 64) : null }));
   });
 
   r.get('/api/v1/history', (req, res) => {
