@@ -108,3 +108,13 @@ td input { padding: 5px 7px; }
   .preview { position: fixed; inset: 0; width: 100%; z-index: 20; }
   .composer { grid-template-columns: 1fr; }
 }
+
+/* Imágenes de referencia en el chat de agentes */
+.ref-thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.ref-thumbs:empty { display: none; }
+.ref-thumbs .ref { position: relative; }
+.ref-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.ref-thumbs .ref button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 11px; background: var(--err); border: 0; color: #fff; }
+.ref-thumbs.in-msg img { width: 90px; height: 90px; border-color: #fff6; }
+.attach { cursor: pointer; font-size: 20px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); margin: 0; color: var(--text); }
+.attach:hover { border-color: var(--primary2); }

@@ -13,6 +13,15 @@ globalThis.fetch = async (url, opts = {}) => {
     const sys = body.system[0].text;
     const turns = body.messages.filter((m) => m.role === 'assistant').length;
     const tools = body.tools.map((t) => t.name);
+    const firstUser = body.messages[0];
+    const hasImage = Array.isArray(firstUser?.content) && firstUser.content.some((b) => b.type === 'image');
+    const refIds = hasImage ? (JSON.stringify(firstUser.content).match(/as_[A-Za-z0-9_-]+/g) || []) : [];
+    // Caso con imágenes de referencia: el director las pasa al artista, que confirma que las ve
+    if (hasImage && sys.includes('Eres el DIRECTOR')) {
+      if (turns === 0) return reply([tool('delegate', { agent: 'artist', task: 'Usa la referencia', referenceImages: [...new Set(refIds)] })]);
+      return reply([{ type: 'text', text: 'Referencia aplicada.' }], 'end_turn');
+    }
+    if (hasImage && sys.includes('Eres el ARTISTA')) return reply([{ type: 'text', text: 'VI_LA_IMAGEN' }], 'end_turn');
     if (sys.includes('Eres el DIRECTOR')) {
       const script = [
         () => reply([{ type: 'text', text: 'Voy a coordinar el rediseño.' }, tool('get_game_config', { section: 'symbols' })]),

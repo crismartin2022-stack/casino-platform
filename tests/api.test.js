@@ -125,6 +125,27 @@ test('agentes: el director delega, se respetan permisos y el borrador cambia', a
   assert.equal(img.headers.get('content-type'), 'image/png');
 });
 
+test('agentes: las imágenes de referencia llegan al director y al especialista', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const up = await fetch(`${B}/api/admin/assets?gameId=megaways&kind=image&reference=1&name=ref.png`, { method: 'POST', headers: { ...ADMIN, 'content-type': 'image/png' }, body: png });
+  const asset = await up.json();
+  assert.equal(asset.provider, 'referencia');
+  const { body } = await req('/api/admin/agents/runs', { method: 'POST', headers: ADMIN, body: { gameId: 'megaways', prompt: 'Algo así', images: [asset.id] } });
+  let run;
+  for (let i = 0; i < 60; i++) {
+    run = (await req(`/api/admin/agents/runs/${body.runId}`, { headers: ADMIN })).body;
+    if (run.status !== 'running') break;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  assert.equal(run.status, 'done', run.summary);
+  const user = run.events.find((e) => e.type === 'user');
+  assert.equal(user.data.images[0].id, asset.id);
+  const artist = run.events.find((e) => e.type === 'agent_done' && e.data.agent === 'artist');
+  assert.equal(artist.data.summary, 'VI_LA_IMAGEN');
+  const tooMany = await req('/api/admin/agents/runs', { method: 'POST', headers: ADMIN, body: { gameId: 'megaways', prompt: 'x', images: Array(7).fill(asset.id) } });
+  assert.equal(tooMany.status, 400);
+});
+
 test('vista previa juega el borrador; publicar crea versión nueva', async () => {
   const { body: pv } = await req('/api/admin/games/reel-rush/preview-session', { method: 'POST', headers: ADMIN });
   const { body: sess } = await req('/api/v1/session', { headers: { authorization: `Bearer ${pv.token}` } });

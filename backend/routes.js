@@ -169,7 +169,7 @@ export function registerRoutes(r) {
   r.post('/api/admin/assets', A(async (req, res, { actor }) => {
     const buf = await readBody(req, 20 * 1024 * 1024);
     if (!buf.length) throw new HttpError(400, 'Archivo vacío');
-    const a = assets.saveAsset(buf, { gameId: req.query.gameId || null, kind: req.query.kind, mime: req.headers['content-type'], provider: 'upload', prompt: req.query.name || null, actor });
+    const a = assets.saveAsset(buf, { gameId: req.query.gameId || null, kind: req.query.kind, mime: req.headers['content-type'], provider: req.query.reference ? 'referencia' : 'upload', prompt: req.query.name || null, meta: req.query.reference ? { reference: true } : null, actor });
     json(res, a, 201);
   }));
 
@@ -177,7 +177,7 @@ export function registerRoutes(r) {
   r.get('/api/admin/agents', A((req, res) => json(res, Object.entries(agents.AGENTS).map(([id, a]) => ({ id, title: a.title })))));
   r.post('/api/admin/agents/runs', A(async (req, res, { actor }) => {
     const body = await readJson(req);
-    json(res, agents.startRun({ gameId: body.gameId, prompt: body.prompt, runId: body.runId, agent: body.agent || 'director', actor }), 202);
+    json(res, agents.startRun({ gameId: body.gameId, prompt: body.prompt, runId: body.runId, agent: body.agent || 'director', actor, images: body.images || [] }), 202);
   }));
   r.get('/api/admin/agents/runs', A((req, res) => json(res, agents.listRuns(req.query.gameId))));
   r.get('/api/admin/agents/runs/:id', A((req, res, { params }) => json(res, { ...agents.getRun(params.id), events: agents.listEvents(params.id) })));

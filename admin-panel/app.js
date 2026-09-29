@@ -256,8 +256,11 @@ async function tabAgents(v) {
         <div><label>Hablar con</label><select id="agentSel">
           <option value="director">🎬 Director (coordina a todos)</option><option value="designer">🎨 Diseñador</option>
           <option value="artist">🖌 Artista (imágenes)</option><option value="sound">🎵 Sonido</option><option value="math">📈 Matemático</option></select></div>
-        <div><label>Pedido</label><textarea id="prompt" rows="2" placeholder="Ej.: Quiero un tema pirata con cofres, calaveras doradas y mar de noche…"></textarea></div>
-        <div class="row"><button class="primary" id="sendBtn">Enviar</button><button id="cancelBtn" class="danger" hidden>Detener</button></div>
+        <div><label>Pedido <span class="muted">(puedes adjuntar o pegar imágenes de referencia)</span></label>
+          <div id="refThumbs" class="ref-thumbs"></div>
+          <textarea id="prompt" rows="2" placeholder="Ej.: Quiero un tema pirata con cofres, calaveras doradas y mar de noche…"></textarea></div>
+        <div class="row"><label class="attach" title="Adjuntar imágenes de referencia">📎<input id="refInput" type="file" accept="image/*" multiple hidden /></label>
+          <button class="primary" id="sendBtn">Enviar</button><button id="cancelBtn" class="danger" hidden>Detener</button></div>
       </div>
     </div>
   </div>`;
@@ -268,16 +271,65 @@ async function tabAgents(v) {
     if (S.runId) await openRun(S.runId);
   }));
   $('#sendBtn').addEventListener('click', guard(sendPrompt));
+  S.refs = [];
+  renderRefs();
+  $('#refInput').addEventListener('change', guard(async (e) => { await addRefs([...e.target.files]); e.target.value = ''; }));
+  $('#prompt').addEventListener('paste', guard(async (e) => {
+    const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+    if (files.length) { e.preventDefault(); await addRefs(files); }
+  }));
+  const chatEl = $('.chat', v);
+  chatEl.addEventListener('dragover', (e) => e.preventDefault());
+  chatEl.addEventListener('drop', guard(async (e) => {
+    e.preventDefault();
+    await addRefs([...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/')));
+  }));
   $('#prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendPrompt(); });
   $('#cancelBtn').addEventListener('click', guard(async () => { await api(`/api/admin/agents/runs/${S.runId}/cancel`, { method: 'POST' }); }));
   if (S.runId) { $('#runSelect').value = S.runId; $('#log').innerHTML = ''; await openRun(S.runId); }
 }
 
+// ---- Imágenes de referencia para los agentes ----
+/** Reduce la imagen en el navegador (máx. 1568 px, JPEG) para que suba rápido y los agentes la vean bien. */
+async function shrinkImage(file) {
+  if (file.type === 'image/gif') return file;
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) return file;
+  const k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  if (k === 1 && file.size < 1_500_000) return file;
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((res) => c.toBlob((b) => res(b ? new File([b], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }) : file), 'image/jpeg', 0.88));
+}
+
+async function addRefs(files) {
+  for (const f of files) {
+    if (S.refs.length >= 6) { toast('Máximo 6 imágenes por mensaje', true); break; }
+    const small = await shrinkImage(f);
+    const a = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId)}&kind=image&reference=1&name=${encodeURIComponent('Referencia: ' + f.name)}`, {
+      method: 'POST', raw: true, body: small, headers: { 'content-type': small.type || 'image/jpeg' },
+    });
+    S.refs.push({ id: a.id, url: a.url });
+    renderRefs();
+  }
+}
+
+function renderRefs() {
+  const el = $('#refThumbs');
+  if (!el) return;
+  el.innerHTML = (S.refs || []).map((r, i) => `<div class="ref"><img src="${esc(r.url)}" alt="" /><button data-i="${i}" title="Quitar">✕</button></div>`).join('');
+  $$('button[data-i]', el).forEach((b) => b.addEventListener('click', () => { S.refs.splice(Number(b.dataset.i), 1); renderRefs(); }));
+}
+
 async function sendPrompt() {
-  const prompt = $('#prompt').value.trim();
+  const prompt = $('#prompt').value.trim() || (S.refs?.length ? 'Mira las imágenes de referencia y dime cómo aplicarías ese estilo a este juego.' : '');
   if (!prompt) return;
   const agent = $('#agentSel').value;
-  const { runId } = await api('/api/admin/agents/runs', { method: 'POST', body: { gameId: S.gameId, prompt, agent, runId: S.runId || undefined } });
+  const images = (S.refs || []).map((r) => r.id);
+  const { runId } = await api('/api/admin/agents/runs', { method: 'POST', body: { gameId: S.gameId, prompt, agent, images, runId: S.runId || undefined } });
+  S.refs = [];
+  renderRefs();
   const isNew = runId !== S.runId;
   S.runId = runId;
   $('#prompt').value = '';
@@ -346,7 +398,7 @@ function renderEvent(e) {
   const d = e.data || {};
   const add = (html, cls = 'evt') => { const el = document.createElement('div'); el.className = cls; el.innerHTML = html; log.appendChild(el); log.scrollTop = log.scrollHeight; };
   switch (e.type) {
-    case 'user': add(`<div class="who">Tú → ${esc(AGENT_NAMES[d.agent] || d.agent)}</div>${esc(d.text)}`, 'msg user'); break;
+    case 'user': add(`<div class="who">Tú → ${esc(AGENT_NAMES[d.agent] || d.agent)}</div>${(d.images || []).length ? `<div class="ref-thumbs in-msg">${d.images.map((im) => `<a href="${esc(im.url)}" target="_blank"><img src="${esc(im.url)}" alt="" /></a>`).join('')}</div>` : ''}${esc(d.text)}`, 'msg user'); break;
     case 'message': add(`<div class="who">${esc(AGENT_NAMES[d.agent] || d.agent)}</div>${esc(d.text)}`, 'msg'); break;
     case 'agent_start': add(`${esc(AGENT_NAMES[d.agent])} empieza: <span class="muted">${esc(d.task.slice(0, 220))}${d.task.length > 220 ? '…' : ''}</span>`, 'evt agent'); break;
     case 'agent_done': add(`${esc(AGENT_NAMES[d.agent])} terminó.`, 'evt agent'); break;
