@@ -10,4 +10,5 @@ export const ENGINE_LOADERS = {
   'expanding-symbol': () => import('./engine-expanding-symbol/src/ExpandingSymbolEngine.js').then((m) => m.ExpandingSymbolEngine),
   'sticky-wilds': () => import('./engine-sticky-wilds/src/StickyWildsEngine.js').then((m) => m.StickyWildsEngine),
   'megaways-cascade': () => import('./engine-megaways-cascade/src/MegawaysCascadeEngine.js').then((m) => m.MegawaysCascadeEngine),
+  craps: () => import('./engine-craps/src/CrapsEngine.js').then((m) => m.CrapsEngine),
 };

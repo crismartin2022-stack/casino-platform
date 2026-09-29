@@ -1,0 +1,140 @@
+{
+  "engine": "craps",
+  "kind": "table",
+  "name": "Dados de Oro",
+  "rules": {
+    "bets": {
+      "pass": true,
+      "dontPass": true,
+      "come": true,
+      "dontCome": true,
+      "odds": true,
+      "place": true,
+      "field": true,
+      "hard": true,
+      "anyCraps": true,
+      "any7": false
+    },
+    "dontBar": 12,
+    "oddsMax": {
+      "4": 3,
+      "5": 4,
+      "6": 5,
+      "8": 5,
+      "9": 4,
+      "10": 3
+    },
+    "pays": {
+      "place": {
+        "4": [
+          9,
+          5
+        ],
+        "5": [
+          7,
+          5
+        ],
+        "6": [
+          7,
+          6
+        ],
+        "8": [
+          7,
+          6
+        ],
+        "9": [
+          7,
+          5
+        ],
+        "10": [
+          9,
+          5
+        ]
+      },
+      "field": {
+        "2": 2,
+        "12": 3
+      },
+      "hard": {
+        "4": 7,
+        "6": 9,
+        "8": 9,
+        "10": 7
+      },
+      "anyCraps": 7,
+      "any7": 4
+    },
+    "limits": {
+      "min": 100,
+      "max": 50000,
+      "table": 200000
+    },
+    "maxWin": 1000000
+  },
+  "bet": {
+    "levels": [
+      100,
+      500,
+      1000,
+      2500,
+      10000
+    ],
+    "default": 500,
+    "currency": "USD"
+  },
+  "theme": {
+    "title": "Dados de Oro",
+    "background": null,
+    "backgroundColor": "#0b2a1a",
+    "tableImage": null,
+    "palette": {
+      "primary": "#c0392b",
+      "accent": "#f1c40f",
+      "panel": "#071a10",
+      "text": "#ffffff",
+      "reelBg": "#0f5132"
+    },
+    "font": "Bungee"
+  },
+  "sounds": {
+    "music": null,
+    "roll": null,
+    "dice": null,
+    "chip": null,
+    "win": null,
+    "bigWin": null,
+    "lose": null,
+    "click": null
+  },
+  "id": "craps",
+  "math": {
+    "rtp": 0.9859,
+    "perBet": {
+      "pass": 0.9859,
+      "come": 0.9859,
+      "dontPass": 0.9864,
+      "dontCome": 0.9864,
+      "odds": 1,
+      "place": {
+        "4": 0.9333,
+        "5": 0.96,
+        "6": 0.9848,
+        "8": 0.9848,
+        "9": 0.96,
+        "10": 0.9333
+      },
+      "hard": {
+        "4": 0.8889,
+        "6": 0.9091,
+        "8": 0.9091,
+        "10": 0.8889
+      },
+      "field": 0.9722,
+      "anyCraps": 0.8889,
+      "any7": 0.8333
+    },
+    "volatility": "baja",
+    "hitFrequency": 0.4929,
+    "exact": true
+  }
+}

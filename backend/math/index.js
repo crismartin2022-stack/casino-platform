@@ -9,6 +9,7 @@ import * as scatterPays from './scatter-pays.js';
 import * as expanding from './expanding-symbol.js';
 import * as stickyWilds from './sticky-wilds.js';
 import * as megawaysCascade from './megaways-cascade.js';
+import * as craps from './craps.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -26,6 +27,7 @@ export const ENGINES = {
   [expanding.id]: expanding,
   [stickyWilds.id]: stickyWilds,
   [megawaysCascade.id]: megawaysCascade,
+  [craps.id]: craps,
 };
 
 /** Modos de compra de un motor, con acceso a su precio. */
@@ -55,7 +57,8 @@ export function getEngine(id) {
 
 export const engineList = () => Object.values(ENGINES).map((e) => ({
   id: e.id, name: e.name, description: e.description, modes: e.modes || ['base'],
-  paysBy: e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
+  kind: e.kind || 'slot',
+  paysBy: e.kind === 'table' ? 'table' : e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
   variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
 }));
 
@@ -68,6 +71,7 @@ export function validateConfig(config) {
   const e = ENGINES[config.engine];
   if (!e) return [`Motor desconocido: ${config.engine}`];
   const errs = e.validate(config);
+  if (e.kind === 'table') { if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme'); return errs; }
   if (!(config.rtpTarget >= RTP_RANGE[0] && config.rtpTarget <= RTP_RANGE[1])) errs.push(`rtpTarget debe estar entre ${RTP_RANGE[0]} y ${RTP_RANGE[1]} (85 % a 110 %)`);
   if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme');
   return errs;
@@ -79,6 +83,7 @@ export function validateConfig(config) {
  */
 export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345, timeBudgetMs = 20_000 } = {}) {
   const engine = getEngine(config.engine);
+  if (engine.kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP se calcula exacto: mira la tabla de apuestas'), { status: 400 });
   const rng = seededRng(seed);
   const cost = costMultiplier(engine, config, mode);
   let sum = 0, sumSq = 0, hits = 0, features = 0, maxWin = 0, n = 0, capped = 0;
@@ -119,6 +124,7 @@ export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345,
  * y ajusta reglas dependientes. El RTP queda desajustado: después hay que llamar a tuneRtp.
  */
 export function resizeGrid(config, { reels, rows, lines } = {}) {
+  if (getEngine(config.engine).kind === 'table') throw Object.assign(new Error('Los juegos de mesa no tienen rodillos'), { status: 400 });
   const c = structuredClone(config);
   const g = c.grid;
   const R = c.rules || {};
@@ -178,7 +184,12 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
  * Escala los pagos para acercar el RTP al objetivo. Es lineal en los pagos, así que
  * converge en 2-3 iteraciones. Para Bonus Buy también ajusta el precio de compra.
  */
-export function tuneRtp(config, { target = config.rtpTarget, spins = 300_000, iterations = 3, seed = 777 } = {}) {
+export function tuneRtp(config, opts = {}) {
+  if (getEngine(config.engine).kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP depende de los pagos de cada apuesta: edítalos en las reglas'), { status: 400 });
+  return tuneRtpSlot(config, opts);
+}
+
+function tuneRtpSlot(config, { target = config.rtpTarget, spins = 300_000, iterations = 3, seed = 777 } = {}) {
   const engine = getEngine(config.engine);
   const cfg = structuredClone(config);
   const history = [];

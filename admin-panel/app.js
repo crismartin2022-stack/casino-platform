@@ -458,7 +458,7 @@ async function tabDesign(v) {
     <div class="card stack"><h3 style="margin:0">Imágenes</h3><div class="grid2">
       ${imgField('background', 'Fondo PC (horizontal 16:9)')}${imgField('backgroundMobile', 'Fondo celular (vertical 9:16)')}
       ${imgField('logo', 'Logo')}${imgField('reelsBackground', 'Fondo detrás de los rodillos')}
-      ${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}
+      ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}
     </div></div>
     <div class="card stack"><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
       <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
@@ -542,6 +542,10 @@ async function tabDesign(v) {
 
 // ------------------------------------------------------------------ Pestaña: Símbolos
 async function tabSymbols(v) {
+  if (engineInfo(S.game.engine).kind === 'table') {
+    v.innerHTML = '<div class="card"><p>Este juego es de mesa: no tiene símbolos ni rodillos. Los pagos se editan en <b>📈 Matemática</b> y el aspecto (paño, colores, fondos) en <b>🎨 Diseño</b>.</p></div>';
+    return;
+  }
   const syms = S.game.draft.symbols;
   const maxN = Math.max(...syms.flatMap((s) => Object.keys(s.pays || {}).map(Number)), 3);
   const counts = []; for (let n = 3; n <= maxN; n++) counts.push(n);
@@ -574,6 +578,7 @@ async function tabSymbols(v) {
 
 // ------------------------------------------------------------------ Pestaña: Sonidos
 const SLOTS = [['music', 'Música base (loop)'], ['featureMusic', 'Música del bonus'], ['spin', 'Girar'], ['reelStop', 'Parada de rodillo'], ['win', 'Premio'],
+  ['roll', 'Lanzar dados (mesa)'], ['dice', 'Dados rebotando (mesa)'], ['chip', 'Poner ficha (mesa)'], ['lose', 'Apuesta perdida (mesa)'],
   ['bigWin', 'Gran premio'], ['feature', 'Activación de bonus'], ['click', 'Clic'], ['coin', 'Moneda'], ['tumble', 'Cascada'], ['scatter', 'Scatter']];
 
 async function tabSounds(v) {
@@ -604,7 +609,93 @@ async function tabSounds(v) {
 // ------------------------------------------------------------------ Pestaña: Matemática
 const BUY_NAMES = { buy: 'giros gratis', 'buy-sticky': 'wilds fijos', 'buy-wheel': 'ruleta', 'buy-pick': 'elige premio' };
 
+// ---- Matemática de juegos de mesa (Craps): pagos editables y RTP exacto por apuesta ----
+const CRAPS_BETS = [['pass', 'Pass Line'], ['dontPass', "Don't Pass"], ['come', 'Come'], ['dontCome', "Don't Come"], ['odds', 'Odds'],
+  ['place', 'Números (4-10)'], ['field', 'Field'], ['hard', 'Hardways'], ['anyCraps', 'Any Craps'], ['any7', 'Any 7']];
+
+async function tabMathTable(v) {
+  const d = S.game.draft;
+  const R = d.rules;
+  const m = S.game.math;
+  const ratioIn = (id, r) => (Array.isArray(r)
+    ? `<span class="row" style="gap:4px;flex-wrap:nowrap"><input id="${id}a" type="number" min="1" step="1" value="${r[0]}" style="width:64px" /> a <input id="${id}b" type="number" min="1" step="1" value="${r[1]}" style="width:64px" /></span>`
+    : `<span class="row" style="gap:4px;flex-wrap:nowrap"><input id="${id}a" type="number" min="0.1" step="0.1" value="${r}" style="width:74px" /> a 1</span>`);
+  v.innerHTML = `<div class="stack">
+    <div class="card stack"><h3 style="margin:0">RTP exacto por apuesta ${m ? `<span class="badge ok">publicado v${S.game.publishedVersion}</span>` : ''}</h3>
+      <p class="muted">En la mesa no hay que simular: el RTP de cada apuesta se calcula exacto a partir de sus pagos. Debe quedar entre 85 % y 110 % para poder guardar.</p>
+      <div id="tRtp"></div></div>
+    <div class="card stack"><h3 style="margin:0">Apuestas habilitadas</h3>
+      <div class="row">${CRAPS_BETS.map(([k, l]) => `<label class="row" style="gap:6px;margin:0;color:var(--text)"><input type="checkbox" data-bet="${k}" style="width:auto" ${R.bets[k] ? 'checked' : ''} /> ${l}</label>`).join('')}</div></div>
+    <div class="card stack"><h3 style="margin:0">Pagos</h3>
+      <table><thead><tr><th>Apuesta</th><th>Paga</th></tr></thead><tbody>
+        ${[4, 5, 6, 8, 9, 10].map((n) => `<tr><td>Número ${n}</td><td>${ratioIn(`pl${n}`, R.pays.place[n])}</td></tr>`).join('')}
+        <tr><td>Field con 2</td><td>${ratioIn('f2', R.pays.field[2])}</td></tr>
+        <tr><td>Field con 12</td><td>${ratioIn('f12', R.pays.field[12])}</td></tr>
+        ${[4, 6, 8, 10].map((n) => `<tr><td>Hard ${n} (${n / 2}+${n / 2})</td><td>${ratioIn(`hd${n}`, R.pays.hard[n])}</td></tr>`).join('')}
+        <tr><td>Any Craps</td><td>${ratioIn('ac', R.pays.anyCraps)}</td></tr>
+        <tr><td>Any 7</td><td>${ratioIn('a7', R.pays.any7)}</td></tr>
+      </tbody></table>
+      <div class="grid2">
+        <div><label>Número que empata el Don't Pass en la salida</label><select id="tBar"><option value="12" ${R.dontBar === 12 ? 'selected' : ''}>12</option><option value="2" ${R.dontBar === 2 ? 'selected' : ''}>2</option></select></div>
+        <div><label>Odds máximas (veces la apuesta) 4/10 · 5/9 · 6/8</label><div class="row" style="flex-wrap:nowrap;gap:4px">
+          <input id="o4" type="number" min="0" max="100" value="${R.oddsMax[4]}" style="width:70px" /><input id="o5" type="number" min="0" max="100" value="${R.oddsMax[5]}" style="width:70px" /><input id="o6" type="number" min="0" max="100" value="${R.oddsMax[6]}" style="width:70px" /></div></div>
+        <div><label>Apuesta mínima</label><input id="lMin" type="number" step="0.01" min="0.01" value="${R.limits.min / 100}" /></div>
+        <div><label>Apuesta máxima por posición</label><input id="lMax" type="number" step="0.01" value="${R.limits.max / 100}" /></div>
+        <div><label>Máximo total en la mesa</label><input id="lTable" type="number" step="0.01" value="${R.limits.table / 100}" /></div>
+        <div><label>Fichas (separadas por coma)</label><input id="chips" value="${d.bet.levels.map((x) => x / 100).join(', ')}" /></div>
+      </div>
+      <div class="row"><button class="primary" id="tSave">Guardar pagos</button><span id="tErr" class="error"></span></div></div></div>`;
+  const read = () => {
+    const rr = (id, orig) => (Array.isArray(orig) ? [Number($(`#${id}a`).value), Number($(`#${id}b`).value)] : Number($(`#${id}a`).value));
+    const rules = structuredClone(R);
+    for (const i of $$('[data-bet]', v)) rules.bets[i.dataset.bet] = i.checked;
+    for (const n of [4, 5, 6, 8, 9, 10]) rules.pays.place[n] = rr(`pl${n}`, R.pays.place[n]);
+    rules.pays.field = { 2: rr('f2', R.pays.field[2]), 12: rr('f12', R.pays.field[12]) };
+    for (const n of [4, 6, 8, 10]) rules.pays.hard[n] = rr(`hd${n}`, R.pays.hard[n]);
+    rules.pays.anyCraps = rr('ac', R.pays.anyCraps);
+    rules.pays.any7 = rr('a7', R.pays.any7);
+    rules.dontBar = Number($('#tBar').value);
+    const o4 = Number($('#o4').value), o5 = Number($('#o5').value), o6 = Number($('#o6').value);
+    rules.oddsMax = { 4: o4, 10: o4, 5: o5, 9: o5, 6: o6, 8: o6 };
+    rules.limits = { min: Math.round(Number($('#lMin').value) * 100), max: Math.round(Number($('#lMax').value) * 100), table: Math.round(Number($('#lTable').value) * 100) };
+    return rules;
+  };
+  // RTP exacto en vivo mientras se editan los pagos (misma fórmula que el servidor)
+  const W = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+  const P = (t) => W[t] / 36, b7 = (n) => W[n] / (W[n] + 6), rt = (r) => (Array.isArray(r) ? r[0] / r[1] : r);
+  const draw = () => {
+    const r = read();
+    const passWin = P(7) + P(11) + [4, 5, 6, 8, 9, 10].reduce((a, p) => a + P(p) * b7(p), 0);
+    const dp = 2 * ([2, 3, 12].filter((t) => t !== r.dontBar).reduce((a, t) => a + P(t), 0) + [4, 5, 6, 8, 9, 10].reduce((a, p) => a + P(p) * (1 - b7(p)), 0)) + P(r.dontBar);
+    const rows = [];
+    const add = (k, name, x) => rows.push([k, name, x]);
+    add('pass', 'Pass Line / Come', 2 * passWin); add('dontPass', "Don't Pass / Don't Come", dp); add('odds', 'Odds', 1);
+    for (const n of [4, 5, 6, 8, 9, 10]) add('place', `Número ${n}`, b7(n) * (1 + rt(r.pays.place[n])));
+    add('field', 'Field', P(2) * (1 + rt(r.pays.field[2])) + P(12) * (1 + rt(r.pays.field[12])) + [3, 4, 9, 10, 11].reduce((a, t) => a + P(t) * 2, 0));
+    for (const n of [4, 6, 8, 10]) add('hard', `Hard ${n}`, (1 / (6 + W[n])) * (1 + rt(r.pays.hard[n])));
+    add('anyCraps', 'Any Craps', (P(2) + P(3) + P(12)) * (1 + rt(r.pays.anyCraps)));
+    add('any7', 'Any 7', P(7) * (1 + rt(r.pays.any7)));
+    $('#tRtp').innerHTML = `<div class="kpi">${rows.map(([k, n, x]) => {
+      const on = r.bets[k] ?? true;
+      const bad = on && (x < 0.85 || x > 1.10);
+      return `<div style="${on ? '' : 'opacity:.4'}${bad ? ';border-color:var(--err)' : ''}"><small>${esc(n)}${on ? '' : ' (desactivada)'}</small><b style="${bad ? 'color:var(--err)' : x > 1 ? 'color:var(--warn)' : ''}">${pct(x)}</b></div>`;
+    }).join('')}</div>`;
+  };
+  v.addEventListener('input', draw);
+  v.addEventListener('change', draw);
+  draw();
+  $('#tSave').addEventListener('click', guard(async () => {
+    const levels = $('#chips').value.split(',').map((x) => Math.round(Number(x.trim()) * 100)).filter((x) => x > 0);
+    try {
+      await patchDraft([{ op: 'set', path: 'rules', value: read() }, { op: 'set', path: 'bet.levels', value: levels },
+        { op: 'set', path: 'bet.default', value: levels.includes(d.bet.default) ? d.bet.default : levels[0] }], 'Pagos guardados');
+      $('#tErr').textContent = '';
+    } catch (e) { $('#tErr').textContent = `${e.message}${e.details ? ': ' + e.details.join(' · ') : ''}`; }
+  }));
+}
+
 async function tabMath(v) {
+  if (engineInfo(S.game.engine).kind === 'table') return tabMathTable(v);
   const d = S.game.draft;
   const m = S.game.math;
   v.innerHTML = `<div class="stack">

@@ -128,6 +128,12 @@ CREATE TABLE IF NOT EXISTS agent_events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS agent_events_run ON agent_events(run_id, id);
+CREATE TABLE IF NOT EXISTS table_state (
+  session_token TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor TEXT NOT NULL,

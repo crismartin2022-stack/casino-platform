@@ -87,6 +87,32 @@ Respuesta de `/spin`:
 
 `grid` es `grid[columna][fila]` con ids de símbolo. `wins[].positions` es una lista de `[columna, fila]`.
 
+### Juegos de mesa: Craps (`engine: "craps"`)
+
+Craps no usa `/spin`. Las apuestas quedan sobre la mesa entre tiradas y el estado se guarda en el servidor por sesión. Cada tirada es **una ronda auditable**: `cost` = fichas nuevas que se cobran en esa tirada y `win` = todo lo que vuelve al jugador (premio + apuesta devuelta).
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/v1/table` | Estado de la mesa: `{ phase: "comeOut"\|"point", point, bets[], pending, balance }` |
+| POST | `/api/v1/table/bets` | `{ "type": "pass"\|"dontPass"\|"come"\|"dontCome"\|"odds"\|"place"\|"field"\|"hard"\|"anyCraps"\|"any7", "number"?: 4-10, "on"?: "id de apuesta (odds)", "amount": 500 }` |
+| DELETE | `/api/v1/table/bets/:id` | Retira una apuesta. Si aún no se cobró, se anula. Si ya estaba activa y se puede retirar (números, odds, hardways), se devuelve y queda registrada como ronda `takedown`. Pass/Come con punto no se pueden retirar. |
+| POST | `/api/v1/table/roll` | `{ "clientRoundId": "único" }`: tira los dados con el RNG del servidor |
+
+Respuesta de `/table/roll`:
+
+```json
+{
+  "roundId": "rd_…", "cost": 1000, "win": 2000, "balance": 101000,
+  "result": { "dice": [3, 4], "total": 7, "hard": false,
+    "resolutions": [ { "id": "b_…", "type": "pass", "amount": 1000, "outcome": "win", "payout": 2000 } ],
+    "phaseBefore": "comeOut", "pointBefore": null },
+  "table": { "phase": "comeOut", "point": null, "bets": [] }
+}
+```
+
+- Las reglas (pagos de números, field, hardways, any craps/any 7, empate del Don't Pass con 12 o 2, odds máximas, límites) están en `rules` del juego y se editan en el panel. El RTP de cada apuesta se calcula **exacto** y cada apuesta habilitada debe quedar entre 85 % y 110 %.
+- Replay: `GET /api/admin/rounds/:id/replay` reproduce la tirada con los dados grabados y el estado previo de la mesa.
+
 ---
 
 ## 3. Protocolo de billetera seamless

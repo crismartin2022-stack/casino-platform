@@ -10,7 +10,7 @@ import { HttpError } from '../lib/http.js';
 // ---- Permisos de edición por agente (patrones de ruta; * = cualquier id de símbolo) ----
 export const EDIT_SCOPES = {
   designer: ['name', 'theme', 'theme.*', 'symbols.*.name', 'symbols.*.image', 'symbols.*.color'],
-  artist: ['theme.background', 'theme.backgroundMobile', 'theme.reelsBackground', 'theme.cellImage', 'theme.logo', 'theme.spinButton', 'theme.frame', 'theme.buttons.*.image', 'symbols.*.image'],
+  artist: ['theme.background', 'theme.tableImage', 'theme.backgroundMobile', 'theme.reelsBackground', 'theme.cellImage', 'theme.logo', 'theme.spinButton', 'theme.frame', 'theme.buttons.*.image', 'symbols.*.image'],
   sound: ['sounds', 'sounds.*', 'soundVolumes', 'soundVolumes.*'],
   math: ['symbols.*.pays', 'symbols.*.pays.*', 'reels', 'freeSpinReels', 'rules', 'rules.*', 'rtpTarget', 'bet', 'bet.*', 'grid'],
 };
@@ -250,6 +250,7 @@ export async function runTool(name, input, ctx, agent) {
 
     case 'simulate_rtp': {
       const c = getDraft(ctx.gameId);
+      if (ENGINES[c.engine].kind === 'table') return { exacto: true, rtpPorApuesta: ENGINES[c.engine].analyze(c).perBet, nota: 'En la mesa el RTP es exacto; para cambiarlo edita rules.pays de cada apuesta.' };
       const errs = validateConfig(c);
       if (errs.length) return { error: 'Configuración inválida', details: errs };
       ctx.emit('progress', { agent, message: 'Simulando RTP…' });
@@ -304,5 +305,6 @@ export const RULES_DOC = {
   'expanding-symbol': 'Líneas (pagos por apuesta de línea). Símbolo wildscatter (libro) = comodín + scatter (scatterPays en múltiplos de apuesta total). rules.scattersToTrigger → rules.freeSpins con símbolo especial elegido por rules.expandWeights [{symbol, weight}]: si aparece en suficientes rodillos (mínimo = menor clave de sus pays) se expande y paga pays[nº rodillos] × apuesta total.',
   'sticky-wilds': 'Líneas. rules.wildMode "sticky" (comodines fijos en giros gratis) o "walking" (cada comodín da re-giro y se mueve un rodillo a la izquierda). rules.scattersToTrigger → rules.freeSpins, rules.fsMultiplier, rules.retrigger. Scatter con scatterPays.',
   'megaways-cascade': 'Megaways con cascadas: el multiplicador sube rules.cascadeStep (+0,5) por cascada. Símbolos mystery se revelan todos como el mismo símbolo (rules.mysteryWeights). rules.scattersToTrigger → rules.freeSpins (+rules.extraSpinsPerScatter por scatter extra); rules.fsKeepMultiplier = el multiplicador no se reinicia entre giros gratis.',
+  craps: 'Mesa de dados (no slot). rules.bets: qué apuestas están habilitadas (pass, dontPass, come, dontCome, odds, place, field, hard, anyCraps, any7). rules.pays: place {4..10: [a, b] = paga a por b}, field {2, 12} (a 1), hard {4,6,8,10}, anyCraps, any7. rules.dontBar (12 o 2: empata el Don\'t Pass en la salida), rules.oddsMax {punto: veces la apuesta}, rules.limits {min, max, table} en centavos. El RTP de cada apuesta es EXACTO (simulate_rtp lo devuelve) y debe quedar entre 85 % y 110 %. No hay rodillos ni tune_rtp.',
   'colossal-reels': 'Ways 5x4: pagos en múltiplos de la apuesta total por way. rules.colossalChance, rules.colossalSizes, rules.colossalSymbols, rules.freeSpins (colosal garantizado en giros gratis).',
 };

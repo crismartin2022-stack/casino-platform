@@ -6,8 +6,9 @@ import { getEngine, costMultiplier } from '../math/index.js';
 import { recordingRng, cryptoRng, replayRng } from '../math/rng.js';
 import { getSession, walletForSession } from './wallets.js';
 import { getPublished, getDraft, getVersionConfig } from './games.js';
+import { replayTableRound as replayTable } from './table.js';
 
-function loadConfigFor(session) {
+export function loadConfigFor(session) {
   if (session.source === 'draft') {
     if (session.mode !== 'demo') throw new HttpError(403, 'Los borradores solo se pueden jugar en modo demo');
     return { version: null, config: getDraft(session.game_id) };
@@ -39,6 +40,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
 
   const { version, config } = loadConfigFor(session);
   const engine = getEngine(config.engine);
+  if (engine.kind === 'table') throw new HttpError(400, 'Este juego es de mesa: usa /api/v1/table');
   if (!config.bet.levels.includes(bet)) throw new HttpError(400, `Apuesta no permitida. Niveles: ${config.bet.levels.join(', ')}`);
   if (!(engine.modes || ['base']).includes(mode)) throw new HttpError(400, `Modo de juego no disponible: ${mode}`);
   const cost = Math.round(bet * costMultiplier(engine, config, mode));
@@ -122,6 +124,10 @@ export function replayRound(roundId) {
   if (!r.rng) throw new HttpError(409, 'La ronda no tiene resultado');
   const config = r.version ? getVersionConfig(r.game_id, r.version) : null;
   if (!config) throw new HttpError(409, 'Ronda jugada sobre un borrador: no reproducible');
+  if (getEngine(config.engine).kind === 'table') {
+    if (r.play_mode !== 'roll') throw new HttpError(409, 'Esta operación no tiene dados que verificar');
+    return replayTable(r);
+  }
   const draws = JSON.parse(r.rng);
   const rng = replayRng(draws);
   const res = getEngine(config.engine).play(config, rng, { mode: r.play_mode });
