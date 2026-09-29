@@ -47,7 +47,7 @@ export class GridView extends Container {
       const k = look.frameScale != null ? Math.min(1.6, Math.max(0.9, Number(look.frameScale))) : null;
       const padX = k != null ? (width * (k - 1)) / 2 : Math.max(width, height) * 0.06;
       const padY = k != null ? (height * (k - 1)) / 2 : Math.max(width, height) * 0.06;
-      f.position.set(-padX, -padY);
+      f.position.set(-padX, -padY + (Number(look.frameOffsetY) || 0));
       f.width = width + padX * 2;
       f.height = height + padY * 2;
       frameSprite = f;

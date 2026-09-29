@@ -9,6 +9,7 @@ import { listGames, createOwnedGame, getGame } from './games.js';
 import { configForOperator, operatorCanUse, buildVariant, findVariant, listVariants } from './variants.js';
 import { mathHash, getPublished } from './games.js';
 import { applyCurrency, operatorLimits } from './bets.js';
+import { publicBrand } from './brands.js';
 const isTable = (engine) => getEngine(engine).kind === 'table';
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
@@ -229,7 +230,7 @@ export function catalog(op) {
     .map((g) => {
       let bets = null;
       try { bets = applyCurrency(getPublished(g.id).config, op.currency, operatorLimits(op.id, op.currency)).bet.levels; } catch { bets = []; }
-      return { id: g.id, name: g.name, engine: g.engine, own: g.ownerOperatorId === op.id, version: g.publishedVersion, currency: op.currency, bets, ...effectiveMath(op.id, g) };
+      return { id: g.id, name: g.name, engine: g.engine, brand: g.brandId ? publicBrand(g.brandId)?.name ?? null : null, own: g.ownerOperatorId === op.id, version: g.publishedVersion, currency: op.currency, bets, ...effectiveMath(op.id, g) };
     })
     .filter((g) => g.own || g.enabled);
 }

@@ -237,7 +237,7 @@ export class CrapsEngine {
     const top = h('div', { class: 'cr-top' },
       this.lobbyUrl ? h('a', { class: 'cr-icon', href: this.lobbyUrl, style: 'display:grid;place-items:center;text-decoration:none' }, '⟵') : null,
       h('button', { class: 'cr-icon', onclick: () => this.showRules(), 'aria-label': 'Reglas' }, '☰'),
-      h('div', { class: 'cr-title' }, t.logo ? h('img', { src: t.logo, alt: t.title || this.game.name }) : (t.title || this.game.name)),
+      h('div', { class: 'cr-title', style: (() => { const pt = matchMedia('(orientation: portrait)').matches; const y = Number(pt ? (t.logoOffsetYMobile ?? t.logoOffsetY) : t.logoOffsetY) || 0; const k = Number(t.logoScale) || 1; return y || k !== 1 ? `transform:translateY(${Math.max(-300, Math.min(300, y)) / 2}px) scale(${Math.min(1.8, Math.max(0.4, k))})` : ''; })() }, t.logo ? h('img', { src: t.logo, alt: t.title || this.game.name }) : (t.title || this.game.name)),
       rotBtn, this.soundBtn, fullBtn);
     this.root = h('div', { class: 'cr' }, top, h('div', { class: 'cr-main' }, this.felt, side), bar);
     if (this.session.source === 'draft') this.root.append(h('div', { class: 'cr-tag' }, 'VISTA PREVIA · BORRADOR'));

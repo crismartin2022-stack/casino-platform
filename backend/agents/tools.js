@@ -10,7 +10,7 @@ import { HttpError } from '../lib/http.js';
 // ---- Permisos de edición por agente (patrones de ruta; * = cualquier id de símbolo) ----
 export const EDIT_SCOPES = {
   designer: ['name', 'theme', 'theme.*', 'symbols.*.name', 'symbols.*.image', 'symbols.*.color'],
-  artist: ['theme.background', 'theme.tableImage', 'theme.dice.faces.*', 'theme.messages.styles.*.image', 'theme.bonus.intro', 'theme.bonus.outro', 'theme.bonus.background', 'theme.bonus.backgroundMobile', 'theme.bonus.reelsBackground', 'theme.hud.custom.board.image', 'theme.backgroundMobile', 'theme.reelsBackground', 'theme.cellImage', 'theme.logo', 'theme.spinButton', 'theme.frame', 'theme.buttons.*.image', 'symbols.*.image'],
+  artist: ['theme.background', 'theme.tableImage', 'theme.dice.faces.*', 'theme.messages.styles.*.image', 'theme.bonus.intro', 'theme.bonus.outro', 'theme.bonus.background', 'theme.bonus.backgroundMobile', 'theme.bonus.reelsBackground', 'theme.hud.custom.board.image', 'theme.hud.meters.bgImage', 'theme.backgroundMobile', 'theme.reelsBackground', 'theme.cellImage', 'theme.logo', 'theme.spinButton', 'theme.frame', 'theme.buttons.*.image', 'symbols.*.image'],
   sound: ['sounds', 'sounds.*', 'soundVolumes', 'soundVolumes.*'],
   math: ['symbols.*.pays', 'symbols.*.pays.*', 'reels', 'freeSpinReels', 'rules', 'rules.*', 'rtpTarget', 'bet', 'bet.*', 'grid'],
 };

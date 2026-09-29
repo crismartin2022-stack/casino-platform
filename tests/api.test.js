@@ -201,6 +201,9 @@ test('publicar rechaza un RTP fuera de tolerancia', async () => {
   const pub = await req('/api/admin/games/reel-rush/publish', { method: 'POST', headers: ADMIN, body: {} });
   assert.equal(pub.status, 422);
   assert.match(pub.body.error, /RTP simulado/);
+  // La prueba silenciosa acompaña el rechazo con el arreglo sugerido
+  assert.equal(pub.body.details.check.status, 'fail');
+  assert.ok(pub.body.details.check.fixes.some((f) => f.agent === 'math'));
 });
 
 test('cuadrícula: cambiar rodillos, filas y líneas reajusta el RTP del borrador', async () => {
@@ -465,4 +468,62 @@ test('forzar bonus: solo en la vista previa del borrador', async () => {
   const { body: pv2 } = await req('/api/admin/games/cluster-pays/preview-session', { method: 'POST', headers: ADMIN });
   const nb = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv2.token}` }, body: { bet: 100, force: true } });
   assert.equal(nb.status, 409);
+});
+
+test('marcas: logotipo, pantalla de carga y juegos agrupados por marca', async () => {
+  const b = await req('/api/admin/brands', { method: 'POST', headers: ADMIN, body: { name: 'Aurora Studio', tagline: 'Juegos con luz propia', color: '#ffcc00', bg: '#101020', loader: 'ring', minMs: 1200, logo: '/assets/logo.png' } });
+  assert.equal(b.status, 201, JSON.stringify(b.body));
+  assert.equal((await req('/api/admin/brands', { method: 'POST', headers: ADMIN, body: { name: 'aurora studio' } })).status, 409);
+  assert.equal((await req('/api/admin/brands', { method: 'POST', headers: ADMIN, body: { name: 'X', color: 'rojo' } })).status, 400);
+  assert.equal((await req(`/api/admin/games/sticky-wilds/brand`, { method: 'PUT', headers: ADMIN, body: { brandId: b.body.id } })).status, 200);
+  // La sesión del jugador trae la marca para la pantalla de carga
+  const { body: demo } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'sticky-wilds' } });
+  const ses = (await req('/api/v1/session', { headers: { authorization: `Bearer ${demo.token}` } })).body;
+  assert.equal(ses.brand.name, 'Aurora Studio');
+  assert.equal(ses.brand.loader, 'ring');
+  assert.equal(ses.brand.logo, '/assets/logo.png');
+  // El panel lista primero los juegos con marca (ordenados por marca)
+  const games = (await req('/api/admin/games', { headers: ADMIN })).body;
+  const list = Array.isArray(games) ? games : games.games;
+  assert.equal(list[0].brandId, b.body.id);
+  const brands = (await req('/api/admin/brands', { headers: ADMIN })).body;
+  assert.equal(brands.find((x) => x.id === b.body.id).games, 1);
+  // No se borra una marca con juegos
+  assert.equal((await req(`/api/admin/brands/${b.body.id}`, { method: 'DELETE', headers: ADMIN })).status, 409);
+  const up = await req(`/api/admin/brands/${b.body.id}`, { method: 'PATCH', headers: ADMIN, body: { tagline: 'Nueva' } });
+  assert.equal(up.body.tagline, 'Nueva');
+  await req(`/api/admin/games/sticky-wilds/brand`, { method: 'PUT', headers: ADMIN, body: { brandId: null } });
+  assert.equal((await req(`/api/admin/brands/${b.body.id}`, { method: 'DELETE', headers: ADMIN })).status, 200);
+});
+
+test('prueba silenciosa: se ejecuta al publicar, bloquea errores y sugiere arreglos', async () => {
+  // A pedido, sobre el borrador
+  const ck = await req('/api/admin/games/hold-win/check', { method: 'POST', headers: ADMIN });
+  assert.equal(ck.status, 200, JSON.stringify(ck.body));
+  assert.ok(ck.body.checks.length >= 10);
+  assert.ok(['ok', 'warn'].includes(ck.body.status), JSON.stringify(ck.body.checks.filter((c) => c.status === 'fail')));
+  for (const id of ['config', 'bets', 'plays', 'payouts', 'replay', 'bonus', 'rtp', 'files', 'sounds', 'brand', 'client']) {
+    assert.ok(ck.body.checks.some((c) => c.id === id), `falta el chequeo ${id}`);
+  }
+  // Sin marca → aviso con arreglo sugerido
+  assert.ok(ck.body.fixes.some((f) => f.area === 'Marca'));
+  // Al publicar: la respuesta trae la prueba y queda guardada con la versión
+  const pub = await req('/api/admin/games/hold-win/publish', { method: 'POST', headers: ADMIN, body: { note: 'prueba' } });
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  assert.ok(pub.body.check.passed);
+  const hist = (await req('/api/admin/games/hold-win/checks', { headers: ADMIN })).body;
+  assert.equal(hist[0].version, pub.body.version);
+  assert.equal(hist[0].source, 'publish');
+  // Un símbolo con la imagen borrada → no se publica
+  const ops = [{ op: 'set', path: 'symbols.jack.image', value: '/media/no-existe.png' }, { op: 'set', path: 'theme.messages', value: { texts: { freeSpins: 'GANASTE {z} GIROS' } } }];
+  assert.equal((await req('/api/admin/games/hold-win/draft', { method: 'PATCH', headers: ADMIN, body: { ops } })).status, 200);
+  const bad = await req('/api/admin/games/hold-win/publish', { method: 'POST', headers: ADMIN, body: {} });
+  assert.equal(bad.status, 422);
+  const rep = bad.body.details.check;
+  assert.equal(rep.status, 'fail');
+  assert.ok(rep.checks.some((c) => c.id === 'filesSymbols' && c.status === 'fail'));
+  assert.ok(rep.checks.some((c) => c.id === 'texts' && c.status === 'warn'));
+  assert.ok(rep.fixes[0].status === 'fail' && rep.fixes[0].agent === 'artist');
+  const { body: g } = await req('/api/v1/games/hold-win');
+  assert.equal(g.version, pub.body.version); // el juego en vivo no cambió
 });

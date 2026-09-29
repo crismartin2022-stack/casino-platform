@@ -88,6 +88,8 @@ BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los ro
   "real" (oro, fichas de casino, lluvia de monedas), "arcade" (gabinete retro, LED y botones gordos),
   barColor (color CSS con transparencia, ej. "rgba(10,8,12,.82)"), barBorder, spinSize (56-130 px; solo pill/classic),
   maxBet (true/false: botón MÁX de apuesta máxima), scale (0.8-1.4: tamaño general de toda la interfaz —botonera, botones y textos—; 1 = normal) }.
+  MARCADORES (theme.hud.meters): { labels: { balance, bet, win } (títulos; vacío = SALDO/APUESTA/PREMIO), showLabels (false oculta títulos),
+    labelColor, valueColor, winColor, bg (color del recuadro, admite #rrggbbaa), border, radius (0-40), bgImage (imagen del recuadro), valueScale (0.7-1.6) }.
   Para "agrandar los botones" usa theme.buttons.size; para "agrandar toda la botonera/interfaz" usa theme.hud.scale; para el GIRAR en pill/classic, theme.hud.spinSize;
   para los símbolos, theme.symbolScale. Los giros automáticos que elige el jugador están en bet.autoSpins (los define el matemático).
   Cada interfaz toma los colores de theme.palette (primary = botón GIRAR y brillos, accent = premios y detalles, panel = fondos).
@@ -106,6 +108,8 @@ AMBIENTE DEL BONUS (theme.bonus): intro/outro (imagen, GIF o video a pantalla co
 RODILLOS: theme.symbolScale (0.6-1, cuánto de la celda ocupa el símbolo; 0.92 por defecto), theme.cellGap (0-16 px entre celdas),
   theme.cellColor, theme.cellAlpha (0-1), theme.cellRadius, theme.cellBorder (color o "none"), theme.frameColor,
   theme.frameLayer ("back" | "front": marco de imagen detrás o delante de los rodillos; front solo si el marco tiene el centro transparente), theme.frameScale (0.9-1.6, tamaño del marco),
+  theme.frameOffsetY / theme.frameOffsetYMobile (subir o bajar el marco en px, negativo = arriba, -150 a 150),
+  theme.logoScale (0.4-1.8, tamaño del logo), theme.logoOffsetY / theme.logoOffsetYMobile (subir o bajar el logo en px, -200 a 200),
   theme.tagline (frase corta bajo los rodillos en celular). Imágenes que pone el Artista: theme.background (PC), theme.backgroundMobile
   (celular), theme.reelsBackground (detrás de los rodillos), theme.cellImage (fondo de cada celda), theme.frame (marco), theme.logo.
 Usa update_config con varias operaciones a la vez. No puedes tocar la matemática.`,

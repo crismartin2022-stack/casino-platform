@@ -46,6 +46,8 @@
     .tag { background: #ff9f1c; color: #000; font: 700 11px system-ui; padding: 4px 8px; border-radius: 6px; }
     .forcebtn { background: linear-gradient(#b14cff, #6a1fd1); color: #fff; font: 800 11px system-ui; letter-spacing: .06em; padding: 6px 10px; border-radius: 8px; box-shadow: 0 0 0 2px #fff4, 0 4px 12px rgba(0,0,0,.5); white-space: nowrap; }
     #hud[data-orient="portrait"] .forcebtn { font-size: 9px; padding: 4px 6px; }
+    /* En celular la etiqueta de vista previa y FORZAR BONUS bajan una fila para no quedar debajo de los botones de las esquinas */
+    #hud[data-orient="portrait"] .top > .tag, #hud[data-orient="portrait"] .top > .forcebtn { transform: translateY(54px); }
     button { font-family: inherit; cursor: pointer; border: 0; color: inherit; -webkit-tap-highlight-color: transparent; }
     button:disabled { opacity: .4; cursor: not-allowed; }
 
@@ -213,6 +215,9 @@
     #hud[data-skin][data-orient="portrait"] .sk-brand { display: none; }
     #hud[data-skin][data-orient="portrait"] .sk-top .saldo { margin-left: auto; }
     #hud[data-skin][data-orient="portrait"] .sk-top .saldo small { display: none; }
+    /* Vista previa en celular: la etiqueta y FORZAR BONUS van debajo de la barra superior (no empujan el saldo) */
+    #hud[data-skin][data-orient="portrait"] .sk-top > .tag, #hud[data-skin][data-orient="portrait"] .sk-top > .forcebtn { position: absolute; top: calc(var(--top-h) + env(safe-area-inset-top) + 8px); }
+    #hud[data-skin][data-orient="portrait"] .sk-top > .tag { left: 14px; } #hud[data-skin][data-orient="portrait"] .sk-top > .forcebtn { right: 14px; }
     #hud[data-skin][data-orient="portrait"] .sk-top .tag { font-size: 9px; padding: 2px 5px; }
     #hud[data-skin][data-orient="portrait"] .banner.info b, #hud[data-orient="portrait"] .banner.info b { white-space: normal; font-size: 22px !important; }
     #hud[data-skin][data-orient="portrait"] .maxbet { min-width: 40px; padding: 0 6px; }
@@ -421,6 +426,15 @@
     #hud[data-layout="custom"] .cstat .stat b { font-size: calc(var(--sz) * .4); }
     #hud[data-layout="custom"] .cstat.box .stat { min-width: calc(var(--sz) * 3.4); padding: calc(var(--sz) * .1) calc(var(--sz) * .25); border-radius: calc(var(--sz) * .16);
       background: var(--statbox-bg, rgba(0,0,0,.72)); border: 2px solid color-mix(in srgb, var(--accent) 75%, #000); box-shadow: inset 0 0 12px rgba(0,0,0,.8), 0 2px 8px rgba(0,0,0,.5); }
+    /* Marcadores editables (theme.hud.meters) */
+    #hud[data-meters] .stat small, #hud[data-meters] .sk-lbl { color: var(--m-label, inherit); }
+    #hud[data-meters] .stat b { color: var(--m-value, inherit); }
+    #hud[data-meters] .stat.premio b { color: var(--m-win, var(--m-value, inherit)); }
+    #hud[data-meters~="nolabel"] .stat small { display: none; }
+    #hud[data-meters] .stat b { font-size: calc(15px * var(--ui) * var(--m-vs, 1)); }
+    #hud[data-layout="custom"][data-meters] .cstat .stat b { font-size: calc(var(--sz) * .4 * var(--m-vs, 1)); }
+    #hud[data-meters~="box"] .stat { background: var(--m-img, none) center / 100% 100% no-repeat, var(--m-bg, transparent); border: 2px solid var(--m-border, transparent); border-radius: var(--m-radius, 10px); }
+    #hud[data-meters~="box"]:not([data-layout="custom"]) .stat { padding: 3px 12px; }
     #hud[data-layout="custom"] .cbetval { min-width: calc(var(--sz) * 1.6); height: var(--sz); display: grid; place-items: center; border-radius: 999px; background: rgba(0,0,0,.72);
       border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
     #hud[data-layout="custom"] .cbetval b { font-size: calc(var(--sz) * .42); }
@@ -486,9 +500,25 @@
     .bonus-intro img, .bonus-intro video { position: static !important; max-width: 100vw; max-height: 100vh; width: 100%; height: 100%; object-fit: contain; }
     .bonus-intro small { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font: 600 12px system-ui; opacity: .7; }
 
-    #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; background: #05060c; font: 600 15px system-ui; }
-    #loader .bar2 { width: min(320px, 70vw); height: 8px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 12px; }
-    #loader .bar2 i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+    /* ---- Pantalla de carga con la marca del juego (logo, fondo, color y estilo) ---- */
+    #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 30; background: var(--ld-bg, #05060c); background-size: cover; background-position: center;
+      font: 600 15px system-ui; color: #fff; --ld-color: var(--accent); transition: opacity .35s; }
+    #loader.out { opacity: 0; pointer-events: none; }
+    #loader .ld { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 20px; }
+    #loader .ld-logo { display: none; }
+    #loader.branded .ld-logo { display: block; }
+    #loader .ld-logo img, #loader .ld-logo video { max-width: min(70vw, 460px); max-height: 34vh; object-fit: contain; filter: drop-shadow(0 6px 24px rgba(0,0,0,.6)); animation: ldin .6s cubic-bezier(.2,1.3,.4,1); }
+    #loader .ld-logo b { font: 900 clamp(30px, 7vw, 64px) system-ui; letter-spacing: .06em; color: var(--ld-color); text-shadow: 0 4px 20px rgba(0,0,0,.6); animation: ldin .6s cubic-bezier(.2,1.3,.4,1); display: block; }
+    #loader .ld-tag { font: 600 13px system-ui; letter-spacing: .25em; text-transform: uppercase; opacity: .8; }
+    @keyframes ldin { from { transform: scale(.6); opacity: 0; } }
+    #loader .bar2 { width: min(320px, 70vw); height: 8px; background: rgba(255,255,255,.14); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+    #loader .bar2 i { display: block; height: 100%; width: 0; background: var(--ld-color); transition: width .2s; box-shadow: 0 0 12px var(--ld-color); }
+    #loader[data-style="ring"] .bar2 { width: 74px; height: 74px; border-radius: 50%; background: conic-gradient(var(--ld-color) calc(var(--p, 0) * 1%), rgba(255,255,255,.14) 0);
+      -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
+    #loader[data-style="ring"] .bar2 i { display: none; }
+    #loader[data-style="pulse"] .ld-logo > * { animation: ldin .6s cubic-bezier(.2,1.3,.4,1), ldpulse 1.4s ease-in-out .6s infinite; }
+    #loader[data-style="pulse"] .bar2 { height: 3px; }
+    @keyframes ldpulse { 50% { transform: scale(1.05); filter: drop-shadow(0 0 26px var(--ld-color)); } }
     @media (max-width: 700px) and (orientation: landscape) { .bar { gap: 8px; padding: 0 10px; } .stat small { font-size: 9px; } .chip { width: 32px; height: 32px; font-size: 14px; } #hud { --spin-size: 66px; } }
   </style>
 </head>
@@ -496,7 +526,7 @@
   <div id="bg"></div>
   <div id="stage"></div>
   <div id="hud"></div>
-  <div id="loader"><div><div id="loadText">Cargando…</div><div class="bar2"><i id="loadBar"></i></div></div></div>
+  <div id="loader"><div class="ld"><div class="ld-logo" id="ldLogo"></div><div class="ld-tag" id="ldTag"></div><div id="loadText">Cargando…</div><div class="bar2"><i id="loadBar"></i></div></div></div>
 
   <script type="module">
     import { GameApi } from '/game-engines/shared/api.js';
@@ -504,7 +534,31 @@
 
     const loadText = document.getElementById('loadText');
     const loadBar = document.getElementById('loadBar');
-    const progress = (p, t) => { loadBar.style.width = `${Math.round(p * 100)}%`; if (t) loadText.textContent = t; };
+    const loaderEl = document.getElementById('loader');
+    const progress = (p, t) => { loadBar.style.width = `${Math.round(p * 100)}%`; loaderEl.style.setProperty('--p', String(Math.round(p * 100))); if (t) loadText.textContent = t; };
+
+    /** Pantalla de carga con la marca: logo (imagen, GIF o video), fondo, color, frase y estilo. */
+    function applyBrand(b) {
+      if (!b) return 0;
+      const st = loaderEl.style;
+      if (b.bg) st.setProperty('--ld-bg', b.bg);
+      if (b.bgImage) loaderEl.style.backgroundImage = `url("${String(b.bgImage).replace(/"/g, '%22')}")`;
+      if (b.color) st.setProperty('--ld-color', b.color);
+      loaderEl.dataset.style = b.loader || 'bar';
+      const logo = document.getElementById('ldLogo');
+      if (b.logo) {
+        const isVid = /\.(mp4|webm)(\?|$)/i.test(b.logo);
+        const el = document.createElement(isVid ? 'video' : 'img');
+        if (isVid) Object.assign(el, { autoplay: true, muted: true, loop: true, playsInline: true }); else el.alt = b.name || '';
+        el.src = b.logo;
+        logo.replaceChildren(el);
+      } else {
+        const t = document.createElement('b'); t.textContent = b.name || ''; logo.replaceChildren(t);
+      }
+      document.getElementById('ldTag').textContent = b.tagline || '';
+      loaderEl.classList.add('branded');
+      return Number(b.minMs ?? 1500);
+    }
 
     async function boot() {
       const gameId = decodeURIComponent(location.pathname.split('/').filter(Boolean)[1] || '');
@@ -512,6 +566,8 @@
       const api = q.get('token') ? new GameApi({ token: q.get('token') }) : await GameApi.demo(gameId);
       const session = await api.session();
       if (session.gameId !== gameId) throw new Error('La sesión no corresponde a este juego');
+      const t0 = performance.now();
+      const minMs = q.get('edit') === '1' ? 0 : applyBrand(session.brand);
       document.title = session.game.theme?.title || session.game.name;
       const bg = session.game.theme?.backgroundColor;
       if (bg) document.body.style.background = bg;
@@ -546,7 +602,11 @@
           } finally { engine.busy = false; }
         });
       }
-      document.getElementById('loader').remove();
+      // El logo de la marca se ve al menos el tiempo configurado
+      const left = minMs - (performance.now() - t0);
+      if (left > 0) await new Promise((r) => setTimeout(r, left));
+      loaderEl.classList.add('out');
+      setTimeout(() => loaderEl.remove(), 400);
     }
 
     boot().catch((e) => {
