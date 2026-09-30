@@ -44,7 +44,8 @@ before(async () => {
   dir = mkdtempSync(`${tmpdir()}/casino-test-`);
   proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', './tests/helpers/mock-ai.js', 'backend/index.js'], {
     env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ADMIN_TOKEN: 'test-admin', LOG_REQUESTS: '0', ALLOW_HTTP_WALLET: '1',
-      ANTHROPIC_API_KEY: 'x', VENICE_API_KEY: 'x', ELEVENLABS_API_KEY: 'x', PUBLISH_SIM_SPINS: '150000', PUBLISH_MAX_RTP_DEVIATION: '0.02', VARIANT_TUNE_SPINS: '40000' },
+      ANTHROPIC_API_KEY: 'x', VENICE_API_KEY: 'x', ELEVENLABS_API_KEY: 'x', PUBLISH_SIM_SPINS: '150000', PUBLISH_MAX_RTP_DEVIATION: '0.02', VARIANT_TUNE_SPINS: '40000',
+      TUNE_REFINE_MS: '1500', PUBLISH_SIM_BUDGET_MS: '4000', PUBLISH_PRECISION: '0.01' },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve, reject) => {

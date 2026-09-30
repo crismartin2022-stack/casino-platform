@@ -21,6 +21,9 @@ export const config = {
   corsOrigins: (env.CORS_ORIGINS || '*').split(',').map((s) => s.trim()),
   publishMaxRtpDeviation: Number(env.PUBLISH_MAX_RTP_DEVIATION || 0.01),
   publishSimSpins: Number(env.PUBLISH_SIM_SPINS || 500_000),
+  // Certificación al publicar: se simula hasta lograr esta precisión del RTP (±) o agotar el tiempo
+  publishPrecision: Number(env.PUBLISH_PRECISION || 0.004),
+  publishBudgetMs: Number(env.PUBLISH_SIM_BUDGET_MS || 60_000),
 
   anthropic: {
     apiKey: env.ANTHROPIC_API_KEY || '',

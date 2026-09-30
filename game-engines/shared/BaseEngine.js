@@ -586,6 +586,16 @@ export class BaseEngine {
   /** Datos extra de la pantalla de información como [etiqueta, importe] ya calculados para la apuesta (compras de bonus, jackpots…). */
   infoExtras(bet) { return this.game.rules?.buyCost ? [['Comprar giros gratis', this.hud.fmt(Math.round(this.game.rules.buyCost * bet))]] : []; }
 
+  /** Aclaración de cómo se cuentan los premios de la tabla (por línea, por forma, por grupo…). */
+  payNote() {
+    const e = this.game.engine;
+    if (e === 'cluster-pays') return 'Importes por cada GRUPO de símbolos iguales que se tocan. Si hay varios grupos, o cascadas, se suman todos los premios del giro.';
+    if (e === 'scatter-pays') return 'Importes por cantidad de símbolos iguales en cualquier lugar de la pantalla. Cada cascada suma su premio y los multiplicadores lo agrandan.';
+    const lines = this.game.rules?.lines;
+    if (this.payUnit() !== 1 && lines) return `Importes por LÍNEA ganadora: la apuesta se reparte entre las ${lines} líneas. Si ganás en varias líneas en el mismo giro, se suman todas.`;
+    return 'Importes por cada FORMA de ganar: si la combinación se arma de varias maneras (por ejemplo, 2 símbolos iguales en un mismo rodillo), cada forma paga y se suman.' + (e === 'colossal-reels' ? ' Un símbolo COLOSAL ocupa varias filas y multiplica las formas.' : /cascade|reel-rush/.test(e) ? ' Las cascadas suman más premios en el mismo giro.' : '');
+  }
+
   /** Cómo se muestra cada cantidad de la tabla de pagos (los motores de grupos la cambian). */
   payLabel(n) { return `${n}`; }
 
@@ -618,6 +628,7 @@ export class BaseEngine {
       h('p', {}, this.rulesText()),
       extra.length ? h('div', { class: 'info-extra' }, extra.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))) : null,
       maxWin ? h('p', {}, `Premio máximo: ${maxWin.toLocaleString('es')}× la apuesta = `, h('b', {}, this.hud.fmt(Math.round(maxWin * bet))), '.') : null,
+      h('p', { class: 'pay-note' }, this.payNote()),
       h('div', { class: 'paytable' }, rows),
       h('p', { class: 'fine' }, `RTP teórico: ${rtp}. Versión ${this.game.version ?? 'borrador'}. Los resultados se determinan en el servidor con un generador de números aleatorios certificable; el mal funcionamiento anula pagos y jugadas. Juega con responsabilidad.`)));
   }

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { db, one, all, run, tx, audit } from '../db.js';
 import { ROOT, config as appConfig } from '../config.js';
 import { validateConfig, getEngine, ENGINES, buyModesOf } from '../math/index.js';
-import { simulateAsync } from '../math/worker.js';
+import { simulateAsync, pooledParallelAsync } from '../math/worker.js';
 import { runCheck, saveCheck } from './checks.js';
 import { HttpError } from '../lib/http.js';
 
@@ -228,8 +228,9 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
     math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, hitFrequency: a.hitFrequency, exact: true };
   }
   if (!math) {
-    const sim = await simulateAsync(draft, { spins: appConfig.publishSimSpins, seed: Date.now() & 0x7fffffff, timeBudgetMs: 60_000 });
-    math = { rtp: sim.rtp, ci: [sim.rtpLow, sim.rtpHigh], hitFrequency: sim.hitFrequency, featureEvery: sim.featureEvery, volatility: sim.volatility, spins: sim.spins };
+    // Certificación: lotes con semillas nuevas hasta ±publishPrecision (o el tiempo máximo), con al menos publishSimSpins giros.
+    const sim = await pooledParallelAsync(draft, { seed: Date.now() & 0x7fffffff, targetHalf: appConfig.publishPrecision, budgetMs: appConfig.publishBudgetMs, minSpins: appConfig.publishSimSpins, chunk: Math.min(500_000, appConfig.publishSimSpins) });
+    math = { rtp: sim.rtp, ci: [sim.rtpLow, sim.rtpHigh], precision: sim.precision, hitFrequency: sim.hitFrequency, featureEvery: sim.featureEvery, volatility: sim.volatility, spins: sim.spins };
     const dev = Math.abs(sim.rtp - draft.rtpTarget);
     const inCi = draft.rtpTarget >= sim.rtpLow && draft.rtpTarget <= sim.rtpHigh;
     if (dev > appConfig.publishMaxRtpDeviation && !inCi) {

@@ -139,7 +139,7 @@ export function selfTest(config, { plays = 20_000, seed = 777, math = null, rtpS
   if (math?.rejected) {
     add({ id: 'rtp', area: 'Matemática', label: 'RTP', status: 'fail', detail: math.rejected, fix: `Reajustar la tabla de pagos al RTP objetivo ${pct(config.rtpTarget)} (Matemática → Ajustar RTP, o pedírselo al Matemático).`, agent: 'math' });
   } else if (math?.rtp != null) {
-    add({ id: 'rtp', area: 'Matemática', label: 'RTP', detail: `RTP certificado ${pct(math.rtp)} (objetivo ${pct(config.rtpTarget)})${math.spins ? ` con ${math.spins.toLocaleString('es')} giros` : ''}.` });
+    add({ id: 'rtp', area: 'Matemática', label: 'RTP', detail: `RTP certificado ${pct(math.rtp)}${math.precision ? ` ±${(math.precision * 100).toFixed(2)} %` : ''} (objetivo ${pct(config.rtpTarget)})${math.spins ? ` con ${math.spins.toLocaleString('es')} giros` : ''}.` });
   } else {
     const sim = simulate(config, { spins: rtpSpins, seed: seed + 4, timeBudgetMs: 15_000 });
     const off = Math.abs(sim.rtp - config.rtpTarget);
@@ -148,6 +148,9 @@ export function selfTest(config, { plays = 20_000, seed = 777, math = null, rtpS
       ? { id: 'rtp', area: 'Matemática', label: 'RTP', status: 'warn', detail: `Simulado ${pct(sim.rtp)} vs objetivo ${pct(config.rtpTarget)} (${sim.spins.toLocaleString('es')} giros). Al publicar se certifica con más giros y puede rechazarse.`, fix: `Reajustar la tabla de pagos al RTP objetivo ${pct(config.rtpTarget)} (tune_rtp).`, agent: 'math' }
       : { id: 'rtp', area: 'Matemática', label: 'RTP', detail: `Simulado ${pct(sim.rtp)} vs objetivo ${pct(config.rtpTarget)} (${sim.spins.toLocaleString('es')} giros).` });
   }
+  if (math?.precision > 0.005 && !math?.rejected) add({ id: 'rtpPrecision', area: 'Matemática', label: 'Precisión de la certificación', status: 'warn',
+    detail: `El RTP quedó certificado con ±${(math.precision * 100).toFixed(2)} %: este juego es muy volátil y en el tiempo disponible no se llegó a ±0,5 %.`,
+    fix: 'Para dinero real conviene ±0,5 % o menos: dar más tiempo a la certificación (PUBLISH_SIM_BUDGET_MS) o más núcleos al servidor (SIM_THREADS), y volver a publicar.', agent: null });
   if (!(config.rtpTarget <= 1)) add({ id: 'rtpOver', area: 'Matemática', label: 'RTP por encima de 100 %', status: 'warn', detail: 'El juego devuelve más de lo que recauda.', fix: 'Solo para promociones o demo: para dinero real usar un RTP ≤ 100 %.', agent: 'math' });
   void cost;
   return { checks, ms: Date.now() - t0 };
