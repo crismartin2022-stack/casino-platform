@@ -6,7 +6,7 @@ import { HttpError } from '../lib/http.js';
 
 const out = (b) => b && ({
   id: b.id, name: b.name, logo: b.logo, tagline: b.tagline, color: b.color, bg: b.bg, bgImage: b.bg_image,
-  loader: b.loader || 'bar', minMs: b.min_ms, createdAt: b.created_at,
+  loader: b.loader || 'bar', minMs: b.min_ms, font: b.font || null, fontUrl: b.font_url || null, createdAt: b.created_at,
   games: one('SELECT COUNT(*) AS n FROM games WHERE brand_id = ?', b.id).n,
 });
 
@@ -22,7 +22,7 @@ export function getBrand(id) {
 export function publicBrand(id) {
   if (!id) return null;
   const b = one('SELECT * FROM brands WHERE id = ?', id);
-  return b ? { name: b.name, logo: b.logo, tagline: b.tagline, color: b.color, bg: b.bg, bgImage: b.bg_image, loader: b.loader || 'bar', minMs: b.min_ms } : null;
+  return b ? { name: b.name, logo: b.logo, tagline: b.tagline, color: b.color, bg: b.bg, bgImage: b.bg_image, loader: b.loader || 'bar', minMs: b.min_ms, font: b.font || null, fontUrl: b.font_url || null } : null;
 }
 
 const clean = (p, cur = {}) => {
@@ -40,6 +40,8 @@ const clean = (p, cur = {}) => {
     bg_image: p.bgImage !== undefined ? (p.bgImage || null) : cur.bg_image ?? null,
     loader: loader || 'bar',
     min_ms: p.minMs !== undefined ? Math.max(0, Math.min(6000, Math.round(Number(p.minMs) || 0))) : cur.min_ms ?? 1500,
+    font: p.font !== undefined ? (String(p.font || '').replace(/['"<>;]/g, '').trim().slice(0, 60) || null) : cur.font ?? null,
+    font_url: p.fontUrl !== undefined ? (p.fontUrl || null) : cur.font_url ?? null,
   };
 };
 
@@ -47,8 +49,8 @@ export function createBrand(p, actor = 'admin') {
   const b = clean(p);
   if (one('SELECT id FROM brands WHERE name = ? COLLATE NOCASE', b.name)) throw new HttpError(409, 'Ya existe una marca con ese nombre');
   const id = `br_${randomBytes(6).toString('base64url')}`;
-  run('INSERT INTO brands (id, name, logo, tagline, color, bg, bg_image, loader, min_ms) VALUES (?,?,?,?,?,?,?,?,?)',
-    id, b.name, b.logo, b.tagline, b.color, b.bg, b.bg_image, b.loader, b.min_ms);
+  run('INSERT INTO brands (id, name, logo, tagline, color, bg, bg_image, loader, min_ms, font, font_url) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    id, b.name, b.logo, b.tagline, b.color, b.bg, b.bg_image, b.loader, b.min_ms, b.font, b.font_url);
   audit(actor, 'brand.create', id, { name: b.name });
   return getBrand(id);
 }
@@ -58,8 +60,8 @@ export function updateBrand(id, p, actor = 'admin') {
   if (!cur) throw new HttpError(404, 'Marca no encontrada');
   const b = clean(p, cur);
   if (one('SELECT id FROM brands WHERE name = ? COLLATE NOCASE AND id <> ?', b.name, id)) throw new HttpError(409, 'Ya existe una marca con ese nombre');
-  run('UPDATE brands SET name = ?, logo = ?, tagline = ?, color = ?, bg = ?, bg_image = ?, loader = ?, min_ms = ? WHERE id = ?',
-    b.name, b.logo, b.tagline, b.color, b.bg, b.bg_image, b.loader, b.min_ms, id);
+  run('UPDATE brands SET name = ?, logo = ?, tagline = ?, color = ?, bg = ?, bg_image = ?, loader = ?, min_ms = ?, font = ?, font_url = ? WHERE id = ?',
+    b.name, b.logo, b.tagline, b.color, b.bg, b.bg_image, b.loader, b.min_ms, b.font, b.font_url, id);
   audit(actor, 'brand.update', id, p);
   return getBrand(id);
 }

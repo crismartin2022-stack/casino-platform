@@ -90,6 +90,7 @@ export class BaseEngine {
       const f = M[`${k}Font`], u = M[`${k}FontUrl`];
       if (f && u) await loadFontFile(f, u); else if (f) await loadFont(f);
     }
+    if (t.infoFont) { if (t.infoFontUrl) await loadFontFile(t.infoFont, t.infoFontUrl); else await loadFont(t.infoFont); }
     if (t.messages?.font) { if (t.messages.fontUrl) await loadFontFile(t.messages.font, t.messages.fontUrl); else await loadFont(t.messages.font); }
     for (const st of Object.values(t.messages?.styles || {})) {
       if (st?.fontUrl) await loadFontFile(st.font, st.fontUrl); else if (st?.font) await loadFont(st.font);

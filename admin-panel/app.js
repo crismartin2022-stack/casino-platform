@@ -886,6 +886,9 @@ async function tabDesign(v) {
     ${t[k] ? thumb(t[k]) : '<span class="muted">Sin imagen</span>'}
     <button class="small" data-img="${k}">Elegir…</button>${t[k] ? `<button class="small danger" data-clear="${k}">Quitar</button>` : ''}</div></div>`;
   const curUi = t.hud?.layout || 'pill';
+  const fontRow = (k, label) => `<div><label>${label} ${t[`${k}Url`] ? '<span class="badge ok">archivo propio</span>' : ''}</label>
+    <input id="f-${k}" list="dFontList" value="${esc(t[k] || '')}" placeholder="La del juego" ${t[`${k}Url`] ? 'readonly' : ''} />
+    <div class="row" style="margin-top:6px"><button class="small" data-fkup="${k}">Subir tipografía…</button>${t[k] ? `<button class="small danger" data-fkx="${k}">Quitar</button>` : ''}</div></div>`;
   const slider = (id, label, val, min, max, step, unit) => `<div><label>${label} (<span id="${id}V">${unit === '%' ? Math.round(val * 100) : val}</span> ${unit})</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-unit="${unit}" /></div>`;
   const isTableGame = engineInfo(S.game.engine).kind === 'table';
   v.innerHTML = `<div class="stack">
@@ -902,7 +905,9 @@ async function tabDesign(v) {
         <div><label>Tipografía del juego ${t.fontUrl ? '<span class="badge ok">archivo propio</span>' : '(Google Fonts)'}</label><input id="dFont" value="${esc(t.font)}" placeholder="Bungee, Cinzel Decorative, Orbitron…" ${t.fontUrl ? 'readonly' : ''} />
           <div class="row" style="margin-top:6px"><button class="small" data-fontup="theme">Subir tipografía…</button>${t.fontUrl ? '<button class="small danger" data-fontclear="theme">Quitar archivo</button>' : ''}</div></div>
         <div><label>Color de fondo</label><input type="color" id="dBg" value="${esc(t.backgroundColor || '#000000')}" /></div>
-      </div></div>
+        ${fontRow('infoFont', 'Tipografía de la pantalla de información (reglas, tabla de premios, menú e historial)')}
+        ${isTableGame ? fontRow('tableFont', 'Tipografía de los textos de la mesa (apuestas, fichas, botones)') : ''}
+      </div>${fontDatalist('dFontList')}</div>
     <div class="card stack"><h3 style="margin:0">Paleta</h3><div class="grid2">
       ${color('primary', 'Principal (botón girar)')}${color('accent', 'Acento (marcos, premios)')}${color('panel', 'Panel inferior')}${color('text', 'Texto')}${color('reelBg', 'Fondo de rodillos')}
     </div></div>
@@ -1001,6 +1006,19 @@ async function tabDesign(v) {
     await patchDraft(['logoScale', 'logoOffsetY', 'logoOffsetYMobile', 'frameOffsetY', 'frameOffsetYMobile'].map((k) => ({ op: 'set', path: `theme.${k}`, value: null })), 'Logo y marco en su posición original');
     renderTab();
   }));
+  $$('[data-fkup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const a = await pickAsset('font');
+    if (!a) return;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=font`)).find((x) => x.url === a) : a;
+    const k = b.dataset.fkup;
+    await patchDraft([{ op: 'set', path: `theme.${k}`, value: fontFamilyOf(asset || { filename: 'Fuente propia' }) }, { op: 'set', path: `theme.${k}Url`, value: asset?.url || a }], 'Tipografía aplicada');
+    renderTab();
+  })));
+  $$('[data-fkx]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.dataset.fkx;
+    await patchDraft([{ op: 'set', path: `theme.${k}`, value: null }, { op: 'set', path: `theme.${k}Url`, value: null }], 'Tipografía quitada');
+    renderTab();
+  })));
   bindMetersCard(v);
   bindDiceCard(v);
   bindCustomHudCard(v);
@@ -1028,6 +1046,7 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.title', value: $('#dTitle').value },
       { op: 'set', path: 'theme.font', value: $('#dFont').value },
       { op: 'set', path: 'theme.backgroundColor', value: $('#dBg').value },
+      ...['infoFont', 'tableFont'].filter((k) => $(`#f-${k}`) && !$(`#f-${k}`).readOnly).map((k) => ({ op: 'set', path: `theme.${k}`, value: $(`#f-${k}`).value.trim() || null })),
       { op: 'merge', path: 'theme.palette', value: palette },
       { op: 'set', path: 'theme.symbolScale', value: Number($('#lScale').value) },
       { op: 'set', path: 'theme.cellGap', value: Number($('#lGap').value) },
@@ -2181,11 +2200,22 @@ async function newOwnGame() {
 }
 
 // ------------------------------------------------------------------ Marcas (estudios)
+/** Carga en el panel una tipografía (archivo propio o Google Fonts) para verla en las vistas previas. */
+function panelFont(name, url) {
+  if (!name) return;
+  if (url && typeof FontFace !== 'undefined') { new FontFace(name, `url("${url}")`).load().then((f) => document.fonts.add(f)).catch(() => {}); return; }
+  const id = `gf-${name.replace(/\W+/g, '-')}`;
+  if (!document.getElementById(id)) document.head.append(Object.assign(document.createElement('link'), { id, rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@400;700;900&display=swap` }));
+}
+const FONT_SUGGESTIONS = ['Cinzel', 'Cinzel Decorative', 'Bungee', 'Orbitron', 'Russo One', 'Oswald', 'Anton', 'Bebas Neue', 'Righteous', 'Luckiest Guy', 'Rye', 'Uncial Antiqua', 'Pirata One', 'Black Ops One', 'Teko', 'Rajdhani', 'Playfair Display', 'Abril Fatface', 'Alfa Slab One', 'Titan One', 'Lilita One', 'Press Start 2P'];
+const fontDatalist = (id) => `<datalist id="${id}">${FONT_SUGGESTIONS.map((f) => `<option value="${f}">`).join('')}</datalist>`;
+
 function loaderPreview(b) {
+  if (b.font) panelFont(b.font, b.fontUrl);
   const isVid = /\.(mp4|webm)(\?|$)/i.test(b.logo || '');
   const logo = b.logo ? (isVid ? `<video src="${esc(b.logo)}" muted autoplay loop playsinline></video>` : `<img src="${esc(b.logo)}" alt="" />`) : `<b style="color:${esc(b.color || '#ffd460')}">${esc(b.name || 'Marca')}</b>`;
   const bar = b.loader === 'ring' ? `<div class="lp-ring" style="--c:${esc(b.color || '#ffd460')}"></div>` : `<div class="lp-bar" style="--c:${esc(b.color || '#ffd460')};${b.loader === 'pulse' ? 'height:3px' : ''}"><i></i></div>`;
-  return `<div class="lp ${b.loader === 'pulse' ? 'pulse' : ''}" style="background:${esc(b.bg || '#05060c')} ${b.bgImage ? `url('${esc(b.bgImage)}') center/cover` : ''}">
+  return `<div class="lp ${b.loader === 'pulse' ? 'pulse' : ''}" style="${b.font ? `font-family:'${esc(b.font)}',system-ui;` : ''}background:${esc(b.bg || '#05060c')} ${b.bgImage ? `url('${esc(b.bgImage)}') center/cover` : ''}">
     <div class="lp-logo">${logo}</div>${b.tagline ? `<div class="lp-tag">${esc(b.tagline)}</div>` : ''}<div class="lp-txt">Cargando…</div>${bar}</div>`;
 }
 
@@ -2212,17 +2242,28 @@ VIEWS.brands = async function viewBrands(v, openId = null) {
           <div><label>Color de fondo</label><input type="color" id="bBgColor" value="${esc(cur.bg || '#05060c')}" /></div>
           <div><label>Color de la marca (barra de carga)</label><input type="color" id="bColor" value="${esc(cur.color || '#ffd460')}" /></div>
           <div><label>Estilo de carga</label><select id="bLoader">${[['bar', 'Barra'], ['ring', 'Anillo'], ['pulse', 'Logo que late + línea']].map(([k, l]) => `<option value="${k}" ${cur.loader === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div><label>Tipografía del nombre y la frase <span id="bFontBadge" class="badge ok" ${cur.fontUrl ? '' : 'hidden'}>archivo propio</span></label><input id="bFont" list="bFontList" value="${esc(cur.font || '')}" placeholder="Ej. Cinzel Decorative" ${cur.fontUrl ? 'readonly' : ''} />
+            <div class="row" style="margin-top:6px"><button class="small" id="bFontUp">Subir tipografía…</button><button class="small danger" id="bFontX" ${cur.font ? '' : 'hidden'}>Quitar</button></div>${fontDatalist('bFontList')}</div>
           <div><label>Tiempo mínimo del logo (<span id="bMinV">${(cur.minMs / 1000).toFixed(1)}</span> s)</label><input type="range" id="bMin" min="0" max="6000" step="250" value="${cur.minMs}" /></div>
         </div>
         <div class="row"><button class="primary" id="bSave">${b ? 'Guardar marca' : 'Crear marca'}</button><button class="ghost" id="bCancel">Cancelar</button></div>
       </div><div><label>Vista previa de la carga</label><div id="bPrev"></div></div></div></div>`;
-    const read = () => ({ ...cur, name: $('#bName').value, tagline: $('#bTag').value, bg: $('#bBgColor').value, color: $('#bColor').value, loader: $('#bLoader').value, minMs: Number($('#bMin').value) });
+    const read = () => ({ ...cur, font: $('#bFont').value.trim() || null, fontUrl: $('#bFont').value.trim() ? cur.fontUrl || null : null, name: $('#bName').value, tagline: $('#bTag').value, bg: $('#bBgColor').value, color: $('#bColor').value, loader: $('#bLoader').value, minMs: Number($('#bMin').value) });
     const redraw = () => { $('#bPrev').innerHTML = loaderPreview(read()); $('#bMinV').textContent = (Number($('#bMin').value) / 1000).toFixed(1); };
     $$('#bEditor input, #bEditor select').forEach((i) => i.addEventListener('input', redraw));
     $('#bLogo').addEventListener('click', guard(async () => { const u = await pickAsset('image', { animated: true }); if (u) { cur.logo = u; $('#bLogoTxt').textContent = 'Cargado'; $('#bLogoClear').hidden = false; redraw(); } }));
     $('#bLogoClear').addEventListener('click', () => { cur.logo = null; $('#bLogoTxt').textContent = 'Sin logo (se muestra el nombre)'; $('#bLogoClear').hidden = true; redraw(); });
     $('#bBg').addEventListener('click', guard(async () => { const u = await pickAsset('image'); if (u) { cur.bgImage = u; $('#bBgTxt').textContent = 'Cargada'; $('#bBgClear').hidden = false; redraw(); } }));
     $('#bBgClear').addEventListener('click', () => { cur.bgImage = null; $('#bBgTxt').textContent = 'Sin imagen'; $('#bBgClear').hidden = true; redraw(); });
+    $('#bFontUp').addEventListener('click', guard(async () => {
+      const a = await pickAsset('font');
+      if (!a) return;
+      const asset = typeof a === 'string' ? (await api('/api/admin/assets?gameId=&kind=font')).find((x) => x.url === a) : a;
+      cur.font = fontFamilyOf(asset || { filename: 'Fuente propia' }); cur.fontUrl = asset?.url || a;
+      Object.assign($('#bFont'), { value: cur.font, readOnly: true }); $('#bFontBadge').hidden = false; $('#bFontX').hidden = false; redraw();
+    }));
+    $('#bFontX').addEventListener('click', () => { cur.font = null; cur.fontUrl = null; Object.assign($('#bFont'), { value: '', readOnly: false }); $('#bFontBadge').hidden = true; $('#bFontX').hidden = true; redraw(); });
+    $('#bFont').addEventListener('change', () => { panelFont($('#bFont').value.trim()); setTimeout(redraw, 500); });
     $('#bCancel').addEventListener('click', () => { $('#bEditor', v).innerHTML = ''; });
     $('#bSave').addEventListener('click', guard(async () => {
       const body = read();

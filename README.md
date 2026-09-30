@@ -107,6 +107,7 @@ Todas toman los colores de la paleta del juego y funcionan en PC y celular; los 
 - **Colosal en giros gratis** (Titanes Colosales): `rules.fsColossalChance` (Matemática → «Colosal en los giros gratis», 0–100 %; 100 % = garantizado). El subtítulo del cartel de entrada al bonus se edita en Carteles → Textos (`texts.bonusSub`; «-» lo oculta).
 - **Tabla de premios con el total**: cada combinación se muestra como «5 iguales ··· $ 182,23» (el importe ya es el premio total para la apuesta elegida), y los precios de compra de giros gratis aparecen en dinero.
 - **Tipografía de todos los carteles**: en Carteles y mensajes, «Tipografía de todos los carteles» (Google Fonts o archivo propio, `theme.messages.font` / `fontUrl`); cada cartel puede tener la suya.
+- **Más tipografías**: pantalla de información, menú e historial (Diseño → Identidad, `theme.infoFont`), textos de la mesa en Dados de Oro (`theme.tableFont`) y nombre y frase de la marca en la pantalla de carga (Marcas → Tipografía). Todas aceptan Google Fonts o un archivo propio.
 - **Eliminar un juego** (Versiones → 🗑 Eliminar juego): con confirmación escribiendo el nombre; no se permite si tuvo jugadas con dinero real (se conservan para auditoría: en ese caso, desactivarlo).
 - **Vista previa en el celular**: el botón **↗ Abrir** la abre en su propia pestaña a pantalla completa.
 - **Logo y marco**: tamaño del logo y posición vertical del logo y del marco, por separado en PC y celular (`theme.logoScale`, `theme.logoOffsetY`, `theme.logoOffsetYMobile`, `theme.frameOffsetY`, `theme.frameOffsetYMobile`).
