@@ -6,14 +6,19 @@ import {
 
 export const id = 'colossal-reels';
 export const name = 'Colossal Reels';
-export const description = '5x4 con símbolos gigantes 2x2 y 3x3 renderizados en 3D; giros gratis con colosal garantizado.';
+export const description = '5x4 con símbolos gigantes 2x2 y 3x3 renderizados en 3D; giros gratis con colosales (garantizado en cada giro, ajustable con rules.fsColossalChance).';
 
 function colossalSpin(config, rng, syms, forceColossal) {
   const R = config.rules;
   const rows = config.grid.rows;
   const { stops, grid } = spinStrips(rng, config.reels, rows);
   let colossal = null;
-  if (forceColossal || rng.int(1_000_000) < R.colossalChance * 1_000_000) {
+  // En giros gratis el colosal sale con rules.fsColossalChance (1 o sin definir = garantizado en cada giro, sin tirar el RNG,
+  // igual que siempre: así las rondas ya jugadas se siguen reproduciendo exactamente).
+  const fsChance = R.fsColossalChance ?? 1;
+  const guaranteed = forceColossal && fsChance >= 1;
+  const chance = forceColossal ? fsChance : R.colossalChance;
+  if (guaranteed || rng.int(1_000_000) < chance * 1_000_000) {
     const { size } = weightedPick(rng, R.colossalSizes);
     const symbol = weightedPick(rng, R.colossalSymbols).symbol;
     // Nunca en el rodillo 1: así el colosal "completa" formas en vez de crearlas solo.
@@ -58,6 +63,7 @@ export function validate(config) {
     if (s.size > g.rows || s.size > g.reels - 1) errors.push(`Un colosal de ${s.size}x${s.size} no entra en ${g.reels} rodillos x ${g.rows} filas`);
   }
   if (!(R.colossalChance >= 0 && R.colossalChance <= 1)) errors.push('rules.colossalChance debe estar entre 0 y 1');
+  if (R.fsColossalChance != null && !(R.fsColossalChance >= 0 && R.fsColossalChance <= 1)) errors.push('rules.fsColossalChance (colosal en giros gratis) debe estar entre 0 y 1');
   if (!Array.isArray(R.colossalSizes) || R.colossalSizes.some((s) => ![2, 3].includes(s.size) || !(s.weight > 0))) {
     errors.push('rules.colossalSizes debe ser [{size: 2|3, weight > 0}]');
   }

@@ -10,7 +10,7 @@ import { getEngine } from '../math/index.js';
 
 const STATIC = ['game-engines', 'play', 'admin-panel', 'client-sdk', 'docs'];
 const HEAVY_MB = 15;
-const TEXT_VARS = { freeSpins: ['n'], spinOf: ['i', 'n'], respins: ['n'], multiplier: ['x'] };
+const TEXT_VARS = { freeSpins: ['n'], spinOf: ['i', 'n'], respins: ['n'], multiplier: ['x'], bonusSub: [] };
 const AGENT_NAMES = { director: 'Director', designer: 'Diseñador', artist: 'Artista', sound: 'Sonido', math: 'Matemático' };
 
 /** Recorre un objeto y devuelve [ruta, valor] de cada texto que parece un archivo o URL. */
@@ -121,6 +121,18 @@ export function designChecks(config, { gameId, brandId } = {}) {
       ? { id: 'hud', area: 'Botonera', label: 'Botonera dentro de la pantalla', status: 'warn', detail: `Quedan fuera o cortados: ${out.join(', ')}.`, fix: 'Abrir el editor de la botonera y mover esos botones dentro de la pantalla.', agent: 'designer' }
       : { id: 'hud', area: 'Botonera', label: 'Botonera dentro de la pantalla', detail: 'Todos los botones visibles en PC y móvil.' });
   }
+
+  // Monedas de los operadores: sin fichas propias, el juego usaría los mismos números de la moneda base
+  // (1,00 USD pasaría a ser 1,00 ARS) y la tabla de premios mostraría importes diminutos.
+  const baseCur = String(config.bet?.currency || 'USD').toUpperCase();
+  const own = new Set(Object.keys(config.bet?.byCurrency || {}).map((c) => c.toUpperCase()));
+  const opCurs = all('SELECT currency, GROUP_CONCAT(name, \', \') AS names FROM operators WHERE active = 1 GROUP BY currency')
+    .filter((r) => r.currency && r.currency.toUpperCase() !== baseCur && !own.has(r.currency.toUpperCase()));
+  add(opCurs.length
+    ? { id: 'currencies', area: 'Apuestas', label: 'Fichas en la moneda de cada operador', status: 'warn',
+      detail: opCurs.map((r) => `${r.currency} (${r.names}): usaría las fichas de ${baseCur} sin convertir, p. ej. ${((config.bet?.levels?.[0] || 0) / 100).toFixed(2)} ${r.currency}`).join(' · '),
+      fix: `Cargar las fichas en ${opCurs.map((r) => r.currency).join(', ')} en Matemática → 💱 Apuestas por moneda (el botón «Sugerir fichas» las convierte).`, agent: 'math' }
+    : { id: 'currencies', area: 'Apuestas', label: 'Fichas en la moneda de cada operador', detail: own.size ? `Fichas propias en ${[...own].join(', ')}.` : `Todos los operadores usan ${baseCur}.` });
 
   // Marca
   const brand = brandId ? one('SELECT * FROM brands WHERE id = ?', brandId) : null;

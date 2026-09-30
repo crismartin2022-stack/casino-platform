@@ -220,12 +220,28 @@ $('#previewBtn').addEventListener('click', guard(async () => {
   await reloadPreview(true);
 }));
 $('#reloadPreview').addEventListener('click', () => reloadPreview(true));
+// En el celular conviene jugar la vista previa en su propia pestaña: ocupa toda la pantalla y no se amplía por error
+$('#openPreview').addEventListener('click', guard(async () => {
+  if (!S.previewToken) S.previewToken = (await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/preview-session`, { method: 'POST', body: { currency: S.previewCur } })).token;
+  window.open(`/play/${encodeURIComponent(S.gameId)}?token=${encodeURIComponent(S.previewToken)}&t=${Date.now()}`, '_blank');
+}));
 $('#closePreview').addEventListener('click', () => { $('#previewPane').hidden = true; $('#previewFrame').src = 'about:blank'; });
+
+/** Monedas para la vista previa: la base del juego y las que tienen fichas propias (💱 Apuestas por moneda). */
+function fillPreviewCurrencies() {
+  const B = S.game?.draft?.bet || {};
+  const list = [String(B.currency || 'USD').toUpperCase(), ...Object.keys(B.byCurrency || {}).map((c) => c.toUpperCase())].filter((c, i, a) => a.indexOf(c) === i);
+  if (!list.includes(S.previewCur)) S.previewCur = list[0];
+  $('#previewCur').innerHTML = list.map((c) => `<option ${c === S.previewCur ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  $('#previewCur').hidden = list.length < 2;
+}
+$('#previewCur').addEventListener('change', (e) => { S.previewCur = e.target.value; reloadPreview(true); });
 
 async function reloadPreview(force = false) {
   if ($('#previewPane').hidden && !force) return;
+  fillPreviewCurrencies();
   if (!S.previewToken || force) {
-    const s = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/preview-session`, { method: 'POST' });
+    const s = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/preview-session`, { method: 'POST', body: { currency: S.previewCur } });
     S.previewToken = s.token;
   }
   $('#previewFrame').src = `/play/${encodeURIComponent(S.gameId)}?token=${encodeURIComponent(S.previewToken)}&t=${Date.now()}`;
@@ -397,7 +413,11 @@ async function openHudEditor(orientation) {
 const MSG_KINDS = [['win', 'Premio'], ['big', 'Gran premio y mega premio'], ['feature', 'Bonus: entrada y total'], ['status', 'Contador (giros gratis, re-giros…)']];
 const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe)', ''], ['bigWin', 'Gran premio', 'GRAN PREMIO'], ['megaWin', 'Mega premio', '¡MEGA PREMIO!'],
   ['freeSpins', 'Entrada a giros gratis ({n} = cantidad)', '{n} GIROS GRATIS'], ['spinOf', 'Contador ({i} = giro actual, {n} = total)', 'GIRO GRATIS {i}/{n}'],
+  ['bonusSub', 'Subtítulo de la entrada al bonus (vacío = el automático del juego; «-» = sin subtítulo)', 'Automático'],
   ['bonusTotal', 'Total del bonus', 'TOTAL DEL BONUS'], ['respins', 'Re-giros ({n} = restantes)', 'RE-GIROS: {n}'], ['holdWin', 'Entrada Hold & Win', 'HOLD & WIN']];
+// Subtítulo automático de la entrada al bonus en cada motor (se puede reemplazar en Carteles → Textos)
+const BONUS_SUB = { 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
+  'expanding-symbol': 'SÍMBOLO ESPECIAL: …', megaways: '¡BONUS!', 'hold-win': 'N MONEDAS · 3 RE-GIROS', 'sticky-wilds': 'COMODINES FIJOS / CAMINANTES', 'scatter-pays': 'LOS MULTIPLICADORES SE ACUMULAN' };
 const PARTICLES = [['', 'Según la interfaz'], ['none', 'Ninguna'], ['confeti', 'Confeti'], ['monedas', 'Monedas'], ['estrellas', 'Estrellas'], ['gemas', 'Gemas'], ['burbujas', 'Burbujas']];
 const ANIMS = [['pop', 'Rebote'], ['zoom', 'Zoom desde lejos'], ['slide', 'Sube desde abajo'], ['flip', 'Giro 3D'], ['fade', 'Aparece suave'], ['shake', 'Rebote + temblor'], ['none', 'Sin animación']];
 
@@ -428,7 +448,7 @@ function messagesCard(t) {
     <p class="muted">Diseña los avisos del juego: premio, gran premio, entrada y total del bonus y el contador de giros gratis. Cada uno puede llevar una imagen o GIF de fondo, colores, tipografía, tamaño, animación y partículas. «▶ Probar» lo muestra en la vista previa.</p>
     ${MSG_KINDS.map(row).join('')}
     <div class="card stack" style="background:var(--panel2)"><b>Textos</b><div class="grid2">
-      ${MSG_TEXTS.map(([k, l, d]) => `<div><label>${l}</label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(d || '(solo el importe)')}" /></div>`).join('')}
+      ${MSG_TEXTS.map(([k, l, d]) => `<div><label>${l}</label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(k === 'bonusSub' ? `Automático: ${BONUS_SUB[S.game.engine] || '—'}` : d || '(solo el importe)')}" /></div>`).join('')}
       <div><label>«Gran premio» desde (× la apuesta)</label><input id="mBig" type="number" min="2" max="1000" value="${M.thresholds?.big ?? 15}" style="width:110px" /></div>
       <div><label>«Mega premio» desde (× la apuesta)</label><input id="mMega" type="number" min="3" max="5000" value="${M.thresholds?.mega ?? 50}" style="width:110px" /></div>
     </div></div>
@@ -1018,7 +1038,10 @@ async function tabDesign(v) {
 // ---- Marcadores de la botonera (SALDO / APUESTA / PREMIO) ----
 function metersCard(M, p) {
   const L = M.labels || {};
-  const box = !!(M.bg || M.border || M.bgImage);
+  const boxMode = M.box === 'none' ? 'none' : (M.bg || M.border || M.bgImage) ? 'custom' : 'theme';
+  const fontField = (k, label, ph) => `<div><label>${label} ${M[`${k}FontUrl`] ? '<span class="badge ok">archivo propio</span>' : ''}</label>
+      <input id="mF${k}" list="mFontList" value="${esc(M[`${k}Font`] || '')}" placeholder="${ph}" ${M[`${k}FontUrl`] ? 'readonly' : ''} />
+      <div class="row" style="margin-top:6px"><button class="small" data-mfontup="${k}">Subir tipografía…</button>${M[`${k}Font`] ? `<button class="small danger" data-mfontx="${k}">Quitar</button>` : ''}</div></div>`;
   const colors = !!(M.labelColor || M.valueColor || M.winColor);
   const bgHex = (M.bg || '#000000b8').slice(0, 7), bgA = M.bg && M.bg.length === 9 ? parseInt(M.bg.slice(7), 16) / 255 : 0.72;
   return `<div class="card stack" id="mCard"><h3 style="margin:0">Saldo, apuesta y premio</h3>
@@ -1035,13 +1058,19 @@ function metersCard(M, p) {
       <div><label>Color del número</label><input type="color" id="mCv" value="${esc(M.valueColor || p.text || '#ffffff')}" /></div>
       <div><label>Color del número de PREMIO</label><input type="color" id="mCw" value="${esc(M.winColor || p.accent || '#ffd460')}" /></div>
       <div></div>
-      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="mBox" style="width:auto" ${box ? 'checked' : ''} /> Recuadro</label>
+      ${fontField('label', 'Tipografía de los títulos', 'La de la botonera')}
+      ${fontField('value', 'Tipografía de los números', 'La de la botonera')}
+      <datalist id="mFontList">${['Cinzel', 'Cinzel Decorative', 'Bungee', 'Orbitron', 'Russo One', 'Oswald', 'Anton', 'Bebas Neue', 'Righteous', 'Luckiest Guy', 'Rye', 'Uncial Antiqua', 'Pirata One', 'Black Ops One', 'Teko', 'Rajdhani', 'Playfair Display', 'Abril Fatface', 'Alfa Slab One', 'Titan One', 'Lilita One', 'Press Start 2P'].map((f) => `<option value="${f}">`).join('')}</datalist>
+      <div><label>Recuadro</label><select id="mBoxMode">
+        <option value="theme" ${boxMode === 'theme' ? 'selected' : ''}>El de la interfaz</option>
+        <option value="none" ${boxMode === 'none' ? 'selected' : ''}>Sin recuadro (se ve tu tablero o fondo)</option>
+        <option value="custom" ${boxMode === 'custom' ? 'selected' : ''}>Personalizado (colores e imagen de abajo)</option></select></div>
       <div></div>
-      <div><label>Fondo del recuadro</label><input type="color" id="mBg" value="${esc(bgHex)}" /></div>
-      <div><label>Opacidad del fondo (<span id="mBaV">${Math.round(bgA * 100)}</span> %)</label><input id="mBa" type="range" min="0" max="1" step="0.05" value="${bgA}" /></div>
-      <div><label>Borde del recuadro</label><input type="color" id="mBd" value="${esc(M.border || p.accent || '#ffd460')}" /></div>
-      <div><label>Esquinas (<span id="mRV">${M.radius ?? 10}</span> px)</label><input id="mR" type="range" min="0" max="40" step="1" value="${M.radius ?? 10}" /></div>
-      <div><label>Imagen del recuadro <span class="muted">(opcional)</span></label><div class="row">${M.bgImage ? `<img src="${esc(M.bgImage)}" style="height:40px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
+      <div class="mcustom"><label>Fondo del recuadro</label><input type="color" id="mBg" value="${esc(bgHex)}" /></div>
+      <div class="mcustom"><label>Opacidad del fondo (<span id="mBaV">${Math.round(bgA * 100)}</span> %)</label><input id="mBa" type="range" min="0" max="1" step="0.05" value="${bgA}" /></div>
+      <div class="mcustom"><label>Borde del recuadro</label><input type="color" id="mBd" value="${esc(M.border || p.accent || '#ffd460')}" /></div>
+      <div class="mcustom"><label>Esquinas (<span id="mRV">${M.radius ?? 10}</span> px)</label><input id="mR" type="range" min="0" max="40" step="1" value="${M.radius ?? 10}" /></div>
+      <div class="mcustom"><label>Imagen del recuadro <span class="muted">(opcional)</span></label><div class="row">${M.bgImage ? `<img src="${esc(M.bgImage)}" style="height:40px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
         <button class="small" id="mImg">Elegir…</button>${M.bgImage ? '<button class="small danger" id="mImgX">Quitar</button>' : ''}</div></div>
     </div>
     <div class="row"><button class="small" id="mReset">Volver al estilo de la interfaz</button><span class="muted">Se guarda con «Guardar diseño».</span></div></div>`;
@@ -1050,8 +1079,12 @@ function metersCard(M, p) {
 function readMeters(v, cur) {
   const on = (id) => $(id, v).checked;
   const a = Math.round(Number($('#mBa', v).value) * 255).toString(16).padStart(2, '0');
-  const box = on('#mBox'), colors = on('#mColors');
+  const mode = $('#mBoxMode', v).value, box = mode === 'custom', colors = on('#mColors');
+  const font = (k) => ($(`#mF${k}`, v).value.trim() || null);
   return {
+    box: mode === 'none' ? 'none' : null,
+    labelFont: font('label'), labelFontUrl: font('label') ? cur.labelFontUrl || null : null,
+    valueFont: font('value'), valueFontUrl: font('value') ? cur.valueFontUrl || null : null,
     labels: { balance: $('#mLb', v).value.trim() || null, bet: $('#mLa', v).value.trim() || null, win: $('#mLp', v).value.trim() || null },
     showLabels: on('#mShow') ? null : false,
     labelColor: colors ? $('#mCl', v).value : null, valueColor: colors ? $('#mCv', v).value : null, winColor: colors ? $('#mCw', v).value : null,
@@ -1072,11 +1105,42 @@ function bindMetersCard(v) {
       $('small', el).style.color = m.labelColor || '';
       $('b', el).style.color = (k === 'win' ? m.winColor : null) || m.valueColor || '';
       $('b', el).style.fontSize = `${16 * (m.valueScale || 1)}px`;
-      el.style.background = m.bg ? `${m.bgImage ? `url("${m.bgImage}") center / 100% 100% no-repeat, ` : ''}${m.bg}` : 'transparent';
-      el.style.border = `2px solid ${m.border || 'transparent'}`;
+      const themeBox = !m.box && !m.bg && !m.border;
+      el.style.background = m.bg ? `${m.bgImage ? `url("${m.bgImage}") center / 100% 100% no-repeat, ` : ''}${m.bg}` : themeBox ? 'rgba(0,0,0,.72)' : 'transparent';
+      el.style.border = `2px solid ${m.border || (themeBox ? 'var(--accent)' : 'transparent')}`;
+      $('small', el).style.fontFamily = m.labelFont ? `'${m.labelFont}', system-ui` : '';
+      $('b', el).style.fontFamily = m.valueFont ? `'${m.valueFont}', system-ui` : '';
       el.style.borderRadius = `${m.radius ?? 10}px`;
     });
   };
+  // Cargar en el panel las tipografías elegidas para verlas en la vista previa
+  const loadPrevFont = (name, url) => {
+    if (!name) return;
+    if (url && typeof FontFace !== 'undefined') { new FontFace(name, `url("${url}")`).load().then((f) => document.fonts.add(f)).catch(() => {}); return; }
+    const id = `gf-${name.replace(/\W+/g, '-')}`;
+    if (!document.getElementById(id)) document.head.append(Object.assign(document.createElement('link'), { id, rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@400;700;900&display=swap` }));
+  };
+  const cur0 = S.game.draft.theme?.hud?.meters || {};
+  loadPrevFont(cur0.labelFont, cur0.labelFontUrl); loadPrevFont(cur0.valueFont, cur0.valueFontUrl);
+  $$('#mFlabel, #mFvalue', v).forEach((i) => i.addEventListener('change', () => { loadPrevFont(i.value.trim()); setTimeout(prev, 400); }));
+  $$('[data-mfontup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const a = await pickAsset('font');
+    if (!a) return;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=font`)).find((x) => x.url === a) : a;
+    const k = b.dataset.mfontup;
+    const cur = S.game.draft.theme?.hud?.meters || {};
+    await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: { ...readMeters(v, cur), [`${k}Font`]: fontFamilyOf(asset || { filename: 'Fuente propia' }), [`${k}FontUrl`]: asset?.url || a } }], 'Tipografía aplicada a los marcadores');
+    renderTab();
+  })));
+  $$('[data-mfontx]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.dataset.mfontx;
+    const cur = S.game.draft.theme?.hud?.meters || {};
+    await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: { ...readMeters(v, cur), [`${k}Font`]: null, [`${k}FontUrl`]: null } }], 'Tipografía quitada');
+    renderTab();
+  })));
+  const showCustom = () => $$('.mcustom', v).forEach((el) => { el.hidden = $('#mBoxMode', v).value !== 'custom'; });
+  showCustom();
+  $('#mBoxMode', v).addEventListener('change', () => { showCustom(); prev(); });
   $$('#mCard input', v).forEach((i) => i.addEventListener('input', () => {
     const o = $(`#${i.id}V`, v); if (o) o.textContent = i.id === 'mR' ? i.value : Math.round(i.value * 100);
     prev();
@@ -1086,6 +1150,7 @@ function bindMetersCard(v) {
     const url = await pickAsset('image');
     if (!url) return;
     const cur = S.game.draft.theme?.hud?.meters || {};
+    $('#mBoxMode', v).value = 'custom';
     await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: { ...readMeters(v, cur), bgImage: url, bg: readMeters(v, cur).bg || '#00000000' } }], 'Imagen de los marcadores aplicada');
     renderTab();
   }));
@@ -1153,10 +1218,35 @@ async function tabSymbols(v) {
   v.innerHTML = `<div class="card"><table><thead><tr><th>Imagen</th><th>Id</th><th>Nombre</th><th>Tipo</th>${counts.map((n) => `<th>${n}×</th>`).join('')}</tr></thead>
     <tbody>${syms.map((s) => `<tr data-id="${esc(s.id)}"><td><img class="sym" src="${esc(s.image)}" title="Cambiar imagen" /></td><td><code>${esc(s.id)}</code></td>
       <td><input data-f="name" value="${esc(s.name)}" /></td><td>${esc(s.type || 'regular')}</td>
-      ${counts.map((n) => `<td>${s.type === 'regular' || !s.type ? `<input type="number" step="any" min="0" data-pay="${n}" value="${s.pays?.[n] ?? ''}" style="width:90px" />` : ''}</td>`).join('')}</tr>`).join('')}
+      ${counts.map((n) => `<td>${s.type === 'regular' || !s.type ? `<input type="number" step="any" min="0" data-pay="${n}" value="${s.pays?.[n] ?? ''}" style="width:90px" /><div class="amt" data-amt="${n}"></div>` : ''}</td>`).join('')}</tr>`).join('')}
     </tbody></table>
+    <div class="row pay-preview"><b>Ver cuánto paga con:</b>
+      <select id="spCur">${[S.game.draft.bet?.currency || 'USD', ...Object.keys(S.game.draft.bet?.byCurrency || {})].filter((c, i, a) => a.indexOf(c) === i).map((c) => `<option>${esc(c)}</option>`).join('')}</select>
+      <select id="spBet"></select><span class="muted">Así lo ve el jugador en la tabla de premios del juego (cambia con la moneda y la apuesta).</span></div>
     <p class="muted">${isOp() ? 'Puedes cambiar nombres e imágenes. Los pagos y el RTP los define tu proveedor.' : `Pagos en ${unit}. Cambiar pagos modifica el RTP: después usa 📈 Matemática → “Ajustar RTP” antes de publicar.`}</p>
     <div class="row"><button class="primary" id="sSave">Guardar símbolos</button></div></div>`;
+  // Importe de cada premio para una moneda y una ficha (lo mismo que muestra la tabla de premios del juego)
+  const B = S.game.draft.bet || {};
+  const payK = engineInfo(S.game.engine).paysBy === 'lines' ? 1 / (S.game.draft.rules?.lines || 1) : 1;
+  const money = (cents, cur) => { try { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: cur }).format(cents / 100); } catch { return `${(cents / 100).toFixed(2)} ${cur}`; } };
+  const fillBets = () => {
+    const cur = $('#spCur', v).value;
+    const bc = B.byCurrency?.[cur];
+    const levels = bc?.levels?.length ? bc.levels : B.levels || [100];
+    const def = bc ? (bc.default ?? levels[0]) : B.default;
+    $('#spBet', v).innerHTML = levels.map((x) => `<option value="${x}" ${x === def ? 'selected' : ''}>Apuesta ${money(x, cur)}</option>`).join('');
+  };
+  const amounts = () => {
+    const cur = $('#spCur', v).value, bet = Number($('#spBet', v).value);
+    for (const i of $$('[data-pay]', v)) {
+      const el = i.parentElement.querySelector(`[data-amt="${i.dataset.pay}"]`);
+      if (el) el.textContent = i.value === '' ? '' : `= ${money(Math.round(Number(i.value) * payK * bet), cur)}`;
+    }
+  };
+  fillBets(); amounts();
+  $('#spCur', v).addEventListener('change', () => { fillBets(); amounts(); });
+  $('#spBet', v).addEventListener('change', amounts);
+  $$('[data-pay]', v).forEach((i) => i.addEventListener('input', amounts));
   $$('img.sym', v).forEach((img) => img.addEventListener('click', guard(async () => {
     const id = img.closest('tr').dataset.id;
     const url = await pickAsset('image');
@@ -1330,6 +1420,11 @@ async function tabMath(v) {
       <p class="muted">${d.rules.bonusMenu ? 'Aquí también se edita el menú de compra (<code>bonusMenu</code>): activar/desactivar cada bono, giros, segmentos de la ruleta y premios del "elige un premio". Los precios se recalculan al pulsar “Ajustar RTP”.' : ''}
       ${d.rules.specialCoins ? 'Monedas especiales: <code>specialChance</code> y <code>specialCoins</code> (multiplicador o +1 re-giro).' : ''}
       ${d.rules.wildMode ? 'Modo de comodines: <code>wildMode</code> = "sticky" (fijos en giros gratis) o "walking" (caminan y dan re-giros).' : ''}</p>
+      ${d.engine === 'colossal-reels' ? `<div class="card stack" style="background:var(--panel2)"><b>Colosal en los giros gratis</b>
+        <div class="row"><input id="mFsCol" type="range" min="0" max="1" step="0.05" value="${d.rules.fsColossalChance ?? 1}" style="max-width:320px" />
+          <b id="mFsColV">${Math.round((d.rules.fsColossalChance ?? 1) * 100)} %</b><span class="muted" id="mFsColT"></span></div>
+        <p class="muted" style="margin:0">100 % = un colosal garantizado en cada giro gratis. Menos % = sale a veces; 0 % = nunca. Cambia cuánto paga el bonus: después pulsa «Ajustar RTP al objetivo».</p>
+        <div class="row"><button id="mFsColSave">Guardar</button></div></div>` : ''}
       <textarea id="mRules" rows="14">${esc(JSON.stringify(d.rules, null, 2))}</textarea>
       <div class="row"><button id="mRulesSave">Guardar reglas</button><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button><button id="mAutoSave" class="ghost">Giros automáticos (${esc((d.bet.autoSpins || [10, 25, 50, 100]).join(' · '))})…</button></div>
     </div></div>`;
@@ -1341,6 +1436,16 @@ async function tabMath(v) {
       <div><small>Giros</small><b>${s.spins.toLocaleString('es')}</b></div><div><small>Tiempo</small><b>${(s.ms / 1000).toFixed(1)} s</b></div></div>
       <p class="muted">Distribución: ${Object.entries(s.distribution).map(([k, x]) => `${k}: ${pct(x)}`).join(' · ')}</p>`;
   };
+  if ($('#mFsCol')) {
+    const lab = () => { const x = Number($('#mFsCol').value); $('#mFsColV').textContent = `${Math.round(x * 100)} %`; $('#mFsColT').textContent = x >= 1 ? 'garantizado' : x > 0 ? 'a veces' : 'sin colosales en el bonus'; };
+    lab();
+    $('#mFsCol').addEventListener('input', lab);
+    $('#mFsColSave').addEventListener('click', guard(async () => {
+      const x = Number($('#mFsCol').value);
+      await patchDraft([{ op: 'set', path: 'rules.fsColossalChance', value: x >= 1 ? null : x }], 'Guardado. Ahora pulsa «Ajustar RTP al objetivo» para recalibrar los pagos');
+      renderTab();
+    }));
+  }
   const updateMax = guard(async () => {
     if (!$('#gLines')) return;
     const q = new URLSearchParams({ reels: $('#gReels').value, rows: $('#gRows')?.value || '' });
@@ -1528,7 +1633,8 @@ async function tabVersions(v) {
     ${list.map((x) => `<tr><td>v${x.version}${x.version === S.game.publishedVersion ? ' <span class="badge ok">en vivo</span>' : ''}</td><td>${esc(x.created_at)}</td><td>${esc(x.created_by)}</td>
       <td>${pct(x.math?.rtp)}</td><td>${esc(x.note)}</td><td><button class="small" data-restore="${x.version}">Cargar en borrador</button></td></tr>`).join('')}
     </tbody></table><p class="muted">Cada versión publicada es inmutable y cada ronda registra la versión con la que se jugó (trazabilidad para auditoría).</p>
-    <div class="row"><button class="danger" id="toggleStatus">${S.game.status === 'active' ? 'Desactivar juego' : 'Activar juego'}</button></div></div>`;
+    <div class="row"><button class="danger" id="toggleStatus">${S.game.status === 'active' ? 'Desactivar juego' : 'Activar juego'}</button>
+      ${isOp() ? '' : '<button class="danger" id="deleteGame">🗑 Eliminar juego</button><span class="muted">Para juegos creados por error. No se puede si ya tuvo jugadas con dinero real (se conservan para auditoría): en ese caso, desactívalo.</span>'}</div></div>`;
   $$('[data-restore]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     if (!confirm(`¿Reemplazar el borrador actual por la v${b.dataset.restore}?`)) return;
     await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/restore/${b.dataset.restore}`, { method: 'POST' });
@@ -1536,6 +1642,17 @@ async function tabVersions(v) {
     toast('Borrador restaurado');
     reloadPreview();
   })));
+  $('#deleteGame')?.addEventListener('click', guard(async () => {
+    const name = S.game.name;
+    const typed = prompt(`Vas a ELIMINAR «${name}» (${S.gameId}) con sus versiones, borrador y pruebas. Esto no se puede deshacer.\n\nPara confirmar, escribe el nombre del juego:`);
+    if (typed === null) return;
+    const r = await api(`/api/admin/games/${encodeURIComponent(S.gameId)}`, { method: 'DELETE', body: { confirm: typed.trim() } });
+    toast(`«${r.name}» eliminado`);
+    S.gameId = null; S.game = null; location.hash = '';
+    $('#gameBar').hidden = true; $('#tabs').hidden = true; $('#previewPane').hidden = true;
+    $('#view').innerHTML = '<div class="card"><p class="muted">Juego eliminado. Elige otro juego en la lista.</p></div>';
+    await loadGames();
+  }));
   $('#toggleStatus').addEventListener('click', guard(async () => {
     await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/status`, { method: 'POST', body: { status: S.game.status === 'active' ? 'disabled' : 'active' } });
     await refreshGame(); await loadGames(); renderTab();

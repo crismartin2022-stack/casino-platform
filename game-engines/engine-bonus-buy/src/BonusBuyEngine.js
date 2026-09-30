@@ -12,6 +12,7 @@ export class BonusBuyEngine extends BaseEngine {
   }
 
   payUnit() { return 1 / (this.game.rules?.lines || 20); }
+  infoExtras(bet) { return this.buyOptions().map((o) => [`Comprar: ${o.name}`, this.hud.fmt(Math.round(o.cost * bet))]); }
   scatterId() { return this.game.symbols.find((s) => s.type === 'scatter')?.id; }
 
   buildScene() {

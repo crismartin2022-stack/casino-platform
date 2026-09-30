@@ -7,7 +7,13 @@ export class ColossalEngine extends BaseEngine {
   rulesText() {
     const g = this.game.grid;
     const sizes = [...new Set((this.game.rules.colossalSizes || []).map((s) => `${s.size}×${s.size}`))].join(' o ');
-    return `${this.gridLabel()}, ${(g.rows ** g.reels).toLocaleString('es')} formas de ganar. En cualquier giro pueden caer símbolos COLOSALES de ${sizes} que cuentan como un bloque de símbolos iguales. 3 o más rayos dan giros gratis con un colosal garantizado en cada giro.`;
+    return `${this.gridLabel()}, ${(g.rows ** g.reels).toLocaleString('es')} formas de ganar. En cualquier giro pueden caer símbolos COLOSALES de ${sizes} que cuentan como un bloque de símbolos iguales. 3 o más rayos dan giros gratis${this.fsColossalText()}.`;
+  }
+
+  /** Texto según la regla: colosal garantizado (1), con probabilidad o sin colosales en los giros gratis. */
+  fsColossalText() {
+    const c = this.game.rules.fsColossalChance ?? 1;
+    return c >= 1 ? ' con un colosal garantizado en cada giro' : c > 0 ? ` con ${Math.round(c * 100)} % de probabilidad de colosal en cada giro` : '';
   }
 
   scatterId() { return this.game.symbols.find((s) => s.type === 'scatter')?.id; }
@@ -97,7 +103,7 @@ export class ColossalEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (!fs) return;
     await this.grid.highlight(result.base.scatters, { times: 3 });
-    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), 'COLOSAL GARANTIZADO');
+    await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), (this.game.rules.fsColossalChance ?? 1) >= 1 ? 'COLOSAL GARANTIZADO' : 'SÍMBOLOS COLOSALES');
     let i = 0;
     for (const s of fs.spins) {
       i++;

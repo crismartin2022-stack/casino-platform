@@ -298,3 +298,38 @@ export function setStatus(id, status, actor = 'admin') {
 }
 
 export { db };
+
+
+/**
+ * Elimina un juego (p. ej. uno creado dos veces por error). Solo si NUNCA tuvo jugadas con dinero real:
+ * esas rondas se conservan para auditoría, y en ese caso el juego solo se puede desactivar.
+ * Borra versiones, borrador, sesiones y rondas de demo/vista previa, pruebas, conversaciones con agentes,
+ * RTP de operadores y asignaciones. Las imágenes y sonidos quedan en la biblioteca (sin juego).
+ */
+export function deleteGame(id, { confirm, actor = 'admin' } = {}) {
+  const g = one('SELECT id, name FROM games WHERE id = ?', id);
+  if (!g) throw new HttpError(404, 'Juego no encontrado');
+  if (confirm !== g.id && confirm !== g.name) throw new HttpError(400, `Para confirmar escribe el nombre del juego: ${g.name}`);
+  const real = one("SELECT COUNT(*) AS n FROM rounds WHERE game_id = ? AND mode = 'real'", id).n;
+  if (real) throw new HttpError(409, `No se puede eliminar: tiene ${real} jugada(s) con dinero real que deben conservarse para auditoría. Puedes desactivarlo.`);
+  const counts = {};
+  tx(() => {
+    const sessions = all('SELECT token FROM sessions WHERE game_id = ?', id).map((r) => r.token);
+    const roundIds = all('SELECT id FROM rounds WHERE game_id = ?', id).map((r) => r.id);
+    for (const r of roundIds) run('DELETE FROM transactions WHERE round_id = ?', r);
+    counts.rounds = run('DELETE FROM rounds WHERE game_id = ?', id).changes;
+    run('DELETE FROM table_state WHERE game_id = ?', id);
+    counts.sessions = run('DELETE FROM sessions WHERE game_id = ?', id).changes;
+    void sessions;
+    for (const r of all('SELECT id FROM agent_runs WHERE game_id = ?', id)) run('DELETE FROM agent_events WHERE run_id = ?', r.id);
+    run('DELETE FROM agent_runs WHERE game_id = ?', id);
+    run('DELETE FROM game_checks WHERE game_id = ?', id);
+    run('DELETE FROM rtp_variants WHERE game_id = ?', id);
+    run('DELETE FROM operator_games WHERE game_id = ?', id);
+    run('UPDATE assets SET game_id = NULL WHERE game_id = ?', id);
+    counts.versions = run('DELETE FROM game_versions WHERE game_id = ?', id).changes;
+    run('DELETE FROM games WHERE id = ?', id);
+  });
+  audit(actor, 'game.delete', id, { name: g.name, ...counts });
+  return { ok: true, id, name: g.name, ...counts };
+}
