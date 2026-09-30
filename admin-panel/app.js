@@ -253,6 +253,7 @@ $('#publishBtn').addEventListener('click', guard(async () => {
   if (note === null) return;
   const btn = $('#publishBtn');
   let r;
+  toast('⏳ Certificando el RTP y probando todas las funciones (puede tardar hasta ~1 minuto)…');
   try {
     r = await busy(btn, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/publish`, { method: 'POST', body: { note } }));
   } catch (e) {
@@ -418,6 +419,9 @@ const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe
 // Subtítulo automático de la entrada al bonus en cada motor (se puede reemplazar en Carteles → Textos)
 const BONUS_SUB = { 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
   'expanding-symbol': 'SÍMBOLO ESPECIAL: …', megaways: '¡BONUS!', 'hold-win': 'N MONEDAS · 3 RE-GIROS', 'sticky-wilds': 'COMODINES FIJOS / CAMINANTES', 'scatter-pays': 'LOS MULTIPLICADORES SE ACUMULAN' };
+// En qué cartel se muestra cada texto (para usar su tipografía)
+const TEXT_KIND = { win: 'win', bigWin: 'big', megaWin: 'big', freeSpins: 'feature', bonusSub: 'feature', bonusTotal: 'feature', holdWin: 'feature', spinOf: 'status', respins: 'status', multiplier: 'status' };
+const textFont = (M, kind) => { const st = M.styles?.[kind] || {}; const f = st.font || M.font || null; if (f) panelFont(f, st.font ? st.fontUrl : M.fontUrl); return f; };
 const PARTICLES = [['', 'Según la interfaz'], ['none', 'Ninguna'], ['confeti', 'Confeti'], ['monedas', 'Monedas'], ['estrellas', 'Estrellas'], ['gemas', 'Gemas'], ['burbujas', 'Burbujas']];
 const ANIMS = [['pop', 'Rebote'], ['zoom', 'Zoom desde lejos'], ['slide', 'Sube desde abajo'], ['flip', 'Giro 3D'], ['fade', 'Aparece suave'], ['shake', 'Rebote + temblor'], ['none', 'Sin animación']];
 
@@ -452,8 +456,12 @@ function messagesCard(t) {
         <span class="muted">Se aplica a premio, gran premio, bonus y contador. Si un cartel tiene su propia tipografía abajo, usa la suya.</span></div>
       <datalist id="msgFontList">${['Cinzel', 'Cinzel Decorative', 'Bungee', 'Orbitron', 'Russo One', 'Oswald', 'Anton', 'Bebas Neue', 'Righteous', 'Luckiest Guy', 'Rye', 'Uncial Antiqua', 'Pirata One', 'Black Ops One', 'Teko', 'Rajdhani', 'Playfair Display', 'Abril Fatface', 'Alfa Slab One', 'Titan One', 'Lilita One', 'Press Start 2P'].map((f) => `<option value="${f}">`).join('')}</datalist></div>
     ${MSG_KINDS.map(row).join('')}
-    <div class="card stack" style="background:var(--panel2)"><b>Textos</b><div class="grid2">
-      ${MSG_TEXTS.map(([k, l, d]) => `<div><label>${l}</label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(k === 'bonusSub' ? `Automático: ${BONUS_SUB[S.game.engine] || '—'}` : d || '(solo el importe)')}" /></div>`).join('')}
+    <div class="card stack" style="background:var(--panel2)"><b>Textos</b>
+      <div class="row"><label style="margin:0">Tipografía de los textos ${M.fontUrl ? '<span class="badge ok">archivo propio</span>' : ''}</label>
+        <input id="mTxtFont" list="msgFontList" value="${esc(M.font || '')}" placeholder="La de la botonera" style="max-width:240px" ${M.fontUrl ? 'readonly' : ''} />
+        <button class="small" id="mTxtFontUp">Subir tipografía…</button>${M.font ? '<button class="small danger" id="mTxtFontX">Quitar</button>' : ''}</div>
+      <p class="muted" style="margin:0">Es la misma que «Tipografía de todos los carteles» (cambiar una cambia la otra). Si un cartel tiene tipografía propia arriba, sus textos usan la de ese cartel. Cada texto ya se escribe con la tipografía con la que se verá.</p><div class="grid2">
+      ${MSG_TEXTS.map(([k, l, d]) => { const kind = TEXT_KIND[k] || 'feature'; const f = textFont(M, kind); return `<div><label>${l} <span class="badge" title="Tipografía: ${esc(f || 'la de la botonera')}">${esc(MSG_KINDS.find((x) => x[0] === kind)?.[1] || '')} · ${esc(f || 'tipografía de la botonera')}</span></label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(k === 'bonusSub' ? `Automático: ${BONUS_SUB[S.game.engine] || '—'}` : d || '(solo el importe)')}" style="${f ? `font-family:'${esc(f)}',system-ui;font-size:16px` : ''}" /></div>`; }).join('')}
       <div><label>«Gran premio» desde (× la apuesta)</label><input id="mBig" type="number" min="2" max="1000" value="${M.thresholds?.big ?? 15}" style="width:110px" /></div>
       <div><label>«Mega premio» desde (× la apuesta)</label><input id="mMega" type="number" min="3" max="5000" value="${M.thresholds?.mega ?? 50}" style="width:110px" /></div>
     </div></div>
@@ -472,6 +480,10 @@ async function demoInPreview(kind) {
 }
 
 function bindMessagesCard(v) {
+  const syncFont = (from, to) => $(from, v)?.addEventListener('input', () => { if ($(to, v)) $(to, v).value = $(from, v).value; });
+  syncFont('#mAllFont', '#mTxtFont'); syncFont('#mTxtFont', '#mAllFont');
+  $('#mTxtFontUp', v)?.addEventListener('click', () => $('#mAllFontUp', v)?.click());
+  $('#mTxtFontX', v)?.addEventListener('click', () => $('#mAllFontX', v)?.click());
   $('#mAllFontUp', v)?.addEventListener('click', guard(async () => {
     const a = await pickAsset('font');
     if (!a) return;
@@ -1508,8 +1520,9 @@ async function tabMath(v) {
     showSim(s, 'Simulación del borrador');
   }));
   $('#mTune').addEventListener('click', guard(async (e) => {
+    $('#mOut').innerHTML = '<p class="muted">⏳ Ajustando y midiendo con muestras nuevas hasta lograr ±0,3 % de precisión (hasta ~1 minuto)…</p>';
     const r = await busy(e.target, () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/tune`, { method: 'POST', body: { target: Number($('#mTarget').value) } }));
-    showSim({ ...r.final }, `Ajustado: ${r.history.map((h) => pct(h.rtp)).join(' → ')}${(r.buyOptions || []).map((b) => ` · ${BUY_NAMES[b.mode] || b.mode} ${b.cost}× (${pct(b.rtp)})`).join('')}`);
+    showSim({ ...r.final }, `Ajustado: ${r.history.map((h) => pct(h.rtp)).join(' → ')}${r.final?.precision ? ` · precisión ±${(r.final.precision * 100).toFixed(2)} % (${(r.final.spins / 1e6).toFixed(1)} M giros)` : ''}${(r.buyOptions || []).map((b) => ` · ${BUY_NAMES[b.mode] || b.mode} ${b.cost}× (${pct(b.rtp)})`).join('')}`);
     await refreshGame();
     toast('Tabla de pagos ajustada en el borrador');
   }));
