@@ -446,6 +446,11 @@ function messagesCard(t) {
   };
   return `<div class="card stack" id="msgCard"><h3 style="margin:0">🪧 Carteles y mensajes</h3>
     <p class="muted">Diseña los avisos del juego: premio, gran premio, entrada y total del bonus y el contador de giros gratis. Cada uno puede llevar una imagen o GIF de fondo, colores, tipografía, tamaño, animación y partículas. «▶ Probar» lo muestra en la vista previa.</p>
+    <div class="card stack" style="background:var(--panel2)"><b>Tipografía de todos los carteles ${M.fontUrl ? '<span class="badge ok">archivo propio</span>' : ''}</b>
+      <div class="row"><input id="mAllFont" list="msgFontList" value="${esc(M.font || '')}" placeholder="La de la botonera" style="max-width:280px" ${M.fontUrl ? 'readonly' : ''} />
+        <button class="small" id="mAllFontUp">Subir tipografía…</button>${M.font ? '<button class="small danger" id="mAllFontX">Quitar</button>' : ''}
+        <span class="muted">Se aplica a premio, gran premio, bonus y contador. Si un cartel tiene su propia tipografía abajo, usa la suya.</span></div>
+      <datalist id="msgFontList">${['Cinzel', 'Cinzel Decorative', 'Bungee', 'Orbitron', 'Russo One', 'Oswald', 'Anton', 'Bebas Neue', 'Righteous', 'Luckiest Guy', 'Rye', 'Uncial Antiqua', 'Pirata One', 'Black Ops One', 'Teko', 'Rajdhani', 'Playfair Display', 'Abril Fatface', 'Alfa Slab One', 'Titan One', 'Lilita One', 'Press Start 2P'].map((f) => `<option value="${f}">`).join('')}</datalist></div>
     ${MSG_KINDS.map(row).join('')}
     <div class="card stack" style="background:var(--panel2)"><b>Textos</b><div class="grid2">
       ${MSG_TEXTS.map(([k, l, d]) => `<div><label>${l}</label><input data-mtext="${k}" value="${esc(M.texts?.[k] ?? '')}" placeholder="${esc(k === 'bonusSub' ? `Automático: ${BONUS_SUB[S.game.engine] || '—'}` : d || '(solo el importe)')}" /></div>`).join('')}
@@ -467,6 +472,17 @@ async function demoInPreview(kind) {
 }
 
 function bindMessagesCard(v) {
+  $('#mAllFontUp', v)?.addEventListener('click', guard(async () => {
+    const a = await pickAsset('font');
+    if (!a) return;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=font`)).find((x) => x.url === a) : a;
+    await patchDraft([{ op: 'set', path: 'theme.messages.font', value: fontFamilyOf(asset || { filename: 'Fuente propia' }) }, { op: 'set', path: 'theme.messages.fontUrl', value: asset?.url || a }], 'Tipografía aplicada a todos los carteles');
+    renderTab();
+  }));
+  $('#mAllFontX', v)?.addEventListener('click', guard(async () => {
+    await patchDraft([{ op: 'set', path: 'theme.messages.font', value: null }, { op: 'set', path: 'theme.messages.fontUrl', value: null }], 'Tipografía general quitada');
+    renderTab();
+  }));
   if (!$('#msgCard', v)) return;
   $$('#msgCard [data-demo]', v).forEach((b) => b.addEventListener('click', guard(() => demoInPreview(b.dataset.demo))));
   for (const [k] of MSG_KINDS) {
@@ -504,6 +520,7 @@ function bindMessagesCard(v) {
     await patchDraft([
       { op: 'set', path: 'theme.messages.styles', value: styles },
       { op: 'set', path: 'theme.messages.texts', value: texts },
+      ...($('#mAllFont', v).readOnly ? [] : [{ op: 'set', path: 'theme.messages.font', value: $('#mAllFont', v).value.trim() || null }]),
       { op: 'set', path: 'theme.messages.thresholds', value: { big: Number($('#mBig', v).value) || 15, mega: Number($('#mMega', v).value) || 50 } },
     ], 'Carteles guardados: prueba cada uno con ▶ Probar');
   }));

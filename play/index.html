@@ -148,9 +148,13 @@
     .info-extra { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; margin: 10px 0; }
     .info-extra div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.05); }
     .info-extra b { color: var(--accent); }
+    .paytable .pl { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-bottom: 1px dotted rgba(255,255,255,.14); padding: 2px 0; }
+    .paytable .pl span { opacity: .8; font-size: .92em; white-space: nowrap; }
+    .paytable .pl b { color: var(--accent); white-space: nowrap; }
     .paytable { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 14px 0; }
     .pay { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,.06); border-radius: 12px; padding: 8px; font-size: 13px; }
     .pay img { width: 56px; height: 56px; object-fit: contain; }
+    .pay > div:last-child { flex: 1; min-width: 0; }
     .fine { font-size: 11px; opacity: .7; }
     .choose { display: flex; flex-direction: column; gap: 10px; }
     .choose .option { display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: none; width: 100%; font-size: 15px; padding: 14px 18px; }

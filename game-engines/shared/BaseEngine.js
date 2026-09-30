@@ -90,6 +90,7 @@ export class BaseEngine {
       const f = M[`${k}Font`], u = M[`${k}FontUrl`];
       if (f && u) await loadFontFile(f, u); else if (f) await loadFont(f);
     }
+    if (t.messages?.font) { if (t.messages.fontUrl) await loadFontFile(t.messages.font, t.messages.fontUrl); else await loadFont(t.messages.font); }
     for (const st of Object.values(t.messages?.styles || {})) {
       if (st?.fontUrl) await loadFontFile(st.font, st.fontUrl); else if (st?.font) await loadFont(st.font);
     }
@@ -582,7 +583,7 @@ export class BaseEngine {
   payUnit() { return 1; }
 
   /** Datos extra de la pantalla de información como [etiqueta, importe] ya calculados para la apuesta (compras de bonus, jackpots…). */
-  infoExtras() { return []; }
+  infoExtras(bet) { return this.game.rules?.buyCost ? [['Comprar giros gratis', this.hud.fmt(Math.round(this.game.rules.buyCost * bet))]] : []; }
 
   /** Cómo se muestra cada cantidad de la tabla de pagos (los motores de grupos la cambian). */
   payLabel(n) { return `${n}`; }
@@ -593,10 +594,10 @@ export class BaseEngine {
     const rows = this.game.symbols.map((s) => {
       const keys = Object.keys(s.pays || {});
       const pays = Object.entries(s.pays || {}).sort((a, b) => b[0] - a[0])
-        .map(([n, p]) => h('div', {}, `${this.payLabel(n, keys)}× `, h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
-      // Pagos de scatter en cualquier posición (múltiplos de la apuesta total)
+        .map(([n, p]) => h('div', { class: 'pl' }, h('span', {}, `${this.payLabel(n, keys)} iguales`), h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
+      // Pagos de scatter en cualquier posición (múltiplos de la apuesta total). El importe ya es el total del premio.
       const sp = Object.entries(s.scatterPays || {}).sort((a, b) => b[0] - a[0])
-        .map(([n, p]) => h('div', {}, `${n}× `, h('b', {}, this.hud.fmt(Math.round(p * bet)))));
+        .map(([n, p]) => h('div', { class: 'pl' }, h('span', {}, `${n} en pantalla`), h('b', {}, this.hud.fmt(Math.round(p * bet)))));
       const kind = {
         wild: 'Sustituye a los símbolos normales', scatter: 'Activa los giros gratis', coin: 'Activa el bonus Hold & Win',
         wildscatter: 'Comodín y scatter: activa los giros gratis', multiplier: 'Multiplica el premio del giro', mystery: 'Se revela como un símbolo al azar',
