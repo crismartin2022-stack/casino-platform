@@ -94,7 +94,10 @@ export class Hud {
     this.banner = h('div', { class: 'banner', hidden: true });
     this.status = h('div', { class: 'status' });
     // Carteles diseñables (theme.messages.styles.{win|big|feature|status})
-    this.msgStyles = t.messages?.styles || {};
+    this.msgStyles = { ...(t.messages?.styles || {}) };
+    // Tipografía general de todos los carteles (theme.messages.font); cada cartel puede tener la suya.
+    const MF = t.messages?.font;
+    if (MF) for (const k of ['win', 'big', 'feature', 'status', 'info']) this.msgStyles[k] = { ...(this.msgStyles[k] || {}), font: this.msgStyles[k]?.font || MF };
     applyMsgStyle(this.status, this.msgStyles.status || {}, 'st');
     if (this.msgStyles.status?.position) this.status.dataset.pos = this.msgStyles.status.position;
     this.modal = h('div', { class: 'modal', hidden: true, onclick: (e) => { if (e.target === this.modal) this.closeModal(); } });

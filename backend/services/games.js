@@ -136,6 +136,8 @@ export function publicConfig(id, c, version) {
     'multiplierValues', 'mysteryWeights', 'expandWeights', 'specialCoins', 'specialChance', 'bonusMenu']) delete rules[k];
   if (c.rules?.coinValues) rules.coinValues = c.rules.coinValues.filter((v) => v.value != null).map((v) => v.value);
   if (c.rules?.multiplierValues) rules.multiplierValues = c.rules.multiplierValues.map((m) => m.value);
+  // Tamaños de los colosales (sin sus probabilidades), para el texto de reglas del juego
+  if (c.rules?.colossalSizes) rules.colossalSizes = [...new Set(c.rules.colossalSizes.map((x) => x.size))].sort().map((size) => ({ size }));
   // Menú de compra: nombre, precio y lo necesario para dibujar (sin probabilidades)
   if (c.rules?.bonusMenu) {
     rules.bonusMenu = Object.fromEntries(Object.entries(c.rules.bonusMenu).filter(([, o]) => o?.enabled).map(([k, o]) => [k, {
