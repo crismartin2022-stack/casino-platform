@@ -417,7 +417,7 @@ const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe
   ['bonusSub', 'Subtítulo de la entrada al bonus (vacío = el automático del juego; «-» = sin subtítulo)', 'Automático'],
   ['bonusTotal', 'Total del bonus', 'TOTAL DEL BONUS'], ['respins', 'Re-giros ({n} = restantes)', 'RE-GIROS: {n}'], ['holdWin', 'Entrada Hold & Win', 'HOLD & WIN']];
 // Subtítulo automático de la entrada al bonus en cada motor (se puede reemplazar en Carteles → Textos)
-const BONUS_SUB = { 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
+const BONUS_SUB = { 'treasure-chests': 'BONUS DE COFRES', 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
   'expanding-symbol': 'SÍMBOLO ESPECIAL: …', megaways: '¡BONUS!', 'hold-win': 'N MONEDAS · 3 RE-GIROS', 'sticky-wilds': 'COMODINES FIJOS / CAMINANTES', 'scatter-pays': 'LOS MULTIPLICADORES SE ACUMULAN' };
 // En qué cartel se muestra cada texto (para usar su tipografía)
 const TEXT_KIND = { win: 'win', bigWin: 'big', megaWin: 'big', freeSpins: 'feature', bonusSub: 'feature', bonusTotal: 'feature', holdWin: 'feature', spinOf: 'status', respins: 'status', multiplier: 'status' };
@@ -469,14 +469,15 @@ function messagesCard(t) {
 }
 
 /** Abre la vista previa (si hace falta), espera al juego y le pide un cartel de ejemplo. */
-async function demoInPreview(kind) {
+async function demoInPreview(kind, extra = {}) {
   if ($('#previewPane').hidden) { $('#previewPane').hidden = false; await reloadPreview(true); }
   const frame = $('#previewFrame');
   for (let i = 0; i < 60; i++) {
-    if (frame.contentWindow?.engine?.hud && !frame.contentWindow.engine.busy) break;
+    const en = frame.contentWindow?.engine;
+    if (en && (en.hud || en.demoTier) && !en.busy) break;
     await new Promise((r) => setTimeout(r, 250));
   }
-  frame.contentWindow?.postMessage({ type: 'demo', kind }, '*');
+  frame.contentWindow?.postMessage({ type: 'demo', kind, ...extra }, '*');
 }
 
 function bindMessagesCard(v) {
@@ -539,6 +540,66 @@ function bindMessagesCard(v) {
 }
 
 // ---- Ambiente del bonus (theme.bonus): presentación, fondos y cierre con imagen, GIF o video ----
+// ---- Premios por monto (theme.winTiers): sonido, video/GIF y texto según cuánto se gana ----
+function winTiersCard(t) {
+  const tiers = (t.winTiers || []).map((x, i) => ({ ...x, i })).sort((a, b) => (a.from || 0) - (b.from || 0));
+  const media = (u) => (!u ? '<span class="muted">Sin video</span>' : /\.(mp4|webm)(\?|$)/i.test(u) ? `<video src="${esc(u)}" muted loop autoplay playsinline style="height:44px;border-radius:6px"></video>` : `<img src="${esc(u)}" style="height:44px;max-width:120px;object-fit:contain;border-radius:6px;background:#0006" />`);
+  const row = (x) => `<div class="card stack tier-row" data-ti="${x.i}" style="background:var(--panel2);gap:8px">
+    <div class="row" style="justify-content:space-between"><b>Desde ${esc(x.from ?? '?')}× la apuesta</b><div class="row"><button class="small" data-tdemo="${x.i}">▶ Probar</button><button class="small danger" data-tdel="${x.i}">Quitar nivel</button></div></div>
+    <div class="grid2">
+      <div><label>Desde (× la apuesta)</label><input data-tf="from" type="number" min="1" max="100000" step="0.5" value="${esc(x.from ?? 10)}" style="width:130px" /></div>
+      <div><label>Texto del cartel</label><input data-tf="text" value="${esc(x.text || '')}" placeholder="Ej. ¡PREMIO ÉPICO!" /></div>
+      <div><label>Sonido</label><div class="row">${x.sound ? `<audio src="${esc(x.sound)}" controls style="height:32px;max-width:190px"></audio>` : '<span class="muted">El de gran premio</span>'}<button class="small" data-tsound="${x.i}">Elegir…</button>${x.sound ? `<button class="small danger" data-tsoundx="${x.i}">Quitar</button>` : ''}</div></div>
+      <div><label>Video, GIF o imagen a pantalla completa</label><div class="row">${media(x.media)}<button class="small" data-tmedia="${x.i}">Elegir…</button>${x.media ? `<button class="small danger" data-tmediax="${x.i}">Quitar</button>` : ''}</div></div>
+      <div><label>Duración máx. del video (s)</label><input data-tf="seconds" type="number" min="1" max="15" step="0.5" value="${esc(x.seconds ?? 3)}" style="width:90px" /></div>
+    </div></div>`;
+  return `<div class="card stack" id="tiersCard"><h3 style="margin:0">🏆 Premios por monto</h3>
+    <p class="muted" style="margin:0">Cuando un giro (o una tirada, en juegos de mesa) paga desde cierto monto (en veces la apuesta), el juego reproduce el sonido, el video o GIF y el texto de ese nivel; si alcanza varios, usa el más alto. El importe ganado se muestra encima del video. Sin niveles, se usan «Gran premio» y «Mega premio» de los carteles.</p>
+    ${tiers.map(row).join('') || '<p class="muted">Todavía no hay niveles.</p>'}
+    <div class="row"><button id="tAdd">＋ Agregar nivel</button><button class="primary" id="tSave">Guardar niveles</button></div></div>`;
+}
+
+function bindWinTiersCard(v) {
+  if (!$('#tiersCard', v)) return;
+  const cur = () => structuredClone(S.game.draft.theme?.winTiers || []);
+  // Lee los campos escritos (sin guardar) sobre la lista actual
+  const read = () => {
+    const list = cur();
+    for (const box of $$('.tier-row', v)) {
+      const i = Number(box.dataset.ti);
+      const f = (k) => $(`[data-tf="${k}"]`, box).value;
+      list[i] = { ...list[i], from: Number(f('from')) || 10, text: f('text').trim() || null, seconds: Number(f('seconds')) || 3 };
+    }
+    return list;
+  };
+  const save = async (list, msg = 'Premios por monto guardados') => { await patchDraft([{ op: 'set', path: 'theme.winTiers', value: list }], msg); renderTab(); };
+  $('#tAdd', v).addEventListener('click', guard(async () => {
+    const list = read();
+    const top = Math.max(0, ...list.map((x) => Number(x.from) || 0));
+    list.push({ from: top ? top * 3 : 10, text: top ? '¡PREMIO ÉPICO!' : '¡GRAN PREMIO!', seconds: 3 });
+    await save(list, 'Nivel agregado: elige su sonido y su video o GIF');
+  }));
+  $('#tSave', v).addEventListener('click', guard(() => save(read())));
+  $$('[data-tdel]', v).forEach((b) => b.addEventListener('click', guard(async () => { const list = read(); list.splice(Number(b.dataset.tdel), 1); await save(list, 'Nivel quitado'); })));
+  $$('[data-tsound]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('sound');
+    if (!url) return;
+    const list = read(); list[Number(b.dataset.tsound)].sound = url; await save(list, 'Sonido del nivel aplicado');
+  })));
+  $$('[data-tsoundx]', v).forEach((b) => b.addEventListener('click', guard(async () => { const list = read(); list[Number(b.dataset.tsoundx)].sound = null; await save(list); })));
+  $$('[data-tmedia]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image', { animated: true });
+    if (!url) return;
+    const list = read(); list[Number(b.dataset.tmedia)].media = url; await save(list, 'Video del nivel aplicado');
+  })));
+  $$('[data-tmediax]', v).forEach((b) => b.addEventListener('click', guard(async () => { const list = read(); list[Number(b.dataset.tmediax)].media = null; await save(list); })));
+  $$('[data-tdemo]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    await patchDraft([{ op: 'set', path: 'theme.winTiers', value: read() }], 'Guardado: mira el nivel en la vista previa');
+    await reloadPreview(true);
+    await demoInPreview('tier', { i: Number(b.dataset.tdemo) });
+  })));
+}
+
 function bonusCard(t) {
   const B = t.bonus || {};
   const media = (u) => (!u ? '<span class="muted">Nada</span>' : /\.(mp4|webm)(\?|$)/i.test(u) ? `<video src="${esc(u)}" muted loop autoplay playsinline style="height:44px;border-radius:6px"></video>` : `<img src="${esc(u)}" style="height:44px;max-width:160px;object-fit:contain;border-radius:6px;background:#0006" />`);
@@ -909,7 +970,7 @@ async function tabDesign(v) {
       <div class="ui-grid">${UIS.map(([k, n, d, pal]) => `<button class="ui-tile ${curUi === k ? 'on' : ''}" data-ui="${k}">${uiMock(k, curUi === k ? (t.palette || pal) : pal)}<b>${n}</b><span class="muted">${d}</span></button>`).join('')}</div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="uiPal" style="width:auto" checked /> Aplicar también los colores sugeridos de la interfaz (luego puedes cambiarlos en Paleta)</label></div>`}
     ${!isTableGame && curUi === 'custom' ? customHudCard(t) : ''}
-    ${isTableGame ? '' : messagesCard(t) + bonusCard(t)}
+    ${isTableGame ? winTiersCard(t) : messagesCard(t) + winTiersCard(t) + bonusCard(t)}
     <div class="card stack"><h3 style="margin:0">Identidad</h3>
       <div class="grid2">
         <div><label>Nombre del juego</label><input id="dName" value="${esc(S.game.draft.name)}" /></div>
@@ -1035,6 +1096,7 @@ async function tabDesign(v) {
   bindDiceCard(v);
   bindCustomHudCard(v);
   bindMessagesCard(v);
+  bindWinTiersCard(v);
   bindBonusCard(v);
   $$('[data-fontup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const a = await pickAsset('font');
@@ -1262,7 +1324,7 @@ async function tabSymbols(v) {
   const maxN = Math.max(...syms.flatMap((s) => Object.keys(s.pays || {}).map(Number)), 3);
   const counts = []; if (!isOp()) for (let n = 3; n <= maxN; n++) counts.push(n);
   const unit = { lines: 'múltiplo de la apuesta por línea', cluster: 'múltiplo de la apuesta total, según el tamaño del grupo (la columna es el mínimo del nivel)',
-    count: 'múltiplo de la apuesta total, según cuántos iguales hay en pantalla (la columna es el mínimo del nivel)' }[engineInfo(S.game.engine).paysBy] || 'múltiplo de la apuesta total (por way)';
+    count: 'múltiplo de la apuesta total, según cuántos iguales hay en pantalla (la columna es el mínimo del nivel)', rows: 'múltiplo de la apuesta total, por fila (3, 4 o 5 iguales en la misma fila, en cualquier posición)' }[engineInfo(S.game.engine).paysBy] || 'múltiplo de la apuesta total (por way)';
   v.innerHTML = `<div class="card"><table><thead><tr><th>Imagen</th><th>Id</th><th>Nombre</th><th>Tipo</th>${counts.map((n) => `<th>${n}×</th>`).join('')}</tr></thead>
     <tbody>${syms.map((s) => `<tr data-id="${esc(s.id)}"><td><img class="sym" src="${esc(s.image)}" title="Cambiar imagen" /></td><td><code>${esc(s.id)}</code></td>
       <td><input data-f="name" value="${esc(s.name)}" /></td><td>${esc(s.type || 'regular')}</td>
@@ -1450,7 +1512,7 @@ async function tabMath(v) {
         ${d.rules.lines != null ? `<div style="width:170px"><label>Líneas de pago <span id="gMax" class="muted"></span></label><input id="gLines" type="number" min="1" max="100" value="${d.rules.lines}" /></div>` : ''}
         <button class="primary" id="gApply">Aplicar y ajustar RTP</button>
       </div>
-      <p class="muted">Ahora: <b>${d.grid.reels} × ${d.grid.rows ?? `${d.grid.rowsMin}–${d.grid.rowsMax}`}</b>${d.rules.lines != null ? ` · <b>${d.rules.lines} líneas</b>` : ({ cluster: ' · paga por grupos que se tocan, sin líneas', count: ' · paga por cantidad de iguales en pantalla, sin líneas' }[engineInfo(d.engine).paysBy]
+      <p class="muted">Ahora: <b>${d.grid.reels} × ${d.grid.rows ?? `${d.grid.rowsMin}–${d.grid.rowsMax}`}</b>${d.rules.lines != null ? ` · <b>${d.rules.lines} líneas</b>` : ({ cluster: ' · paga por grupos que se tocan, sin líneas', count: ' · paga por cantidad de iguales en pantalla, sin líneas', rows: ' · paga por fila: 3, 4 o 5 iguales en la misma fila' }[engineInfo(d.engine).paysBy]
       || ` · paga por formas (${engineInfo(d.engine).variableRows ? 'hasta ' + (7 ** d.grid.reels).toLocaleString('es') : (d.grid.rows ** d.grid.reels).toLocaleString('es')} formas), sin líneas`)}.
       Al aplicar se reconstruyen los rodillos, se completa la tabla de pagos y se reajusta el RTP al objetivo (tarda entre 10 s y 1 min). Revisa la vista previa y publica.</p>
     </div>
@@ -1683,7 +1745,7 @@ async function tabVersions(v) {
       <td>${pct(x.math?.rtp)}</td><td>${esc(x.note)}</td><td><button class="small" data-restore="${x.version}">Cargar en borrador</button></td></tr>`).join('')}
     </tbody></table><p class="muted">Cada versión publicada es inmutable y cada ronda registra la versión con la que se jugó (trazabilidad para auditoría).</p>
     <div class="row"><button class="danger" id="toggleStatus">${S.game.status === 'active' ? 'Desactivar juego' : 'Activar juego'}</button>
-      ${isOp() ? '' : '<button class="danger" id="deleteGame">🗑 Eliminar juego</button><span class="muted">Para juegos creados por error. No se puede si ya tuvo jugadas con dinero real (se conservan para auditoría): en ese caso, desactívalo.</span>'}</div></div>`;
+      ${isOp() ? '' : '<button id="convertGame">🔁 Cambiar motor (copia)</button><button class="danger" id="deleteGame">🗑 Eliminar juego</button><span class="muted">Para juegos creados por error. No se puede si ya tuvo jugadas con dinero real (se conservan para auditoría): en ese caso, desactívalo.</span>'}</div></div>`;
   $$('[data-restore]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     if (!confirm(`¿Reemplazar el borrador actual por la v${b.dataset.restore}?`)) return;
     await api(`/api/admin/games/${encodeURIComponent(S.gameId)}/restore/${b.dataset.restore}`, { method: 'POST' });
@@ -1691,6 +1753,32 @@ async function tabVersions(v) {
     toast('Borrador restaurado');
     reloadPreview();
   })));
+  $('#convertGame')?.addEventListener('click', guard(async () => {
+    const engines = (await (await fetch('/api/v1/engines')).json()).filter((e) => e.id !== S.game.engine);
+    const g = S.game;
+    openPicker('Cambiar motor (crea una copia)', `<div class="stack">
+      <p class="muted" style="margin:0">Se crea un <b>juego nuevo</b> con el motor que elijas y el diseño de «${esc(g.name)}»: fondos, logo, marco, botonera, carteles, textos, tipografías, sonidos, ambiente del bonus, fichas por moneda y marca.
+        Las imágenes y nombres de los símbolos pasan por equivalencia (comodín con comodín, scatter con scatter, y los normales de menor a mayor pago). La matemática es la del motor nuevo, calibrada al RTP de este juego. <b>El original no se toca.</b></p>
+      <div><label>Motor nuevo</label><select id="cvEngine">${engines.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} — ${esc(e.description)}</option>`).join('')}</select></div>
+      <div><label>Nombre del juego nuevo</label><input id="cvName" value="${esc(g.name)} 2" /></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="cvTune" style="width:auto" checked /> Calibrar la matemática al RTP de este juego (${pct(g.draft.rtpTarget)}) — puede tardar hasta ~1 minuto</label>
+      <div class="row"><button class="primary" id="cvGo">Crear copia con el motor nuevo</button><span class="muted" id="cvMsg"></span></div></div>`, (root, close) => {
+      $('#cvGo', root).addEventListener('click', guard(async () => {
+        $('#cvMsg', root).textContent = '⏳ Creando y calibrando…';
+        const r = await busy($('#cvGo', root), () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/convert`, { method: 'POST', body: { engine: $('#cvEngine', root).value, name: $('#cvName', root).value.trim(), tune: $('#cvTune', root).checked } }));
+        close();
+        await loadGames();
+        await selectGame(r.game.id);
+        openPicker(`«${r.game.name}» creado con ${engineInfo(r.engine).name || r.engine}`, `<div class="stack">
+          <p style="margin:0">Se conservó el diseño. Así pasaron los símbolos:</p>
+          <div class="gallery">${r.mapping.map((m) => `<div class="tile" style="cursor:default"><img src="${esc(m.image)}" alt="" /><b>${esc(m.name)}</b><span class="muted">${esc(m.type === 'regular' ? 'normal' : m.type)}</span></div>`).join('')}</div>
+          ${r.missing.length ? `<p class="error" style="margin:0">Sin imagen del original (quedan las de la plantilla): ${r.missing.map((m) => `${esc(m.name)} (${esc(m.type)})`).join(', ')}. Cámbialas en 🧩 Símbolos o pídeselas al Artista.</p>` : ''}
+          ${r.unused.length ? `<p class="muted" style="margin:0">No se usaron del original: ${r.unused.map((m) => esc(m.name)).join(', ')}.</p>` : ''}
+          ${r.tuned ? `<p class="muted" style="margin:0">Matemática calibrada: RTP ${pct(r.tuned.rtp)}${r.tuned.precision ? ` ±${(r.tuned.precision * 100).toFixed(2)} %` : ''}.</p>` : ''}
+          <p class="muted" style="margin:0">Revísalo en ▶ Vista previa y publícalo cuando esté listo. El juego original sigue igual.</p></div>`);
+      }));
+    });
+  }));
   $('#deleteGame')?.addEventListener('click', guard(async () => {
     const name = S.game.name;
     const typed = prompt(`Vas a ELIMINAR «${name}» (${S.gameId}) con sus versiones, borrador y pruebas. Esto no se puede deshacer.\n\nPara confirmar, escribe el nombre del juego:`);

@@ -61,3 +61,39 @@ export async function loadAnyFont(family, url) {
   document.head.appendChild(link);
   await Promise.race([document.fonts?.load?.(`16px "${family}"`) ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
 }
+
+/**
+ * Muestra una imagen, GIF o video a pantalla completa (entrada del bonus, premios por monto…).
+ * Se cierra al tocar, al terminar el video o al pasar `seconds`. Con `amount`, el importe se ve encima.
+ */
+export async function playMediaOverlay(url, seconds = 3, { amount = null, text = null, turbo = false } = {}) {
+  if (!url || typeof document === 'undefined') return;
+  const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const box = document.createElement('div');
+  box.className = 'bonus-intro';
+  const el = mediaEl(url, { fit: 'contain' });
+  const hint = document.createElement('small');
+  hint.textContent = 'Toca para continuar';
+  box.append(el, hint);
+  if (amount) {
+    const cap = document.createElement('div');
+    cap.className = 'tier-cap';
+    cap.innerHTML = `${text ? `<small>${esc(text)}</small>` : ''}<b>${esc(amount)}</b>`;
+    box.append(cap);
+  }
+  document.body.appendChild(box);
+  const max = Math.max(1, Math.min(15, Number(seconds) || 3)) * 1000;
+  await new Promise((resolve) => {
+    const done = () => { clearTimeout(t); resolve(); };
+    const t = setTimeout(done, turbo ? max / 2 : max);
+    box.addEventListener('click', done, { once: true });
+    if (isVideo(url)) el.addEventListener('ended', done, { once: true });
+  });
+  box.remove();
+}
+
+/** Nivel de premio por monto alcanzado (theme.winTiers): el más alto con «desde» ≤ x veces la apuesta. */
+export function winTierFor(theme, x) {
+  return (theme?.winTiers || []).map((t, i) => ({ ...t, i, from: Number(t.from) })).filter((t) => t.from > 0)
+    .sort((a, b) => a.from - b.from).filter((t) => x >= t.from).pop() || null;
+}

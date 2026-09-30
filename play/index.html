@@ -160,6 +160,26 @@
     .fine { font-size: 11px; opacity: .7; }
     .choose { display: flex; flex-direction: column; gap: 10px; }
     .choose .option { display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: none; width: 100%; font-size: 15px; padding: 14px 18px; }
+    /* Premios por monto: importe sobre el video/GIF */
+    .bonus-intro .tier-cap { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); text-align: center; pointer-events: none; font-family: var(--bn-font, var(--font));
+      animation: tierIn .6s cubic-bezier(.2,1.4,.4,1) both .2s; }
+    .bonus-intro .tier-cap small { display: block; color: var(--accent); font-size: clamp(18px, 3vw, 30px); letter-spacing: .08em; text-shadow: 0 3px 12px #000; }
+    .bonus-intro .tier-cap b { display: block; color: #fff; font-size: clamp(40px, 8vw, 96px); text-shadow: 0 0 24px var(--accent), 0 4px 16px #000; }
+    @keyframes tierIn { from { opacity: 0; transform: translateX(-50%) scale(.4); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+    /* Elección de cofre */
+    .chests { display: flex; gap: clamp(10px, 3vw, 26px); justify-content: center; margin: 18px 0 6px; flex-wrap: wrap; }
+    .chest { position: relative; width: clamp(82px, 18vw, 130px); aspect-ratio: 1; border-radius: 18px; border: 2px solid var(--accent); cursor: pointer;
+      background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--accent) 35%, transparent), rgba(0,0,0,.55)); box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent);
+      animation: chestFloat 2s ease-in-out infinite; transition: transform .25s, opacity .3s; display: grid; place-items: center; padding: 8px; }
+    .chest:hover { transform: scale(1.08); }
+    .chest img { width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+    .chest .chest-emoji { font-size: clamp(44px, 9vw, 70px); }
+    .chest .chest-val { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); min-width: 58%; padding: 3px 10px; border-radius: 99px; background: #000c; border: 2px solid var(--accent); color: var(--accent); font-size: clamp(16px, 3vw, 22px); }
+    .chest.open { animation: none; }
+    .chest.win { transform: scale(1.18); box-shadow: 0 0 40px var(--accent), 0 0 80px color-mix(in srgb, var(--accent) 60%, transparent); }
+    .chest.win .chest-val { background: var(--accent); color: #000; }
+    .chest.other { opacity: .45; filter: grayscale(.6); }
+    @keyframes chestFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
     .picks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0; }
     .picks button { aspect-ratio: 1; border-radius: 14px; font: 800 18px system-ui; background: linear-gradient(var(--primary), color-mix(in srgb, var(--primary) 50%, #000)); color: #fff; border: 2px solid var(--accent); }
     .picks button.revealed { background: var(--accent); color: #000; }
@@ -609,7 +629,8 @@
       if (session.source === 'draft') {
         window.addEventListener('message', async (e) => {
           const d = e.data || {};
-          if (d.type !== 'demo' || e.source !== window.parent || !engine.hud || engine.busy) return;
+          if (d.type !== 'demo' || e.source !== window.parent || engine.busy) return;
+          if (!engine.hud) { if (d.kind === 'tier' && engine.demoTier) { engine.busy = true; try { await engine.demoTier(d.i); } finally { engine.busy = false; } } return; }
           const bet = engine.hud.bet;
           engine.currentBet = bet;
           engine.busy = true;
@@ -617,6 +638,7 @@
             if (d.kind === 'win') await engine.presentTotal(bet * 5, bet);
             else if (d.kind === 'big') await engine.presentTotal(bet * 20, bet);
             else if (d.kind === 'mega') await engine.presentTotal(bet * 80, bet);
+            else if (d.kind === 'tier') { const t = engine.winTiers().find((x) => x.i === d.i); if (t) await engine.presentTotal(Math.round(bet * t.from), bet); }
             else if (d.kind === 'status') { engine.hud.setStatus(engine.msg('spinOf', { i: 3, n: 10 })); setTimeout(() => engine.hud.setStatus(''), 3000); }
             else if (d.kind === 'feature') {
               await engine.featureIntro(engine.msg('freeSpins', { n: 10 }), 'BONUS');

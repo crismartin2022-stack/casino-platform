@@ -67,3 +67,43 @@ export function playPick(engine, bonus) {
     hud.modalResolve = () => resolve(); // si cierra la ventana, el premio igual está acreditado
   });
 }
+
+/**
+ * Elección de cofre: el jugador toca uno de los cofres y se revela el multiplicador que ya decidió el servidor;
+ * los demás cofres muestran otros premios posibles. Con giro automático (o sin tocar en 12 s) se elige solo.
+ * chest: { mult, spins, others: [mult…] }. image: imagen del cofre (la del símbolo scatter).
+ */
+export function playChests(engine, chest, { image = null, title = 'Elige un cofre' } = {}) {
+  const hud = engine.hud;
+  return new Promise((resolve) => {
+    let done = false;
+    const n = 1 + (chest.others?.length || 0);
+    const info = h('p', {}, `Cada cofre esconde un multiplicador para tus ${chest.spins} giros gratis.`);
+    const boxes = [];
+    const finish = async (i) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      engine.sound.play('coin');
+      boxes[i].classList.add('open', 'win');
+      boxes[i].querySelector('.chest-val').textContent = `×${chest.mult}`;
+      info.textContent = `¡×${chest.mult}! ${chest.spins} giros gratis con todos los premios ×${chest.mult}`;
+      await wait(hud.turbo ? 500 : 900);
+      let o = 0;
+      boxes.forEach((b, j) => { if (j !== i) { b.classList.add('open', 'other'); b.querySelector('.chest-val').textContent = `×${chest.others[o++]}`; } });
+      await wait(hud.turbo ? 700 : 1500);
+      hud.modal.hidden = true;
+      hud.modalResolve = null;
+      resolve(chest.mult);
+    };
+    for (let i = 0; i < n; i++) {
+      boxes.push(h('button', { class: 'chest', style: `animation-delay:${i * 0.25}s`, onclick: () => finish(i), 'aria-label': `Cofre ${i + 1}` },
+        image ? h('img', { src: image, alt: '' }) : h('span', { class: 'chest-emoji' }, '🎁'),
+        h('b', { class: 'chest-val' }, '?')));
+    }
+    hud.openModal(h('div', { class: 'confirm chests-modal' }, h('h2', {}, title), info, h('div', { class: 'chests' }, boxes)));
+    // Si cierra la ventana, se elige un cofre igual (el premio ya está decidido y acreditado)
+    hud.modalResolve = () => { hud.modal.hidden = false; finish(0); };
+    const timer = setTimeout(() => finish(Math.floor(Math.random() * n)), hud.autoLeft > 0 ? 1200 : 12_000);
+  });
+}

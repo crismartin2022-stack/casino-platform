@@ -5,7 +5,7 @@ import { gsap } from 'gsap';
 import { GridView, wait } from './GridView.js';
 import { Hud, h } from './Hud.js';
 import { SoundManager } from './SoundManager.js';
-import { isAnimated, isVideo, mediaEl, applyBackgroundMedia, loadFontFile } from './media.js';
+import { isAnimated, isVideo, mediaEl, applyBackgroundMedia, loadFontFile, playMediaOverlay } from './media.js';
 
 // Textos de los carteles (editables en theme.messages.texts; {n}, {i} y {x} se reemplazan)
 const DEFAULT_TEXTS = {
@@ -118,7 +118,9 @@ export class BaseEngine {
     }
 
     onProgress(0.9, 'Preparando mesa…');
-    this.sound = new SoundManager(this.game.sounds || {}, this.game.soundVolumes || {});
+    // Sonidos de los premios por monto (theme.winTiers[i].sound) como ranuras winTier0, winTier1…
+    const tierSounds = Object.fromEntries((this.game.theme?.winTiers || []).map((t, i) => [`winTier${i}`, t?.sound || null]));
+    this.sound = new SoundManager({ ...(this.game.sounds || {}), ...tierSounds }, this.game.soundVolumes || {});
     this.buildScene();
     this.buildHud();
     const { balance } = await this.api.balance();
@@ -442,8 +444,24 @@ export class BaseEngine {
     return String(txt != null && txt !== '' ? txt : DEFAULT_TEXTS[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   }
 
+  /** Niveles de premio configurados (theme.winTiers), ordenados de menor a mayor «desde». */
+  winTiers() {
+    return (this.game.theme?.winTiers || []).map((t, i) => ({ ...t, i, from: Number(t.from) }))
+      .filter((t) => t.from > 0).sort((a, b) => a.from - b.from);
+  }
+
   async presentTotal(cents, bet) {
     const x = cents / bet;
+    // Premios por monto: el nivel más alto alcanzado reproduce su sonido, su video/GIF y su cartel
+    const tier = this.winTiers().filter((t) => x >= t.from).pop();
+    if (tier) {
+      this.sound.play(tier.sound ? `winTier${tier.i}` : 'bigWin');
+      // Con video/GIF, el importe se muestra encima del propio video; sin él, en el cartel
+      if (tier.media) { await this.playOverlay(tier.media, tier.seconds ?? 3, { amount: this.hud.fmt(cents), text: tier.text || this.msg('bigWin') }); return; }
+      const kind = x >= (Number(this.game.theme?.messages?.thresholds?.big) || 15) ? 'big' : 'win';
+      await this.hud.showBanner(`<small>${escHtml(tier.text || this.msg(kind === 'big' ? 'bigWin' : 'win'))}</small><b>${this.hud.fmt(cents)}</b>`, { kind, ms: tier.bannerMs || (kind === 'big' ? 2600 : 1400) });
+      return;
+    }
     const T = this.game.theme?.messages?.thresholds || {};
     const mega = Number(T.mega) || 50, big = Number(T.big) || 15;
     if (x >= mega) {
@@ -478,23 +496,8 @@ export class BaseEngine {
   // { intro, outro: imagen/GIF/video a pantalla completa; background, backgroundMobile, reelsBackground: fondos durante el bonus }
 
   /** Muestra una imagen, GIF o video a pantalla completa (se salta tocando). Espera a que termine o a `seconds`. */
-  async playOverlay(url, seconds = 3) {
-    if (!url || typeof document === 'undefined') return;
-    const box = document.createElement('div');
-    box.className = 'bonus-intro';
-    const el = mediaEl(url, { fit: 'contain' });
-    const hint = document.createElement('small');
-    hint.textContent = 'Toca para continuar';
-    box.append(el, hint);
-    document.body.appendChild(box);
-    const max = Math.max(1, Math.min(15, Number(seconds) || 3)) * 1000;
-    await new Promise((resolve) => {
-      const done = () => { clearTimeout(t); resolve(); };
-      const t = setTimeout(done, this.hud.turbo ? max / 2 : max);
-      box.addEventListener('click', done, { once: true });
-      if (isVideo(url)) el.addEventListener('ended', done, { once: true });
-    });
-    box.remove();
+  async playOverlay(url, seconds = 3, { amount = null, text = null } = {}) {
+    await playMediaOverlay(url, seconds, { amount, text, turbo: this.hud?.turbo });
   }
 
   async enterBonus() {
@@ -596,6 +599,9 @@ export class BaseEngine {
     return 'Importes por cada FORMA de ganar: si la combinación se arma de varias maneras (por ejemplo, 2 símbolos iguales en un mismo rodillo), cada forma paga y se suman.' + (e === 'colossal-reels' ? ' Un símbolo COLOSAL ocupa varias filas y multiplica las formas.' : /cascade|reel-rush/.test(e) ? ' Las cascadas suman más premios en el mismo giro.' : '');
   }
 
+  /** Texto después de la cantidad en la tabla de premios («5 iguales», «5 iguales en fila»…). */
+  paySuffix() { return 'iguales'; }
+
   /** Cómo se muestra cada cantidad de la tabla de pagos (los motores de grupos la cambian). */
   payLabel(n) { return `${n}`; }
 
@@ -605,7 +611,7 @@ export class BaseEngine {
     const rows = this.game.symbols.map((s) => {
       const keys = Object.keys(s.pays || {});
       const pays = Object.entries(s.pays || {}).sort((a, b) => b[0] - a[0])
-        .map(([n, p]) => h('div', { class: 'pl' }, h('span', {}, `${this.payLabel(n, keys)} iguales`), h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
+        .map(([n, p]) => h('div', { class: 'pl' }, h('span', {}, `${this.payLabel(n, keys)} ${this.paySuffix()}`), h('b', {}, this.hud.fmt(Math.round(p * unit * bet)))));
       // Pagos de scatter en cualquier posición (múltiplos de la apuesta total). El importe ya es el total del premio.
       const sp = Object.entries(s.scatterPays || {}).sort((a, b) => b[0] - a[0])
         .map(([n, p]) => h('div', { class: 'pl' }, h('span', {}, `${n} en pantalla`), h('b', {}, this.hud.fmt(Math.round(p * bet)))));

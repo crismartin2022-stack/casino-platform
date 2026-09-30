@@ -175,6 +175,7 @@ Tiempo máximo de respuesta: 8 s.
 | GET | `/api/admin/games/:id/checks` | Últimas pruebas (incluye las de cada publicación, con su versión) |
 
 | POST | `/api/admin/games/:id/preview-session` | Vista previa del borrador; body opcional `{ currency }` (fichas y saldo de prueba en esa moneda) |
+| POST | `/api/admin/games/:id/convert` | Cambiar motor: `{ engine, name, tune }` → crea una copia con otro motor y el mismo diseño; responde `{ game, mapping, missing, unused, tuned }` |
 | DELETE | `/api/admin/games/:id` | Eliminar juego `{ confirm: "<nombre o id>" }`; 409 si tuvo jugadas con dinero real |
 
 `POST /publish` ejecuta la prueba: si `status = fail` responde **422** con `details.check` y no publica; si pasa, la respuesta incluye `check`.
