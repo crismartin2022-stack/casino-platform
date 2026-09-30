@@ -122,8 +122,16 @@ export class Hud {
     if (M.bgImage) css.setProperty('--m-img', `url("${String(M.bgImage).replace(/"/g, '%22')}")`); else css.removeProperty?.('--m-img');
     if (M.radius != null) css.setProperty('--m-radius', `${Math.max(0, Math.min(40, Number(M.radius) || 0))}px`); else css.removeProperty?.('--m-radius');
     if (M.valueScale) css.setProperty('--m-vs', String(Math.max(0.7, Math.min(1.6, Number(M.valueScale) || 1)))); else css.removeProperty?.('--m-vs');
-    const meterOn = Object.keys(vars).some((k) => M[k]) || M.bgImage || M.radius != null || M.valueScale || M.showLabels === false;
-    if (meterOn) root.dataset.meters = [M.bg || M.bgImage || M.border ? 'box' : '', M.showLabels === false ? 'nolabel' : '', 'on'].filter(Boolean).join(' ');
+    // Tipografías propias de los marcadores: una para los títulos y otra para los números (Google Fonts o archivo subido).
+    const fam = (f) => `'${String(f).replace(/'/g, '')}', var(--font)`;
+    if (M.labelFont) css.setProperty('--m-lfont', fam(M.labelFont)); else css.removeProperty?.('--m-lfont');
+    if (M.valueFont) css.setProperty('--m-vfont', fam(M.valueFont)); else css.removeProperty?.('--m-vfont');
+    const noBox = M.box === 'none';
+    const meterOn = Object.keys(vars).some((k) => M[k]) || M.bgImage || M.radius != null || M.valueScale || M.showLabels === false || noBox || M.labelFont || M.valueFont;
+    if (meterOn) {
+      root.dataset.meters = [noBox ? 'nobox' : M.bg || M.bgImage || M.border ? 'box' : '', M.showLabels === false ? 'nolabel' : '',
+        M.labelFont ? 'lfont' : '', M.valueFont ? 'vfont' : '', 'on'].filter(Boolean).join(' ');
+    }
     else delete root.dataset.meters;
     const stat = (label, el, cls) => h('div', { class: `stat ${cls}` }, h('small', {}, lbl(label, cls)), el);
     this.onInfo = onInfo;

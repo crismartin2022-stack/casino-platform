@@ -174,6 +174,9 @@ Tiempo máximo de respuesta: 8 s.
 | POST | `/api/admin/games/:id/check` | Prueba silenciosa del borrador → `{ status: ok\|warn\|fail, passed, summary, counts, checks[], fixes[] }` |
 | GET | `/api/admin/games/:id/checks` | Últimas pruebas (incluye las de cada publicación, con su versión) |
 
+| POST | `/api/admin/games/:id/preview-session` | Vista previa del borrador; body opcional `{ currency }` (fichas y saldo de prueba en esa moneda) |
+| DELETE | `/api/admin/games/:id` | Eliminar juego `{ confirm: "<nombre o id>" }`; 409 si tuvo jugadas con dinero real |
+
 `POST /publish` ejecuta la prueba: si `status = fail` responde **422** con `details.check` y no publica; si pasa, la respuesta incluye `check`.
 `GET /api/v1/session` y `GET /api/v1/games` incluyen `brand: { name, logo, tagline, color, bg, bgImage, loader, minMs }` para la pantalla de carga.
 

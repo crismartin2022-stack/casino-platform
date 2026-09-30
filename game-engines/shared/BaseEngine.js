@@ -84,6 +84,12 @@ export class BaseEngine {
     // Tipografía propia subida (theme.fontUrl) o de Google Fonts (theme.font); la botonera puede tener otra (theme.hud.font/fontUrl)
     if (t.fontUrl) await loadFontFile(t.font, t.fontUrl); else await loadFont(t.font);
     if (t.hud?.fontUrl) await loadFontFile(t.hud.font, t.hud.fontUrl); else if (t.hud?.font) await loadFont(t.hud.font);
+    // Tipografías de SALDO / APUESTA / PREMIO (theme.hud.meters.labelFont/valueFont, con archivo propio opcional)
+    const M = t.hud?.meters || {};
+    for (const k of ['label', 'value']) {
+      const f = M[`${k}Font`], u = M[`${k}FontUrl`];
+      if (f && u) await loadFontFile(f, u); else if (f) await loadFont(f);
+    }
     for (const st of Object.values(t.messages?.styles || {})) {
       if (st?.fontUrl) await loadFontFile(st.font, st.fontUrl); else if (st?.font) await loadFont(st.font);
     }
@@ -451,6 +457,9 @@ export class BaseEngine {
   }
 
   async featureIntro(title, sub = '') {
+    // Subtítulo propio (theme.messages.texts.bonusSub): vacío = el automático del juego; "-" = sin subtítulo.
+    const own = this.game.theme?.messages?.texts?.bonusSub;
+    if (own != null && String(own).trim() !== '') sub = String(own).trim() === '-' ? '' : String(own);
     this.sound.play('feature');
     this.sound.playMusic('featureMusic');
     await this.enterBonus();
@@ -572,6 +581,9 @@ export class BaseEngine {
   // ---------------------------------------------------------------- Reglas y pagos (obligatorio en mercados regulados)
   payUnit() { return 1; }
 
+  /** Datos extra de la pantalla de información como [etiqueta, importe] ya calculados para la apuesta (compras de bonus, jackpots…). */
+  infoExtras() { return []; }
+
   /** Cómo se muestra cada cantidad de la tabla de pagos (los motores de grupos la cambian). */
   payLabel(n) { return `${n}`; }
 
@@ -592,10 +604,18 @@ export class BaseEngine {
       return h('div', { class: 'pay' }, h('img', { src: s.image, alt: s.name }), h('div', {}, h('strong', {}, s.name), kind ? h('div', {}, kind) : null, ...pays, ...sp));
     });
     const rtp = this.game.math?.rtp ? `${(this.game.math.rtp * 100).toFixed(2)} %` : '—';
+    // La tabla se recalcula con la apuesta y la moneda de la sesión; se puede cambiar la apuesta desde aquí mismo.
+    const step = (d) => h('button', { class: 'chip', disabled: this.hud.locked || (d < 0 ? this.hud.betIndex === 0 : this.hud.betIndex === this.hud.levels.length - 1),
+      onclick: () => { this.hud.changeBet(d); this.showInfo(); } }, d < 0 ? '−' : '+');
+    const maxWin = this.game.rules?.maxWin;
+    const extra = this.infoExtras(bet);
     this.hud.openModal(h('div', { class: 'info' },
       h('h2', {}, this.game.theme?.title || this.game.name),
+      h('div', { class: 'info-bet' }, h('span', {}, 'Premios para tu apuesta de'), step(-1), h('b', {}, this.hud.fmt(bet)), step(1),
+        h('small', {}, this.hud.currency ? `(${this.hud.currency})` : '')),
       h('p', {}, this.rulesText()),
-      h('p', {}, `Premios de la tabla calculados para la apuesta actual (${this.hud.fmt(bet)}). Premio máximo: ${this.game.rules?.maxWin ?? '—'}× la apuesta.`),
+      extra.length ? h('div', { class: 'info-extra' }, extra.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))) : null,
+      maxWin ? h('p', {}, `Premio máximo: ${maxWin.toLocaleString('es')}× la apuesta = `, h('b', {}, this.hud.fmt(Math.round(maxWin * bet))), '.') : null,
       h('div', { class: 'paytable' }, rows),
       h('p', { class: 'fine' }, `RTP teórico: ${rtp}. Versión ${this.game.version ?? 'borrador'}. Los resultados se determinan en el servidor con un generador de números aleatorios certificable; el mal funcionamiento anula pagos y jugadas. Juega con responsabilidad.`)));
   }

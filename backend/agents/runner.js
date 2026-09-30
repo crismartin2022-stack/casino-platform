@@ -89,7 +89,8 @@ BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los ro
   barColor (color CSS con transparencia, ej. "rgba(10,8,12,.82)"), barBorder, spinSize (56-130 px; solo pill/classic),
   maxBet (true/false: botón MÁX de apuesta máxima), scale (0.8-1.4: tamaño general de toda la interfaz —botonera, botones y textos—; 1 = normal) }.
   MARCADORES (theme.hud.meters): { labels: { balance, bet, win } (títulos; vacío = SALDO/APUESTA/PREMIO), showLabels (false oculta títulos),
-    labelColor, valueColor, winColor, bg (color del recuadro, admite #rrggbbaa), border, radius (0-40), bgImage (imagen del recuadro), valueScale (0.7-1.6) }.
+    labelColor, valueColor, winColor, box ("none" = sin recuadro, se ve el tablero), bg (color del recuadro, admite #rrggbbaa), border, radius (0-40), bgImage (imagen del recuadro), valueScale (0.7-1.6),
+    labelFont / valueFont (tipografía de Google Fonts para títulos y números) }.
   Para "agrandar los botones" usa theme.buttons.size; para "agrandar toda la botonera/interfaz" usa theme.hud.scale; para el GIRAR en pill/classic, theme.hud.spinSize;
   para los símbolos, theme.symbolScale. Los giros automáticos que elige el jugador están en bet.autoSpins (los define el matemático).
   Cada interfaz toma los colores de theme.palette (primary = botón GIRAR y brillos, accent = premios y detalles, panel = fondos).

@@ -10,6 +10,13 @@ export class HoldWinEngine extends BaseEngine {
   }
 
   payUnit() { return 1 / (this.game.rules?.lines || 10); }
+  infoExtras(bet) {
+    const J = this.game.rules?.jackpots || {};
+    const vals = (this.game.rules?.coinValues || []).filter((c) => c.value).map((c) => c.value);
+    const out = ['mini', 'minor', 'major', 'grand'].filter((k) => J[k]).map((k) => [`Jackpot ${k.toUpperCase()}`, this.hud.fmt(Math.round(J[k] * bet))]);
+    if (vals.length) out.unshift(['Monedas', `${this.hud.fmt(Math.round(Math.min(...vals) * bet))} a ${this.hud.fmt(Math.round(Math.max(...vals) * bet))}`]);
+    return out;
+  }
   coinId() { return this.game.symbols.find((s) => s.type === 'coin')?.id; }
 
   buildScene() {

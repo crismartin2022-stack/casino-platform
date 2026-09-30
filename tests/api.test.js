@@ -527,3 +527,49 @@ test('prueba silenciosa: se ejecuta al publicar, bloquea errores y sugiere arreg
   const { body: g } = await req('/api/v1/games/hold-win');
   assert.equal(g.version, pub.body.version); // el juego en vivo no cambió
 });
+
+test('vista previa en otra moneda: fichas y saldo de esa moneda', async () => {
+  await req('/api/admin/games/reel-rush/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'bet.byCurrency', value: { ARS: { levels: [20000, 50000, 100000], default: 50000 } } }] } });
+  const pv = (await req('/api/admin/games/reel-rush/preview-session', { method: 'POST', headers: ADMIN, body: { currency: 'ARS' } })).body;
+  assert.equal(pv.currency, 'ARS');
+  const s = (await req('/api/v1/session', { headers: { authorization: `Bearer ${pv.token}` } })).body;
+  assert.deepEqual(s.game.bet.levels, [20000, 50000, 100000]);
+  assert.ok(pv.balance >= 100000 * 100, JSON.stringify(pv.balance)); // saldo de prueba escalado a pesos
+  assert.equal((await req('/api/admin/games/reel-rush/preview-session', { method: 'POST', headers: ADMIN, body: { currency: 'x1' } })).status, 400);
+});
+
+test('colosal en giros gratis: regla editable y validada', async () => {
+  const bad = await req('/api/admin/games/colossal-reels/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'rules.fsColossalChance', value: 1.5 }] } });
+  assert.equal(bad.status, 422);
+  assert.ok(bad.body.details.some((e) => /fsColossalChance/.test(e)));
+  const ok = await req('/api/admin/games/colossal-reels/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'rules.fsColossalChance', value: 0.5 }] } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  const { body: pv } = await req('/api/admin/games/colossal-reels/preview-session', { method: 'POST', headers: ADMIN });
+  const r = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv.token}` }, body: { bet: 100, force: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+});
+
+test('prueba silenciosa: avisa si un operador usa una moneda sin fichas propias', async () => {
+  await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Reales', currency: 'BRL' } });
+  const ck = (await req('/api/admin/games/cluster-pays/check', { method: 'POST', headers: ADMIN })).body;
+  const c = ck.checks.find((x) => x.id === 'currencies');
+  assert.equal(c.status, 'warn');
+  assert.match(c.detail, /BRL/);
+});
+
+test('eliminar juego: con confirmación y nunca si tuvo jugadas con dinero real', async () => {
+  const g = (await req('/api/admin/games', { method: 'POST', headers: ADMIN, body: { name: 'Duplicado por error', engine: 'reel-rush' } })).body;
+  const { body: pv } = await req(`/api/admin/games/${g.id}/preview-session`, { method: 'POST', headers: ADMIN });
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv.token}` }, body: { bet: 100 } })).status, 200);
+  assert.equal((await req(`/api/admin/games/${g.id}`, { method: 'DELETE', headers: ADMIN, body: { confirm: 'otro' } })).status, 400);
+  const del = await req(`/api/admin/games/${g.id}`, { method: 'DELETE', headers: ADMIN, body: { confirm: 'Duplicado por error' } });
+  assert.equal(del.status, 200, JSON.stringify(del.body));
+  assert.equal((await req(`/api/admin/games/${g.id}`, { headers: ADMIN })).status, 404);
+  // Un juego con jugadas reales no se borra (auditoría)
+  const op = (await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Borrar' } })).body;
+  await req('/api/v1/operator/players/z1/balance', { method: 'POST', headers: { 'x-api-key': op.apiKey }, body: { amount: 100000, reference: 'z' } });
+  const s = (await req('/api/v1/operator/sessions', { method: 'POST', headers: { 'x-api-key': op.apiKey }, body: { playerId: 'z1', gameId: 'megaways' } })).body;
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.token}` }, body: { bet: 100 } })).status, 200);
+  const no = await req('/api/admin/games/megaways', { method: 'DELETE', headers: ADMIN, body: { confirm: 'megaways' } });
+  assert.equal(no.status, 409);
+});

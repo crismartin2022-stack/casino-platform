@@ -187,6 +187,11 @@ export function registerRoutes(r) {
   r.get('/api/admin/games/:id/checks', G((req, res, { params }) => json(res, checks.listChecks(params.id))));
   r.get('/api/admin/games/:id/versions', G((req, res, { params }) => json(res, games.listVersions(params.id))));
   r.post('/api/admin/games/:id/restore/:version', G((req, res, { params, actor }) => json(res, games.restoreVersion(params.id, Number(params.version), actor))));
+  // Eliminar un juego (solo el proveedor, con confirmación por nombre; nunca si tuvo jugadas con dinero real)
+  r.delete('/api/admin/games/:id', A(async (req, res, { params, actor }) => {
+    const { confirm } = await readJson(req).catch(() => ({}));
+    json(res, games.deleteGame(params.id, { confirm, actor }));
+  }));
   r.post('/api/admin/games/:id/status', G(async (req, res, { params, actor }) => {
     games.setStatus(params.id, (await readJson(req)).status, actor);
     json(res, { ok: true });
@@ -236,7 +241,18 @@ export function registerRoutes(r) {
     json(res, { grid: t.config.grid, lines: t.config.rules.lines ?? null, maxLines: t.maxLines, history: t.history, final: t.final, buy: t.buy, buyOptions: t.buyOptions });
   }));
   // Vista previa: sesión demo que juega el BORRADOR.
-  r.post('/api/admin/games/:id/preview-session', G((req, res, { params }) => json(res, wallets.createDemoSession(params.id, { source: 'draft' }), 201)));
+  // Vista previa del borrador, opcionalmente en otra moneda: fichas, saldo de prueba y tabla de premios en esa moneda.
+  r.post('/api/admin/games/:id/preview-session', G(async (req, res, { params }) => {
+    const body = await readJson(req).catch(() => ({}));
+    const d = games.getDraft(params.id);
+    const base = String(d.bet?.currency || 'USD').toUpperCase();
+    const cur = String(body?.currency || base).toUpperCase();
+    if (!/^[A-Z]{3,4}$/.test(cur)) throw new HttpError(400, 'Moneda inválida');
+    // El saldo de prueba se escala con las fichas de esa moneda (1.000 USD ≈ 1.000.000 ARS si las fichas son ×1000)
+    const bc = d.bet?.byCurrency?.[cur];
+    const k = bc?.levels?.length && d.bet?.levels?.length ? bc.levels[0] / d.bet.levels[0] : 1;
+    json(res, wallets.createDemoSession(params.id, { source: 'draft', currency: cur, balance: Math.round(config.demoBalanceCents * k) }), 201);
+  }));
 
   // Assets (el portal solo ve y sube los de sus juegos)
   const assetScope = (req) => {
