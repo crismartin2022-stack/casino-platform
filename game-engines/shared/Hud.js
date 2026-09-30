@@ -54,6 +54,10 @@ export class Hud {
     // La botonera puede usar su propia tipografía (theme.hud.font); si no, la del juego.
     css.setProperty('--font', `'${t.hud?.font || t.font || 'Bungee'}', system-ui, sans-serif`);
 
+    // Tipografía de la pantalla de información, menú e historial (theme.infoFont)
+    if (t.infoFont) { css.setProperty('--info-font', `'${String(t.infoFont).replace(/'/g, '')}', system-ui, sans-serif`); root.dataset.infofont = '1'; }
+    else { css.removeProperty?.('--info-font'); delete root.dataset.infofont; }
+
     // Botones personalizables desde el tema (theme.buttons): forma, estilo, tamaño,
     // y por cada botón una imagen, un icono o un texto propio.
     const B = t.buttons || {};

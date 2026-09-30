@@ -490,8 +490,11 @@ test('marcas: logotipo, pantalla de carga y juegos agrupados por marca', async (
   assert.equal(brands.find((x) => x.id === b.body.id).games, 1);
   // No se borra una marca con juegos
   assert.equal((await req(`/api/admin/brands/${b.body.id}`, { method: 'DELETE', headers: ADMIN })).status, 409);
-  const up = await req(`/api/admin/brands/${b.body.id}`, { method: 'PATCH', headers: ADMIN, body: { tagline: 'Nueva' } });
+  const up = await req(`/api/admin/brands/${b.body.id}`, { method: 'PATCH', headers: ADMIN, body: { tagline: 'Nueva', font: 'Cinzel Decorative' } });
   assert.equal(up.body.tagline, 'Nueva');
+  assert.equal(up.body.font, 'Cinzel Decorative');
+  const ses2 = (await req('/api/v1/session', { headers: { authorization: `Bearer ${demo.token}` } })).body;
+  assert.equal(ses2.brand.font, 'Cinzel Decorative');
   await req(`/api/admin/games/sticky-wilds/brand`, { method: 'PUT', headers: ADMIN, body: { brandId: null } });
   assert.equal((await req(`/api/admin/brands/${b.body.id}`, { method: 'DELETE', headers: ADMIN })).status, 200);
 });

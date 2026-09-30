@@ -3,7 +3,7 @@
 import { SoundManager } from '../../shared/SoundManager.js';
 import { formatMoney } from '../../shared/api.js';
 import { canFullscreen, isTouch, toggleFullscreen, rotate } from '../../shared/screen.js';
-import { applyBackgroundMedia, loadFontFile } from '../../shared/media.js';
+import { applyBackgroundMedia, loadFontFile, loadAnyFont } from '../../shared/media.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -24,10 +24,10 @@ const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7,
 const FACE_POS = { 1: 'rotateY(0deg)', 2: 'rotateY(90deg)', 3: 'rotateX(90deg)', 4: 'rotateX(-90deg)', 5: 'rotateY(-90deg)', 6: 'rotateY(180deg)' };
 
 const CSS = `
-.cr { position: fixed; inset: 0; display: flex; flex-direction: column; font-family: var(--font); color: var(--text); overflow: hidden; }
+.cr { position: fixed; inset: 0; display: flex; flex-direction: column; font-family: var(--cr-font, var(--font)); color: var(--text); overflow: hidden; }
 .cr * { box-sizing: border-box; }
 .cr-top { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 4px; }
-.cr-title { flex: 1; text-align: center; font-size: clamp(18px, 3.2vw, 34px); color: var(--accent); text-shadow: 0 3px 10px #000; }
+.cr-title { font-family: var(--font); flex: 1; text-align: center; font-size: clamp(18px, 3.2vw, 34px); color: var(--accent); text-shadow: 0 3px 10px #000; }
 .cr-title img { max-height: 70px; max-width: 70vw; }
 .cr-icon { width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: var(--text); font-size: 18px; cursor: pointer; }
 .cr-main { flex: 1; display: grid; grid-template-columns: 1fr minmax(260px, 30%); gap: 12px; padding: 6px 12px; min-height: 0; }
@@ -41,23 +41,23 @@ const CSS = `
 .cr-zone:hover { background: rgba(255,255,255,.1); }
 .cr-zone.off { opacity: .35; cursor: not-allowed; }
 .cr-zone b { font-size: clamp(13px, 1.6vw, 20px); letter-spacing: .04em; }
-.cr-zone small { font: 600 10px system-ui; opacity: .85; }
+.cr-zone small { font: 600 10px var(--cr-font, system-ui); opacity: .85; }
 .cr-zone.win { box-shadow: 0 0 0 3px var(--accent), 0 0 26px var(--accent); background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .cr-zone.lose { opacity: .45; }
 .cr-zone.point { box-shadow: inset 0 0 0 3px var(--accent); }
-.cr-puck { position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 9px system-ui;
+.cr-puck { position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 9px var(--cr-font, system-ui);
   background: #fff; color: #000; border: 3px solid #111; box-shadow: 0 3px 8px #0008; }
 .cr-puck.offp { background: #111; color: #fff; border-color: #fff; }
 .cr-chips { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
-.cr-chip { min-width: 34px; height: 22px; padding: 0 6px; border-radius: 99px; font: 800 11px system-ui; display: inline-grid; place-items: center; color: #fff;
+.cr-chip { min-width: 34px; height: 22px; padding: 0 6px; border-radius: 99px; font: 800 11px var(--cr-font, system-ui); display: inline-grid; place-items: center; color: #fff;
   background: var(--primary); border: 2px dashed #fff; box-shadow: 0 2px 5px #0008; }
 .cr-chip.pending { background: color-mix(in srgb, var(--primary) 45%, #555); border-style: dotted; }
 .cr-chip .x { margin-left: 4px; cursor: pointer; opacity: .8; }
-.cr-mini { font: 700 10px system-ui; padding: 2px 6px; border-radius: 6px; border: 1px solid #fff9; background: #0006; color: #fff; cursor: pointer; }
+.cr-mini { font: 700 10px var(--cr-font, system-ui); padding: 2px 6px; border-radius: 6px; border: 1px solid #fff9; background: #0006; color: #fff; cursor: pointer; }
 .cr-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .cr-tray { position: relative; flex: 1; min-height: 190px; border-radius: 22px; overflow: hidden; perspective: 900px; touch-action: none; cursor: grab;
   background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--felt) 90%, #fff) 0%, var(--felt) 55%, #000 130%); border: 6px solid color-mix(in srgb, var(--accent) 60%, #3a2508); }
-.cr-tray .hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 11px system-ui; opacity: .7; pointer-events: none; }
+.cr-tray .hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 11px var(--cr-font, system-ui); opacity: .7; pointer-events: none; }
 .cr-tray svg { position: absolute; inset: 0; pointer-events: none; }
 .cr-die { position: absolute; width: var(--ds, 56px); height: var(--ds, 56px); transform-style: preserve-3d; left: 0; top: 0; }
 .cr-die .f { position: absolute; inset: 0; background: linear-gradient(145deg, color-mix(in srgb, var(--die-face, #fbfbfb) 100%, #fff), color-mix(in srgb, var(--die-face, #fbfbfb) 88%, #000));
@@ -76,30 +76,30 @@ const CSS = `
 .cr-total { position: absolute; top: 10px; left: 0; right: 0; text-align: center; font-size: 30px; color: var(--accent); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .cr-total.show { opacity: 1; }
 .cr-hist { position: absolute; left: 10px; bottom: 26px; display: flex; gap: 4px; flex-wrap: wrap; max-width: calc(100% - 20px); pointer-events: none; }
-.cr-hist span { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; font: 800 12px system-ui; background: #0007; }
+.cr-hist span { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; font: 800 12px var(--cr-font, system-ui); background: #0007; }
 .cr-hist span.seven { background: #c0392b; } .cr-hist span.pt { background: var(--accent); color: #000; }
-.cr-phase { font: 700 13px system-ui; text-align: center; padding: 6px; border-radius: 10px; background: #0007; }
+.cr-phase { font: 700 13px var(--cr-font, system-ui); text-align: center; padding: 6px; border-radius: 10px; background: #0007; }
 .cr-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(8,8,12,.85); border-top: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); flex-wrap: wrap; }
-.cr-stat { display: flex; flex-direction: column; min-width: 80px; } .cr-stat small { font: 600 10px system-ui; opacity: .7; letter-spacing: .1em; } .cr-stat b { font-size: 17px; white-space: nowrap; }
+.cr-stat { display: flex; flex-direction: column; min-width: 80px; } .cr-stat small { font: 600 10px var(--cr-font, system-ui); opacity: .7; letter-spacing: .1em; } .cr-stat b { font-size: 17px; white-space: nowrap; }
 .cr-stats { display: flex; gap: 14px; }
 .cr-chipsel { display: flex; gap: 8px; margin: 0 auto; }
-.cr-chipsel button { width: 48px; height: 48px; border-radius: 50%; border: 4px dashed #fff; font: 800 12px system-ui; color: #fff; cursor: pointer; box-shadow: 0 3px 8px #0009; }
+.cr-chipsel button { width: 48px; height: 48px; border-radius: 50%; border: 4px dashed #fff; font: 800 12px var(--cr-font, system-ui); color: #fff; cursor: pointer; box-shadow: 0 3px 8px #0009; }
 .cr-chipsel button.sel { transform: translateY(-6px); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px #000; }
-.cr-btn { border: 0; border-radius: 12px; padding: 12px 16px; font: 800 13px system-ui; cursor: pointer; background: #ffffff22; color: var(--text); }
+.cr-btn { border: 0; border-radius: 12px; padding: 12px 16px; font: 800 13px var(--cr-font, system-ui); cursor: pointer; background: #ffffff22; color: var(--text); }
 .cr-roll { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 55%, #fff), var(--primary) 60%, color-mix(in srgb, var(--primary) 55%, #000));
   font-size: 16px; padding: 14px 26px; border-radius: 999px; box-shadow: 0 0 0 3px var(--accent), 0 6px 16px #000; color: #fff; }
 .cr-roll:disabled, .cr-btn:disabled { opacity: .45; cursor: not-allowed; }
-.cr-float { position: fixed; pointer-events: none; font: 900 22px system-ui; color: var(--accent); text-shadow: 0 2px 6px #000; animation: crfloat 1.2s ease-out forwards; z-index: 30; }
+.cr-float { position: fixed; pointer-events: none; font: 900 22px var(--cr-font, system-ui); color: var(--accent); text-shadow: 0 2px 6px #000; animation: crfloat 1.2s ease-out forwards; z-index: 30; }
 @keyframes crfloat { to { transform: translateY(-60px); opacity: 0; } }
 .cr-banner { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); padding: 16px 34px; border-radius: 20px; background: #000c; border: 3px solid var(--accent); text-align: center; z-index: 40; animation: crpop .3s; }
 .cr-banner small { display: block; color: var(--accent); letter-spacing: .1em; } .cr-banner b { font-size: clamp(30px, 6vw, 60px); }
 @keyframes crpop { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
 .cr-modal { position: fixed; inset: 0; background: #000b; display: grid; place-items: center; z-index: 50; padding: 14px; }
-.cr-sheet { background: var(--panel); border: 2px solid var(--accent); border-radius: 18px; padding: 20px; max-width: 720px; width: 100%; max-height: 88vh; overflow: auto; font-family: system-ui, sans-serif; position: relative; }
+.cr-sheet { background: var(--panel); border: 2px solid var(--accent); border-radius: 18px; padding: 20px; max-width: 720px; width: 100%; max-height: 88vh; overflow: auto; font-family: var(--info-font, system-ui, sans-serif); position: relative; }
 .cr-sheet h2 { font-family: var(--font); color: var(--accent); margin: 0 0 10px; } .cr-sheet table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cr-sheet td, .cr-sheet th { border-bottom: 1px solid #fff2; padding: 6px; text-align: left; } .cr-sheet .close { position: absolute; top: 10px; right: 10px; }
-.cr-toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); background: #000d; border: 1px solid #fff4; padding: 8px 16px; border-radius: 10px; z-index: 60; font: 600 13px system-ui; }
-.cr-tag { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); background: #ff9f1c; color: #000; font: 700 11px system-ui; padding: 4px 8px; border-radius: 6px; z-index: 5; }
+.cr-toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); background: #000d; border: 1px solid #fff4; padding: 8px 16px; border-radius: 10px; z-index: 60; font: 600 13px var(--cr-font, system-ui); }
+.cr-tag { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); background: #ff9f1c; color: #000; font: 700 11px var(--cr-font, system-ui); padding: 4px 8px; border-radius: 6px; z-index: 5; }
 @media (orientation: portrait), (max-width: 820px) {
   /* Celular: todo en una columna que scrollea entera; la mesa no scrollea por dentro */
   .cr-main { display: flex; flex-direction: column; overflow-y: auto; gap: 8px; padding: 4px 8px; }
@@ -142,6 +142,9 @@ export class CrapsEngine {
     root.setProperty('--text', p.text || '#ffffff');
     root.setProperty('--felt', p.reelBg || '#0f5132');
     root.setProperty('--font', `'${t.font || 'Bungee'}', system-ui, sans-serif`);
+    // Tipografía de los textos de la mesa (fichas, apuestas, fase, botones) y de la pantalla de información
+    if (t.tableFont) root.setProperty('--cr-font', `'${String(t.tableFont).replace(/'/g, '')}', system-ui, sans-serif`);
+    if (t.infoFont) root.setProperty('--info-font', `'${String(t.infoFont).replace(/'/g, '')}', system-ui, sans-serif`);
     if (t.tableImage) root.setProperty('--felt-img', `url("${t.tableImage}")`);
     const D = t.dice || {};
     this.diceTheme = D;
@@ -156,6 +159,7 @@ export class CrapsEngine {
       if (t.backgroundColor) bg.style.setProperty('--bg-color', t.backgroundColor);
     }
     applyBackgroundMedia(t, matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape');
+    await Promise.all([loadAnyFont(t.tableFont, t.tableFontUrl), loadAnyFont(t.infoFont, t.infoFontUrl)]);
     if (t.fontUrl) await loadFontFile(t.font, t.fontUrl);
     else if (t.font && !document.querySelector(`link[data-font="${t.font}"]`)) {
       const link = h('link', { rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(t.font).replace(/%20/g, '+')}&display=swap` });

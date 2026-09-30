@@ -48,3 +48,16 @@ export async function loadFontFile(family, url) {
     if (f.status === 'loaded') document.fonts.add(f);
   } catch (e) { console.warn('No se pudo cargar la tipografía', family, e?.message); }
 }
+
+/** Carga una tipografía: archivo propio (url) o de Google Fonts (solo el nombre). */
+export async function loadAnyFont(family, url) {
+  if (!family || typeof document === 'undefined') return;
+  if (url) return loadFontFile(family, url);
+  if (document.querySelector?.(`link[data-font="${family}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.dataset.font = family;
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}:wght@400;700;900&display=swap`;
+  document.head.appendChild(link);
+  await Promise.race([document.fonts?.load?.(`16px "${family}"`) ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
+}

@@ -217,6 +217,8 @@ for (const [table, col, def] of [
   ['sessions', 'variant_id', 'TEXT'],
   ['rounds', 'variant_id', 'TEXT'],
   ['games', 'brand_id', 'TEXT'],
+  ['brands', 'font', 'TEXT'],
+  ['brands', 'font_url', 'TEXT'],
 ]) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
   if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
