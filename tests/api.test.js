@@ -60,10 +60,10 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 11 juegos publicados', async () => {
+test('lista los 12 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
   assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win',
-    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds']);
+    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
 });
@@ -576,4 +576,48 @@ test('eliminar juego: con confirmación y nunca si tuvo jugadas con dinero real'
   assert.equal((await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.token}` }, body: { bet: 100 } })).status, 200);
   const no = await req('/api/admin/games/megaways', { method: 'DELETE', headers: ADMIN, body: { confirm: 'megaways' } });
   assert.equal(no.status, 409);
+});
+
+test('cambiar motor: copia con otro motor conservando el diseño y los símbolos por equivalencia', async () => {
+  await req('/api/admin/games/sticky-wilds/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'theme.messages', value: { font: 'Rye', texts: { bigWin: '¡BOTÍN!' } } }, { op: 'set', path: 'theme.logoOffsetY', value: 30 }] } });
+  const src = (await req('/api/admin/games/sticky-wilds', { headers: ADMIN })).body;
+  const r = await req('/api/admin/games/sticky-wilds/convert', { method: 'POST', headers: ADMIN, body: { engine: 'megaways', name: 'Forajidos Megaways', tune: false } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const g = (await req(`/api/admin/games/${r.body.game.id}`, { headers: ADMIN })).body;
+  assert.equal(g.engine, 'megaways');
+  assert.equal(g.draft.theme.messages.font, 'Rye');
+  assert.equal(g.draft.theme.logoOffsetY, 30);
+  assert.equal(g.draft.theme.background, src.draft.theme.background);
+  // comodín y scatter conservan su imagen; el símbolo más alto del original pasa al más alto del nuevo
+  const img = (cfg, t) => cfg.symbols.find((x) => x.type === t)?.image;
+  assert.equal(img(g.draft, 'wild'), img(src.draft, 'wild'));
+  assert.equal(img(g.draft, 'scatter'), img(src.draft, 'scatter'));
+  const top = (cfg) => cfg.symbols.filter((x) => !x.type || x.type === 'regular').sort((a, b) => Math.max(...Object.values(b.pays)) - Math.max(...Object.values(a.pays)))[0];
+  assert.equal(top(g.draft).image, top(src.draft).image);
+  assert.equal(r.body.missing.length, 0);
+  // el original sigue con su motor
+  assert.equal((await req('/api/admin/games/sticky-wilds', { headers: ADMIN })).body.engine, 'sticky-wilds');
+  assert.equal((await req('/api/admin/games/sticky-wilds/convert', { method: 'POST', headers: ADMIN, body: { engine: 'sticky-wilds' } })).status, 400);
+  // la copia juega en la vista previa
+  const { body: pv } = await req(`/api/admin/games/${r.body.game.id}/preview-session`, { method: 'POST', headers: ADMIN });
+  assert.deepEqual(g.draft.bet.levels, src.draft.bet.levels); // conserva las fichas del original
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv.token}` }, body: { bet: g.draft.bet.levels[0] } })).status, 200);
+});
+
+test('cofres: premios por fila, elección de cofre con multiplicador y compra del bonus', async () => {
+  const { body: pv } = await req('/api/admin/games/treasure-chests/preview-session', { method: 'POST', headers: ADMIN });
+  const auth = { authorization: `Bearer ${pv.token}` };
+  const f = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, force: true } });
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  const r = f.body.result;
+  assert.ok(r.chest && [1, 2, 3].includes(r.chest.mult));
+  assert.equal(r.chest.others.length, 2);
+  assert.ok(r.freeSpins.spins.length >= r.freeSpins.awarded);
+  for (const s of r.freeSpins.spins) for (const w of s.wins) assert.ok(w.count >= 3 && w.positions.every(([, row]) => row === w.row));
+  const buy = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, mode: 'buy' } });
+  assert.equal(buy.status, 200, JSON.stringify(buy.body));
+  assert.ok(buy.body.cost >= 500 && buy.body.result.chest);
+  // las probabilidades de los cofres no se exponen
+  const { body: g } = await req('/api/v1/games/treasure-chests');
+  assert.ok(g.rules.chestPrizes.every((x) => typeof x === 'number'));
 });

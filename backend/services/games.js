@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { db, one, all, run, tx, audit } from '../db.js';
 import { ROOT, config as appConfig } from '../config.js';
 import { validateConfig, getEngine, ENGINES, buyModesOf } from '../math/index.js';
-import { simulateAsync, pooledParallelAsync } from '../math/worker.js';
+import { simulateAsync, pooledParallelAsync, tuneAsync } from '../math/worker.js';
 import { runCheck, saveCheck } from './checks.js';
 import { HttpError } from '../lib/http.js';
 
@@ -136,6 +136,8 @@ export function publicConfig(id, c, version) {
     'multiplierValues', 'mysteryWeights', 'expandWeights', 'specialCoins', 'specialChance', 'bonusMenu']) delete rules[k];
   if (c.rules?.coinValues) rules.coinValues = c.rules.coinValues.filter((v) => v.value != null).map((v) => v.value);
   if (c.rules?.multiplierValues) rules.multiplierValues = c.rules.multiplierValues.map((m) => m.value);
+  // Premios de los cofres (sin sus probabilidades)
+  if (c.rules?.chestPrizes) rules.chestPrizes = [...new Set(c.rules.chestPrizes.map((p) => p.mult))].sort((a, b) => a - b);
   // Tamaños de los colosales (sin sus probabilidades), para el texto de reglas del juego
   if (c.rules?.colossalSizes) rules.colossalSizes = [...new Set(c.rules.colossalSizes.map((x) => x.size))].sort().map((size) => ({ size }));
   // Menú de compra: nombre, precio y lo necesario para dibujar (sin probabilidades)
@@ -292,6 +294,79 @@ export function createGame({ engine, name, id, fromGameId, brandId }, actor = 'a
   run('INSERT INTO games (id, engine, name, draft, draft_updated_at, brand_id) VALUES (?, ?, ?, ?, ?, ?)', slug, engine, c.name, JSON.stringify(c), now(), brand);
   audit(actor, 'game.create', slug, { engine, fromGameId });
   return getGame(slug);
+}
+
+/**
+ * «Cambiar motor»: crea un juego NUEVO con otro motor conservando el diseño del original (fondos, logo, marco,
+ * botonera, carteles, textos, tipografías, sonidos, ambiente del bonus, fichas por moneda y marca).
+ * Los símbolos pasan por equivalencia: comodín→comodín, scatter→scatter, y los normales por rango de pago
+ * (bajos con bajos, altos con altos). La matemática es la del motor nuevo, recalibrada al RTP del original.
+ * El juego original no se toca (sus versiones y rondas se conservan para auditoría).
+ */
+export async function convertEngine(fromId, { engine, name, brandId, tune = true } = {}, actor = 'admin') {
+  const src = getDraft(fromId);
+  getEngine(engine);
+  if (engine === src.engine) throw new HttpError(400, 'Elige un motor distinto al actual');
+  const { math: _m, ...tpl } = structuredClone(seedTemplates()[engine]);
+  const srcTable = ENGINES[src.engine].kind === 'table', dstTable = ENGINES[engine].kind === 'table';
+  const title = name || `${src.name} (${ENGINES[engine].name || engine})`;
+  const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!slug) throw new HttpError(400, 'Nombre inválido');
+  if (one('SELECT id FROM games WHERE id = ?', slug)) throw new HttpError(409, `Ya existe un juego con id ${slug}: elige otro nombre`);
+
+  const c = { ...tpl, id: slug, name: title };
+  // Diseño: el del original encima del de la plantilla (las claves propias del motor nuevo se conservan)
+  c.theme = { ...tpl.theme, ...structuredClone(src.theme || {}), title };
+  if (!dstTable) { delete c.theme.dice; delete c.theme.tableImage; }
+  c.sounds = { ...(tpl.sounds || {}), ...(src.sounds || {}) };
+  if (src.soundVolumes) c.soundVolumes = structuredClone(src.soundVolumes);
+  // Fichas y monedas: se conservan entre juegos del mismo tipo (rodillos ↔ rodillos)
+  if (srcTable === dstTable && src.bet) c.bet = { ...tpl.bet, ...structuredClone(src.bet) };
+  if (!dstTable && !srcTable && src.rtpTarget) c.rtpTarget = src.rtpTarget;
+
+  // Símbolos por equivalencia
+  const mapping = [], missing = [];
+  const used = new Set();
+  const kind = (x) => x.type || 'regular';
+  const value = (x) => Math.max(0, ...Object.values(x.pays || {}).map(Number));
+  const srcSyms = src.symbols || [];
+  const pickType = (types) => { for (const t of types) { const f = srcSyms.find((x) => kind(x) === t && !used.has(x.id)); if (f) return f; } return null; };
+  const EQUIV = { wild: ['wild', 'wildscatter'], scatter: ['scatter', 'wildscatter'], wildscatter: ['wildscatter', 'scatter', 'wild'], coin: ['coin'], multiplier: ['multiplier'], mystery: ['mystery'] };
+  const srcReg = srcSyms.filter((x) => kind(x) === 'regular').sort((a, b) => value(a) - value(b));
+  const dstReg = (c.symbols || []).filter((x) => kind(x) === 'regular').sort((a, b) => value(a) - value(b));
+  const regMap = new Map();
+  dstReg.forEach((d, i) => {
+    if (!srcReg.length) return;
+    const j = dstReg.length === 1 ? srcReg.length - 1 : Math.round((i * (srcReg.length - 1)) / (dstReg.length - 1));
+    // Si hay más símbolos en el original, se reparten; si hay menos, algunos se repiten
+    regMap.set(d.id, srcReg[Math.min(srcReg.length - 1, j)]);
+  });
+  for (const d of c.symbols || []) {
+    const from = kind(d) === 'regular' ? regMap.get(d.id) : pickType(EQUIV[kind(d)] || [kind(d)]);
+    if (from) {
+      used.add(from.id);
+      if (from.image) d.image = from.image;
+      if (from.name) d.name = from.name;
+      if (from.color) d.color = from.color;
+      mapping.push({ symbol: d.id, type: kind(d), from: from.id, name: d.name, image: d.image });
+    } else missing.push({ symbol: d.id, type: kind(d), name: d.name });
+  }
+  const unused = srcSyms.filter((x) => !used.has(x.id)).map((x) => ({ symbol: x.id, type: kind(x), name: x.name }));
+
+  // Matemática del motor nuevo recalibrada al RTP del original
+  let tuned = null;
+  if (tune && !dstTable && c.rtpTarget && Math.abs(c.rtpTarget - (tpl.rtpTarget ?? c.rtpTarget)) >= 0.0005) {
+    const t = await tuneAsync(c, { target: c.rtpTarget, spins: 400_000 });
+    Object.assign(c, { symbols: t.config.symbols, rules: t.config.rules, reels: t.config.reels, freeSpinReels: t.config.freeSpinReels });
+    // el ajuste conserva imágenes y nombres (solo cambia pagos y reglas)
+    tuned = { rtp: t.final?.rtp, precision: t.final?.precision ?? null };
+  }
+  const errors = validateConfig(c);
+  if (errors.length) throw new HttpError(422, 'La copia con el motor nuevo no es válida', errors);
+  const brand = brandId || one('SELECT brand_id FROM games WHERE id = ?', fromId)?.brand_id || null;
+  run('INSERT INTO games (id, engine, name, draft, draft_updated_at, brand_id) VALUES (?, ?, ?, ?, ?, ?)', slug, engine, c.name, JSON.stringify(c), now(), brand);
+  audit(actor, 'game.convert', slug, { fromId, fromEngine: src.engine, engine, mapping: mapping.length, missing: missing.length });
+  return { game: getGame(slug), fromId, fromEngine: src.engine, engine, mapping, missing, unused, tuned };
 }
 
 export function setStatus(id, status, actor = 'admin') {

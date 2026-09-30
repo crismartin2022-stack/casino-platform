@@ -3,7 +3,7 @@
 import { SoundManager } from '../../shared/SoundManager.js';
 import { formatMoney } from '../../shared/api.js';
 import { canFullscreen, isTouch, toggleFullscreen, rotate } from '../../shared/screen.js';
-import { applyBackgroundMedia, loadFontFile, loadAnyFont } from '../../shared/media.js';
+import { applyBackgroundMedia, loadFontFile, loadAnyFont, playMediaOverlay, winTierFor } from '../../shared/media.js';
 
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -168,7 +168,9 @@ export class CrapsEngine {
     }
     document.head.append(h('style', {}, CSS));
     progress(0.4, 'Preparando la mesa…');
-    this.sound = new SoundManager(this.game.sounds || {}, this.game.soundVolumes || {});
+    // Sonidos de los premios por monto (theme.winTiers[i].sound) como ranuras winTier0, winTier1…
+    const tierSounds = Object.fromEntries((this.game.theme?.winTiers || []).map((t, i) => [`winTier${i}`, t?.sound || null]));
+    this.sound = new SoundManager({ ...(this.game.sounds || {}), ...tierSounds }, this.game.soundVolumes || {});
     const unlock = () => { this.sound.unlock(); this.sound.playMusic('music'); };
     window.addEventListener('pointerdown', unlock, { once: true });
     this.levels = this.game.bet?.levels || [100, 500, 1000];
@@ -483,7 +485,11 @@ export class CrapsEngine {
     if (won) this.sound.play('win'); else if (r.result.resolutions.some((x) => x.outcome === 'lose')) this.sound.play('lose');
     this.table = { ...this.table, ...r.table, balance: r.balance };
     this.winEl.textContent = this.fmt(r.win);
-    if (r.win >= Math.max(r.cost, 1) * 15 && r.win > 0) await this.banner('¡GRAN PREMIO!', this.fmt(r.win));
+    // Premios por monto: en veces lo apostado en la tirada (o la apuesta mínima de la mesa si no se apostó nada nuevo)
+    const stake = Math.max(r.cost || 0, this.game.rules?.limits?.min || 1);
+    const tier = r.win > 0 ? winTierFor(this.game.theme, r.win / stake) : null;
+    if (tier) await this.presentTier(tier, r.win);
+    else if (r.win >= Math.max(r.cost, 1) * 15 && r.win > 0) await this.banner('¡GRAN PREMIO!', this.fmt(r.win));
     const msg = this.phaseMessage(r.result);
     if (msg) this.toast(msg);
     await wait(900);
@@ -564,8 +570,22 @@ export class CrapsEngine {
     setTimeout(() => f.remove(), 1300);
   }
 
-  async banner(small, big) {
-    this.sound.play('bigWin');
+  /** Premio por monto: su sonido y su video/GIF (con el importe encima) o su cartel. */
+  async presentTier(tier, cents) {
+    this.sound.play(tier.sound ? `winTier${tier.i}` : 'bigWin');
+    if (tier.media) await playMediaOverlay(tier.media, tier.seconds ?? 3, { amount: this.fmt(cents), text: tier.text || '¡GRAN PREMIO!' });
+    else await this.banner(tier.text || '¡GRAN PREMIO!', this.fmt(cents), { silent: true });
+  }
+
+  /** Vista previa: muestra el nivel i como si se hubiera ganado su monto mínimo con la apuesta mínima. */
+  async demoTier(i) {
+    const tier = (this.game.theme?.winTiers || [])[i];
+    if (!tier) return;
+    await this.presentTier({ ...tier, i }, Math.round((Number(tier.from) || 10) * (this.game.rules?.limits?.min || 100)));
+  }
+
+  async banner(small, big, { silent = false } = {}) {
+    if (!silent) this.sound.play('bigWin');
     const b = h('div', { class: 'cr-banner' }, h('small', {}, small), h('b', {}, big));
     document.body.append(b);
     await wait(1800);

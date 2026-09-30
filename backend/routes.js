@@ -192,6 +192,11 @@ export function registerRoutes(r) {
     const { confirm } = await readJson(req).catch(() => ({}));
     json(res, games.deleteGame(params.id, { confirm, actor }));
   }));
+  // Cambiar motor: crea una copia con otro motor conservando el diseño (el original no se toca)
+  r.post('/api/admin/games/:id/convert', A(async (req, res, { params, actor }) => {
+    const body = await readJson(req);
+    json(res, await games.convertEngine(params.id, { engine: body.engine, name: body.name, brandId: body.brandId, tune: body.tune !== false }, actor), 201);
+  }));
   r.post('/api/admin/games/:id/status', G(async (req, res, { params, actor }) => {
     games.setStatus(params.id, (await readJson(req)).status, actor);
     json(res, { ok: true });

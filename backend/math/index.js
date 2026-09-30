@@ -11,6 +11,7 @@ import * as expanding from './expanding-symbol.js';
 import * as stickyWilds from './sticky-wilds.js';
 import * as megawaysCascade from './megaways-cascade.js';
 import * as craps from './craps.js';
+import * as treasureChests from './treasure-chests.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -28,6 +29,7 @@ export const ENGINES = {
   [expanding.id]: expanding,
   [stickyWilds.id]: stickyWilds,
   [megawaysCascade.id]: megawaysCascade,
+  [treasureChests.id]: treasureChests,
   [craps.id]: craps,
 };
 
