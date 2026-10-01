@@ -1,0 +1,171 @@
+{
+  "engine": "craps",
+  "kind": "table",
+  "name": "Dados en Vivo",
+  "rules": {
+    "bets": {
+      "pass": true,
+      "dontPass": true,
+      "come": true,
+      "dontCome": true,
+      "odds": true,
+      "place": true,
+      "field": true,
+      "hard": true,
+      "anyCraps": true,
+      "any7": false
+    },
+    "dontBar": 12,
+    "oddsMax": {
+      "4": 3,
+      "5": 4,
+      "6": 5,
+      "8": 5,
+      "9": 4,
+      "10": 3
+    },
+    "pays": {
+      "place": {
+        "4": [
+          9,
+          5
+        ],
+        "5": [
+          7,
+          5
+        ],
+        "6": [
+          7,
+          6
+        ],
+        "8": [
+          7,
+          6
+        ],
+        "9": [
+          7,
+          5
+        ],
+        "10": [
+          9,
+          5
+        ]
+      },
+      "field": {
+        "2": 2,
+        "12": 2
+      },
+      "hard": {
+        "4": 7,
+        "6": 9,
+        "8": 9,
+        "10": 7
+      },
+      "anyCraps": 7,
+      "any7": 4
+    },
+    "limits": {
+      "min": 100,
+      "max": 50000,
+      "table": 200000
+    },
+    "maxWin": 1000000,
+    "live": {
+      "enabled": true,
+      "bettingSeconds": 20,
+      "closeSeconds": 2,
+      "rollSeconds": 9,
+      "resultSeconds": 5,
+      "historySize": 20
+    }
+  },
+  "bet": {
+    "levels": [
+      100,
+      500,
+      1000,
+      2500,
+      10000
+    ],
+    "default": 500,
+    "currency": "USD"
+  },
+  "theme": {
+    "title": "Dados en Vivo",
+    "background": null,
+    "backgroundColor": "#1a0d06",
+    "tableImage": null,
+    "palette": {
+      "primary": "#b8860b",
+      "accent": "#ffd700",
+      "panel": "#140a04",
+      "text": "#ffffff",
+      "reelBg": "#14532d"
+    },
+    "font": "Bungee",
+    "dice": {
+      "face": "#fbfbfb",
+      "pip": "#c0392b",
+      "edge": "#cccccc",
+      "radius": 18,
+      "scale": 1,
+      "faces": {
+        "1": null,
+        "2": null,
+        "3": null,
+        "4": null,
+        "5": null,
+        "6": null
+      }
+    },
+    "croupier": {
+      "enabled": true,
+      "name": "Crupier",
+      "clips": {},
+      "totals": {},
+      "idle": null,
+      "intro": null
+    }
+  },
+  "sounds": {
+    "music": null,
+    "roll": null,
+    "dice": null,
+    "chip": null,
+    "win": null,
+    "bigWin": null,
+    "lose": null,
+    "click": null
+  },
+  "id": "craps-live",
+  "math": {
+    "rtp": 0.9859,
+    "perBet": {
+      "pass": 0.9859,
+      "come": 0.9859,
+      "dontPass": 0.9864,
+      "dontCome": 0.9864,
+      "odds": 1,
+      "place": {
+        "4": 0.9333,
+        "5": 0.96,
+        "6": 0.9848,
+        "8": 0.9848,
+        "9": 0.96,
+        "10": 0.9333
+      },
+      "hard": {
+        "4": 0.8889,
+        "6": 0.9091,
+        "8": 0.9091,
+        "10": 0.8889
+      },
+      "field": 0.9444,
+      "anyCraps": 0.8889,
+      "any7": 0.8333
+    },
+    "volatility": "baja",
+    "hitFrequency": 0.4929,
+    "exact": true
+  }
+}

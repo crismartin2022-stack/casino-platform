@@ -89,6 +89,50 @@ const CSS = `
 .cr-roll { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 55%, #fff), var(--primary) 60%, color-mix(in srgb, var(--primary) 55%, #000));
   font-size: 16px; padding: 14px 26px; border-radius: 999px; box-shadow: 0 0 0 3px var(--accent), 0 6px 16px #000; color: #fff; }
 .cr-roll:disabled, .cr-btn:disabled { opacity: .45; cursor: not-allowed; }
+.cr-live { border-radius: 12px; padding: 8px 12px; background: #000b; border: 2px solid var(--accent); color: var(--accent); font: 800 15px var(--cr-font, system-ui); display: flex; flex-direction: column; gap: 6px; transition: border-color .3s, color .3s; }
+.cr-live.betting { border-color: #3498db; color: #5dade2; } .cr-live.closed { border-color: #f39c12; color: #f5b041; }
+.cr-live.rolling { border-color: #e74c3c; color: #ec7063; } .cr-live.payout { border-color: #2ecc71; color: #58d68d; }
+.cr-live.hurry { animation: crhurry .5s ease-in-out infinite alternate; }
+@keyframes crhurry { to { box-shadow: 0 0 18px #3498db; } }
+.cr-live-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cr-live-secs { font-size: 22px; color: #fff; }
+.cr-live-timer { height: 10px; border-radius: 99px; background: #333; overflow: hidden; }
+.cr-live-timer i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #2e86c1, #5dade2); transition: width .2s linear; }
+.cr-live-players { font: 600 11px var(--cr-font, system-ui); color: #ddd; opacity: .8; }
+.cr-zone.off-live { pointer-events: none; }
+.cr-dealer { position: absolute; left: 10px; top: 8px; width: clamp(78px, 22%, 130px); z-index: 3; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+.cr-dealer-svg { width: 100%; }
+.cr-dealer-svg svg, .cr-dealer-img { width: 100%; height: auto; display: block; filter: drop-shadow(0 6px 10px #000a); }
+.cr-dealer-img { border-radius: 12px; max-height: 160px; object-fit: contain; }
+.cr-dealer-name { font: 800 10px var(--cr-font, system-ui); background: #000a; color: var(--accent); padding: 1px 8px; border-radius: 99px; margin-top: -4px; }
+.cr-dealer .arm { transform-origin: 92px 108px; transition: transform .35s ease; }
+.cr-dealer.idle .cr-dealer-svg, .cr-dealer.wave .cr-dealer-svg { animation: crbob 2.4s ease-in-out infinite; }
+@keyframes crbob { 50% { transform: translateY(-3px); } }
+.cr-dealer.wave .arm { animation: crwave 1.1s ease-in-out 2; }
+@keyframes crwave { 25% { transform: rotate(-14deg); } 75% { transform: rotate(10deg); } }
+.cr-dealer.stop .arm { transform: rotate(16deg); }
+.cr-tray.has-dealer .cr-total { left: auto; right: 16px; text-align: right; }
+.cr-dealer.throw .arm { animation: crthrow .55s cubic-bezier(.3,1.4,.5,1) forwards; }
+.cr-dealer.throw .held { animation: crheld .55s ease-in forwards; }
+@keyframes crthrow { 0% { transform: rotate(-35deg); } 60% { transform: rotate(48deg); } 100% { transform: rotate(30deg); } }
+@keyframes crheld { 0%, 50% { opacity: 1; } 100% { opacity: 0; transform: translate(30px, 20px); } }
+.cr-dealer.happy .cr-dealer-svg { animation: crhappy .5s ease-out; } .cr-dealer.happy .held { opacity: 0; }
+@keyframes crhappy { 40% { transform: translateY(-8px) scale(1.04); } }
+.cr-dealer.throw .cr-dealer-img { animation: crthrowimg .55s ease-out; }
+@keyframes crthrowimg { 50% { transform: rotate(-6deg) scale(1.06); } }
+.cr-bubble { position: absolute; left: 92%; top: 4px; white-space: nowrap; background: #fff; color: #111; font: 800 12px var(--cr-font, system-ui); padding: 5px 10px; border-radius: 12px 12px 12px 2px;
+  box-shadow: 0 4px 12px #0008; opacity: 0; transform: scale(.6); transform-origin: left bottom; transition: .2s; }
+.cr-bubble.show { opacity: 1; transform: scale(1); }
+.cr-croupier { background: radial-gradient(circle at 35% 30%, #ffcc80, #ff9800 60%, #e65100); }
+.cr-video-layer { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: #000b; transition: opacity .35s; }
+.cr-video-layer.out { opacity: 0; }
+.cr-video-box { position: relative; width: min(92vw, 900px); }
+.cr-video { width: 100%; max-height: 80vh; border-radius: 16px; border: 3px solid var(--accent); box-shadow: 0 0 40px #000; background: #000; display: block; object-fit: contain; }
+.cr-video-total { position: absolute; left: 50%; bottom: 8%; transform: translate(-50%, 20px); opacity: 0; transition: .3s; font-size: clamp(30px, 6vw, 60px); color: var(--accent);
+  text-shadow: 0 3px 12px #000, 0 0 20px #000; background: #0008; padding: 4px 22px; border-radius: 14px; white-space: nowrap; }
+.cr-video-total.show { opacity: 1; transform: translate(-50%, 0); }
+.cr-idle { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; pointer-events: none; border-radius: inherit; }
+.cr-auto { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: #000c; border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 99px; font: 800 13px var(--cr-font, system-ui); pointer-events: none; white-space: nowrap; }
 .cr-power { position: absolute; right: 10px; top: 12px; bottom: 30px; width: 12px; border-radius: 99px; background: #0008; border: 1px solid #fff4; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .cr-power.show { opacity: 1; }
 .cr-power i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 99px; background: linear-gradient(to top, #2ecc71, #f1c40f 60%, #e74c3c); }
@@ -125,6 +169,28 @@ const CSS = `
   .cr-title img { max-height: 48px; }
 }
 `;
+
+
+/** Crupier dibujado (original): se usa si no se cargó una imagen propia. El brazo derecho (.arm) se anima. */
+const DEALER_SVG = `<svg viewBox="0 0 120 150" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs><linearGradient id="dv" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2b2b33"/><stop offset="1" stop-color="#121216"/></linearGradient></defs>
+  <ellipse cx="60" cy="146" rx="42" ry="4" fill="#0006"/>
+  <path d="M18 150 C18 112 30 96 60 96 C90 96 102 112 102 150 Z" fill="#f4f4f6"/>
+  <path d="M18 150 C18 114 28 100 44 97 L52 150 Z M102 150 C102 114 92 100 76 97 L68 150 Z" fill="url(#dv)"/>
+  <path d="M50 99 L60 106 L70 99 L66 96 L60 100 L54 96 Z" fill="#c0392b"/><circle cx="60" cy="102" r="2.6" fill="#7b1d14"/>
+  <circle cx="60" cy="122" r="1.6" fill="#d4af37"/><circle cx="60" cy="132" r="1.6" fill="#d4af37"/>
+  <rect x="53" y="82" width="14" height="14" rx="4" fill="#e8b98f"/>
+  <ellipse cx="60" cy="58" rx="24" ry="27" fill="#f1c7a0"/>
+  <path d="M35 54 C34 32 50 26 61 27 C75 27 88 35 85 55 C80 44 72 40 61 40 C50 40 41 44 35 54 Z" fill="#3b2a20"/>
+  <circle cx="51" cy="60" r="3" fill="#2a1d16"/><circle cx="69" cy="60" r="3" fill="#2a1d16"/>
+  <path d="M46 52 Q51 49 56 52 M64 52 Q69 49 74 52" stroke="#3b2a20" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path class="mouth" d="M51 71 Q60 78 69 71" stroke="#9c4a3a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <circle cx="46" cy="68" r="3.5" fill="#f19a8a" opacity=".45"/><circle cx="74" cy="68" r="3.5" fill="#f19a8a" opacity=".45"/>
+  <g class="arm"><path d="M92 108 C104 100 110 88 108 76" stroke="#f4f4f6" stroke-width="13" fill="none" stroke-linecap="round"/>
+    <circle cx="108" cy="72" r="7.5" fill="#f1c7a0"/>
+    <g class="held"><rect x="100" y="58" width="9" height="9" rx="2" fill="#fff" stroke="#bbb"/><rect x="109" y="61" width="9" height="9" rx="2" fill="#fff" stroke="#bbb"/>
+      <circle cx="104.5" cy="62.5" r="1.3" fill="#c0392b"/><circle cx="111.5" cy="63.5" r="1.1" fill="#c0392b"/><circle cx="115.5" cy="67.5" r="1.1" fill="#c0392b"/></g></g>
+</svg>`;
 
 export class CrapsEngine {
   constructor({ container, hudRoot, api, session, lobbyUrl }) {
@@ -187,12 +253,15 @@ export class CrapsEngine {
     this.build();
     this.table = await this.api.request('/api/v1/table');
     this.render();
+    if (this.live) this.startLive();
+    else if (this.croupier()) this.buildDealer();
     progress(1, 'Listo');
   }
 
   // ---------------------------------------------------------------- Construcción de la mesa
   build() {
     const R = this.game.rules;
+    this.live = !!R?.live?.enabled;
     const t = this.game.theme || {};
     const zone = (key, title, sub, { type, number, cls = '' } = {}) => {
       const chips = h('div', { class: 'cr-chips' });
@@ -223,7 +292,7 @@ export class CrapsEngine {
     this.aim = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.hist = h('div', { class: 'cr-hist' });
     this.powerEl = h('div', { class: 'cr-power' }, h('i'), h('b'));
-    this.tray = h('div', { class: 'cr-tray' }, this.aim, this.powerEl, this.hist, this.dice[0].el, this.dice[1].el, this.totalEl, h('div', { class: 'hint' }, 'Arrastra y suelta para lanzar (más largo = más fuerte) · arrastra fichas a la mesa'));
+    this.tray = h('div', { class: 'cr-tray' }, this.aim, this.powerEl, this.hist, this.dice[0].el, this.dice[1].el, this.totalEl, h('div', { class: 'hint' }, this.live ? 'Apuesta durante la cuenta regresiva: toca o arrastra fichas a la mesa' : 'Arrastra y suelta para lanzar (más largo = más fuerte) · arrastra fichas a la mesa'));
     this.bindThrow();
     this.phaseEl = h('div', { class: 'cr-phase' });
     const side = h('div', { class: 'cr-side' }, this.phaseEl, this.tray);
@@ -241,13 +310,19 @@ export class CrapsEngine {
     this.undoBtn = h('button', { class: 'cr-btn', onclick: () => this.undo() }, '↶ Deshacer');
     this.clearBtn = h('button', { class: 'cr-btn', onclick: () => this.clearPending() }, 'Limpiar');
     this.rollBtn = h('button', { class: 'cr-btn cr-roll', onclick: () => this.throwDice(0.65 + Math.random() * 0.3, { x: (Math.random() - 0.5) * 0.8, y: -1 }) }, '🎲 TIRAR');
+    // Mesa en vivo (rules.live): el crupier tira para todos con cuenta regresiva para apostar (this.live)
+    // Crupier grabado (theme.croupier): tira el crupier y se ve el video del resultado que decidió el servidor
+    const C = this.live ? null : this.croupier();
+    this.croupierBtn = C ? h('button', { class: 'cr-btn cr-roll cr-croupier', onclick: () => this.throwDice(0.8, { x: 0, y: -1 }, { croupier: true }) }, `🎩 ${(C.name || 'CRUPIER').toUpperCase()}`) : null;
+    if (C && C.playerThrow === false) this.rollBtn.hidden = true;
+    if (this.live) this.rollBtn.hidden = true;
     const bar = h('div', { class: 'cr-bar' },
       h('div', { class: 'cr-stats' },
         h('div', { class: 'cr-stat' }, h('small', {}, 'SALDO'), this.balEl),
         h('div', { class: 'cr-stat' }, h('small', {}, 'EN LA MESA'), this.onTableEl),
         h('div', { class: 'cr-stat' }, h('small', {}, 'ÚLTIMO PREMIO'), this.winEl)),
       h('div', { class: 'cr-chipsel' }, this.chipBtns),
-      this.undoBtn, this.clearBtn, this.rollBtn);
+      this.undoBtn, this.clearBtn, this.croupierBtn, this.rollBtn);
     this.soundBtn = h('button', { class: 'cr-icon', onclick: () => { this.soundBtn.textContent = this.sound.toggleMute() ? '🔇' : '🔊'; } }, '🔊');
     const fullBtn = canFullscreen() ? h('button', { class: 'cr-icon', 'aria-label': 'Pantalla completa', onclick: () => toggleFullscreen() }, '⛶') : null;
     const rotBtn = isTouch() ? h('button', { class: 'cr-icon', 'aria-label': 'Girar pantalla', onclick: async () => {
@@ -343,7 +418,7 @@ export class CrapsEngine {
     line.setAttribute('stroke', 'white'); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-dasharray', '8 6'); line.setAttribute('opacity', '0');
     this.aim.append(line);
     const pos = (e) => { const r = this.tray.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    this.tray.addEventListener('pointerdown', (e) => { if (this.busy) return; start = pos(e); this.tray.setPointerCapture?.(e.pointerId); });
+    this.tray.addEventListener('pointerdown', (e) => { if (this.busy || this.live) return; start = pos(e); this.tray.setPointerCapture?.(e.pointerId); });
     this.tray.addEventListener('pointermove', (e) => {
       if (!start) return;
       const p = pos(e);
@@ -501,6 +576,7 @@ export class CrapsEngine {
       this.table = { ...this.table, ...(await this.api.request('/api/v1/table/bets', { method: 'POST', body: bet })) };
       this.sound.play('chip');
       this.render();
+      this.armAutoThrow();
     } catch (e) { this.toast(e.message); }
   }
 
@@ -523,9 +599,230 @@ export class CrapsEngine {
   }
 
   // ---------------------------------------------------------------- Tirada
-  async throwDice(power, dir) {
+  // ---------------------------------------------------------------- Mesa en vivo con crupier
+  /** Estado del crupier arriba de la bandeja: TOMANDO APUESTAS (azul, con tiempo), NO VA MÁS, TIRANDO (rojo), PAGANDO (verde). */
+  buildLiveBar() {
+    this.liveText = h('span', { class: 'cr-live-text' }, '');
+    this.liveFill = h('i');
+    this.liveSecs = h('b', { class: 'cr-live-secs' }, '');
+    this.liveTimer = h('div', { class: 'cr-live-timer' }, this.liveFill);
+    this.livePlayers = h('small', { class: 'cr-live-players' }, '');
+    this.liveEl = h('div', { class: 'cr-live betting' }, h('div', { class: 'cr-live-row' }, this.liveText, this.liveSecs), this.liveTimer, this.livePlayers);
+    this.phaseEl.after(this.liveEl);
+  }
+
+  setLiveStatus(kind, text) {
+    this.liveEl.className = `cr-live ${kind}`;
+    this.liveText.textContent = text;
+    this.liveTimer.hidden = kind !== 'betting';
+    if (kind !== 'betting') this.liveSecs.textContent = '';
+  }
+
+  startLive() {
+    const C = this.game.theme?.croupier || {};
+    this.crName = C.name || 'Crupier';
+    this.buildLiveBar();
+    this.buildDealer();
+    this.offset = 0;
+    this.lastRollId = null;
+    this.livePhase = null;
+    const poll = async () => {
+      try {
+        const { table: t } = await this.api.request('/api/v1/live');
+        this.offset = t.serverNow - Date.now();
+        this.liveState = t;
+        this.onLive(t);
+      } catch (e) { this.setLiveStatus('closed', 'Conectando con la mesa…'); }
+      this.livePoll = setTimeout(poll, document.hidden ? 3000 : 800);
+    };
+    poll();
+    clearInterval(this.liveTick);
+    this.liveTick = setInterval(() => {
+      const t = this.liveState;
+      if (!t) return;
+      const left = Math.max(0, t.endsAt - (Date.now() + this.offset));
+      if (t.phase === 'betting') {
+        this.liveFill.style.width = `${Math.min(100, (left / (t.seconds.betting * 1000)) * 100)}%`;
+        this.liveSecs.textContent = `${Math.ceil(left / 1000)} s`;
+        this.liveEl.classList.toggle('hurry', left < 5000);
+        if (left < 5000 && left > 0 && !this.saidHurry) { this.saidHurry = true; this.dealer('wave', '¡Últimos segundos!'); }
+        if (left >= 5000) this.saidHurry = false;
+      } else this.liveSecs.textContent = '';
+    }, 200);
+    this.startIdle();
+  }
+
+  async onLive(t) {
+    this.livePlayers.textContent = `Ronda ${t.roundNo} · 👥 ${t.players} en la mesa`;
+    const changed = t.phase !== this.livePhase;
+    this.livePhase = t.phase;
+    if (t.phase === 'betting') {
+      if (changed) {
+        this.busy = this.playingRoll || false;
+        this.setLiveStatus('betting', `🎲 ${this.crName}: TOMANDO APUESTAS`);
+        if (!this.playingRoll) this.dealer('wave', '¡Hagan sus apuestas!');
+        if (!this.playingRoll) { this.table = { ...this.table, ...(await this.api.request('/api/v1/table')) }; this.render(); }
+      }
+      return;
+    }
+    if (t.phase === 'closed') {
+      if (changed) { this.busy = true; this.setLiveStatus('closed', '🚫 NO VA MÁS'); this.dealer('stop', '¡No va más!'); this.sound.play('click'); this.render(); }
+      return;
+    }
+    // rolling / result: el crupier tira (una sola vez por tirada)
+    if (t.roll && t.roll.id !== this.lastRollId) {
+      this.lastRollId = t.roll.id;
+      this.playLiveRoll(t.roll);
+    }
+  }
+
+  async playLiveRoll(roll) {
+    this.playingRoll = true;
+    this.busy = true;
+    this.render();
+    this.setLiveStatus('rolling', `🎲 ${this.crName}: TIRANDO…`);
+    this.dealer('throw', '¡Dados!');
+    if (!(await this.playCroupier(roll.dice))) { await wait(450); await this.animateDice(roll.dice, 0.75, { x: (Math.random() - 0.5) * 0.6, y: -1 }); }
+    this.dealer('happy', this.callOut(roll));
+    this.setLiveStatus('payout', `💰 ${this.crName}: PAGANDO GANANCIAS`);
+    let me = null;
+    try { me = await this.api.request('/api/v1/table'); } catch { /* se actualiza en la próxima ronda */ }
+    const mine = me?.lastLive?.rollId === roll.id ? me.lastLive : null;
+    if (mine) await this.showOutcome({ resolutions: mine.resolutions, win: mine.payout, cost: mine.cost, result: roll, roundId: mine.roundId, table: me });
+    else {
+      if (me) this.table = { ...this.table, ...me };
+      const msg = this.phaseMessage(roll);
+      if (msg) this.toast(msg);
+    }
+    this.playingRoll = false;
+    if (this.livePhase === 'betting') { this.busy = false; this.setLiveStatus('betting', `🎲 ${this.crName}: TOMANDO APUESTAS`); this.dealer('wave', '¡Hagan sus apuestas!'); }
+    this.render();
+  }
+
+  /** Configuración del crupier grabado (o null si no está activo). */
+  croupier() {
+    const C = this.game.theme?.croupier;
+    return C?.enabled || this.game.rules?.live?.enabled ? (C || {}) : null;
+  }
+
+  /** Clip del crupier para un resultado: por combinación (3-4) o, si no hay, por total (7). */
+  croupierClip([a, b]) {
+    const C = this.croupier();
+    if (!C) return null;
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    return C.clips?.[`${lo}-${hi}`] || C.totals?.[String(a + b)] || null;
+  }
+
+  /** Reproduce el video del crupier; devuelve false si no se pudo (y se usan los dados 3D). */
+  async playCroupier(dice) {
+    const url = this.croupierClip(dice);
+    if (!url) return false;
+    this.stopIdle();
+    const video = h('video', { class: 'cr-video', playsinline: true, preload: 'auto' });
+    video.src = url;
+    video.muted = !!this.sound?.muted;
+    const total = h('div', { class: 'cr-video-total' }, '');
+    const layer = h('div', { class: 'cr-video-layer' }, h('div', { class: 'cr-video-box' }, video, total));
+    document.body.append(layer);
+    const ready = await Promise.race([
+      new Promise((res) => { video.oncanplay = () => res(true); video.onerror = () => res(false); }),
+      wait(5000).then(() => false),
+    ]);
+    if (!ready) { layer.remove(); this.startIdle(); return false; }
+    try { await video.play(); } catch { video.muted = true; try { await video.play(); } catch { layer.remove(); this.startIdle(); return false; } }
+    await Promise.race([new Promise((res) => { video.onended = res; }), wait(Math.max(4000, (video.duration || 8) * 1000 + 800))]);
+    total.textContent = `${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
+    total.classList.add('show');
+    this.setDiceResult(dice);
+    await wait(1300);
+    layer.classList.add('out');
+    setTimeout(() => layer.remove(), 400);
+    this.startIdle();
+    return true;
+  }
+
+  /** Deja los dados de la bandeja mostrando el resultado (sin animación). */
+  setDiceResult(dice) {
+    try { this.placeDiceIdle(dice); } catch { /* la bandeja se actualiza en el próximo render */ }
+  }
+
+  /** Video del crupier esperando (en bucle) dentro de la bandeja. */
+  /** Crupier animado: imagen/GIF propia (theme.croupier.avatar) o el dibujado; con globo de diálogo. */
+  buildDealer() {
+    const C = this.croupier();
+    if (!C || C.avatar === false || this.dealerEl) return;
+    const isVid = /\.(mp4|webm)(\?|$)/i.test(C.avatar || '');
+    const pic = !C.avatar ? h('div', { class: 'cr-dealer-svg' })
+      : isVid ? h('video', { class: 'cr-dealer-img', src: C.avatar, autoplay: true, loop: true, playsinline: true }) : h('img', { class: 'cr-dealer-img', src: C.avatar, alt: C.name || 'Crupier' });
+    if (isVid) { pic.muted = true; pic.play?.().catch(() => {}); }
+    if (!C.avatar) pic.innerHTML = DEALER_SVG;
+    this.dealerPic = pic;
+    this.bubble = h('div', { class: 'cr-bubble' }, '');
+    this.dealerEl = h('div', { class: 'cr-dealer idle' }, this.bubble, pic, h('small', { class: 'cr-dealer-name' }, C.name || 'Crupier'));
+    this.tray.append(this.dealerEl);
+    this.tray.classList.add('has-dealer');
+  }
+
+  dealer(mood, say = null) {
+    if (!this.dealerEl) return;
+    const C = this.croupier() || {};
+    this.dealerEl.className = `cr-dealer ${mood}`;
+    // Imagen propia para el lanzamiento (theme.croupier.avatarThrow)
+    if (C.avatar && this.dealerPic?.tagName === 'IMG') this.dealerPic.src = mood === 'throw' && C.avatarThrow ? C.avatarThrow : C.avatar;
+    if (say != null) {
+      this.bubble.textContent = say;
+      this.bubble.classList.remove('show'); void this.bubble.offsetWidth; this.bubble.classList.add('show');
+      clearTimeout(this.bubbleT);
+      this.bubbleT = setTimeout(() => this.bubble.classList.remove('show'), 2600);
+    }
+  }
+
+  /** Lo que dice el crupier al ver el resultado. */
+  callOut(roll) {
+    const t = roll.total;
+    const hard = roll.dice?.[0] === roll.dice?.[1] && [4, 6, 8, 10].includes(t);
+    if (roll.phaseBefore === 'point' && t === roll.pointBefore) return `¡${t}! ¡Salió el punto!`;
+    if (t === 7) return roll.phaseBefore === 'point' ? '¡Siete! Fin de la ronda' : '¡Siete, ganador!';
+    if (t === 11) return '¡Once, ganador!';
+    if ([2, 3, 12].includes(t)) return `¡${t}, craps!`;
+    if (roll.phaseBefore === 'comeOut') return `¡${t}! El punto es ${t}`;
+    return `¡${t}${hard ? ' duro' : ''}!`;
+  }
+
+  startIdle() {
+    const C = this.croupier();
+    if (!C?.idle || !this.tray || this.idleVideo) return;
+    const v = h('video', { class: 'cr-idle', playsinline: true, muted: true, loop: true, autoplay: true });
+    v.muted = true; v.src = C.idle;
+    this.tray.prepend(v);
+    this.idleVideo = v;
+    v.play?.().catch(() => {});
+  }
+  stopIdle() { this.idleVideo?.remove(); this.idleVideo = null; }
+
+  /** Tirada automática del crupier: X segundos después de la última apuesta. */
+  armAutoThrow() {
+    const C = this.live ? null : this.croupier();
+    clearInterval(this.autoTimer);
+    this.autoLeftEl?.remove();
+    if (!C?.autoSeconds || this.busy || !this.table?.bets?.length) return;
+    let left = Math.max(3, Math.min(60, Number(C.autoSeconds)));
+    this.autoLeftEl = h('div', { class: 'cr-auto' }, '');
+    this.tray?.append(this.autoLeftEl);
+    const tick = () => {
+      if (this.busy) { clearInterval(this.autoTimer); this.autoLeftEl?.remove(); return; }
+      this.autoLeftEl.textContent = `🎩 El crupier tira en ${left} s`;
+      if (left-- <= 0) { clearInterval(this.autoTimer); this.autoLeftEl?.remove(); this.throwDice(0.8, { x: 0, y: -1 }, { croupier: true }); }
+    };
+    tick();
+    this.autoTimer = setInterval(tick, 1000);
+  }
+
+  async throwDice(power, dir, { croupier = false } = {}) {
     if (this.busy) return;
     if (!this.table.bets.length) { this.toast('Pon al menos una apuesta'); return; }
+    clearInterval(this.autoTimer);
+    this.autoLeftEl?.remove();
     this.busy = true;
     this.render();
     this.sound.unlock();
@@ -539,10 +836,18 @@ export class CrapsEngine {
       this.render();
       return;
     }
-    await this.animateDice(r.result.dice, power, dir);
-    // Premios y pérdidas en la mesa
+    if (croupier) this.dealer('throw', '¡Dados!');
+    if (!(croupier && await this.playCroupier(r.result.dice))) await this.animateDice(r.result.dice, power, dir);
+    if (croupier) this.dealer('happy', this.callOut(r.result));
+    await this.showOutcome({ resolutions: r.result.resolutions, win: r.win, cost: r.cost, result: r.result, roundId: r.roundId, balance: r.balance, table: r.table });
+    this.busy = false;
+    this.render();
+  }
+
+  /** Premios y pérdidas en la mesa después de una tirada (propia o del crupier en vivo). */
+  async showOutcome({ resolutions, win, cost, result, roundId, balance, table }) {
     let won = 0;
-    for (const res of r.result.resolutions) {
+    for (const res of resolutions || []) {
       const z = this.zoneFor(res);
       if (!z) continue;
       if (res.outcome === 'win') {
@@ -552,22 +857,20 @@ export class CrapsEngine {
         this.particles(z.el, Math.min(30, 10 + Math.round(res.payout / Math.max(1, this.levels[0]) / 2)));
       } else if (res.outcome === 'lose') z.el.classList.add('lose');
     }
-    if (won) this.sound.play('win'); else if (r.result.resolutions.some((x) => x.outcome === 'lose')) this.sound.play('lose');
-    this.table = { ...this.table, ...r.table, balance: r.balance };
-    this.winEl.textContent = this.fmt(r.win);
+    if (won) this.sound.play('win'); else if ((resolutions || []).some((x) => x.outcome === 'lose')) this.sound.play('lose');
+    if (table) this.table = { ...this.table, ...table, ...(balance != null ? { balance } : {}) };
+    this.winEl.textContent = this.fmt(win || 0);
     // Premios por monto: en veces lo apostado en la tirada (o la apuesta mínima de la mesa si no se apostó nada nuevo)
-    const stake = Math.max(r.cost || 0, this.game.rules?.limits?.min || 1);
-    const tier = r.win > 0 ? winTierFor(this.game.theme, r.win / stake) : null;
-    if (tier) await this.presentTier(tier, r.win);
-    else if (r.win >= Math.max(r.cost, 1) * 15 && r.win > 0) await this.banner('¡GRAN PREMIO!', this.fmt(r.win));
-    const msg = this.phaseMessage(r.result);
+    const stake = Math.max(cost || 0, this.game.rules?.limits?.min || 1);
+    const tier = win > 0 ? winTierFor(this.game.theme, win / stake) : null;
+    if (tier) await this.presentTier(tier, win);
+    else if (win >= Math.max(cost || 0, 1) * 15 && win > 0) await this.banner('¡GRAN PREMIO!', this.fmt(win));
+    const msg = result ? this.phaseMessage(result) : null;
     if (msg) this.toast(msg);
     await wait(900);
     for (const z of this.zones.values()) z.el.classList.remove('win', 'lose');
-    this.busy = false;
-    this.render();
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'casino:round', gameId: this.game.id, roundId: r.roundId, cost: r.cost, win: r.win, balance: r.balance }, '*');
+    if (roundId && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'casino:round', gameId: this.game.id, roundId, cost, win, balance: this.table?.balance }, '*');
     }
   }
 
@@ -625,7 +928,9 @@ export class CrapsEngine {
       }
     }
     this.hist.innerHTML = '';
-    for (const t of (s.history || []).slice(-14)) this.hist.append(h('span', { class: t === 7 ? 'seven' : '' }, String(t)));
+    // Mesa en vivo: el historial es el de la mesa compartida (más reciente primero)
+    const hist = this.liveState ? this.liveState.history.slice(0, 14).map((x) => x.total).reverse() : (s.history || []).slice(-14);
+    for (const t of hist) this.hist.append(h('span', { class: t === 7 ? 'seven' : '' }, String(t)));
     const pending = s.bets.some((b) => b.status === 'pending');
     this.undoBtn.disabled = this.busy || !pending;
     this.clearBtn.disabled = this.busy || !pending;

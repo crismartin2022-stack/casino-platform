@@ -32,7 +32,9 @@ export function seedTemplates() {
   const out = {};
   for (const f of readdirSync(SEED_DIR).filter((x) => x.endsWith('.json'))) {
     const c = JSON.parse(readFileSync(`${SEED_DIR}/${f}`, 'utf8'));
-    out[c.engine] = c;
+    // Plantilla del motor = el juego cuyo id es el del motor; los demás (ej. Dados en Vivo) van por su id
+    if (!c.id || c.id === c.engine) out[c.engine] = c;
+    else out[c.id] = c;
   }
   return out;
 }

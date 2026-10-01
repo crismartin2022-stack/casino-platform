@@ -6,6 +6,7 @@ import * as games from './services/games.js';
 import * as wallets from './services/wallets.js';
 import * as rounds from './services/rounds.js';
 import * as table from './services/table.js';
+import * as live from './services/live.js';
 import * as assets from './services/assets.js';
 import * as agents from './agents/runner.js';
 import * as operators from './services/operators.js';
@@ -90,6 +91,9 @@ export function registerRoutes(r) {
 
   // Nivel del jugador en juegos con niveles (Level Up), por apuesta
   r.get('/api/v1/progress', async (req, res) => json(res, rounds.playerProgress(bearer(req), Number(req.query.bet))));
+
+  // Mesa en vivo con crupier: estado compartido (cuenta regresiva, no va más, tirada y resultado)
+  r.get('/api/v1/live', async (req, res) => json(res, await live.getLive(bearer(req))));
 
   // Juegos de mesa (Craps)
   r.get('/api/v1/table', async (req, res) => json(res, await table.getTable(bearer(req))));
@@ -377,6 +381,7 @@ export function registerRoutes(r) {
 
   // Rondas, auditoría y operadores
   r.get('/api/admin/rounds', A((req, res) => json(res, rounds.listRounds({ gameId: req.query.gameId, status: req.query.status, limit: Number(req.query.limit) || 50 }))));
+  r.get('/api/admin/live-rolls/:id', A((req, res, { params }) => json(res, live.liveRoll(params.id))));
   r.get('/api/admin/rounds/:id/replay', A((req, res, { params }) => json(res, rounds.replayRound(params.id))));
   r.get('/api/admin/stats', A((req, res) => json(res, rounds.stats({ gameId: req.query.gameId, days: Number(req.query.days) || 30 }))));
   r.get('/api/admin/audit', A((req, res) => json(res, all('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?', Math.min(500, Number(req.query.limit) || 100)))));
