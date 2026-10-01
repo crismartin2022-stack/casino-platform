@@ -74,6 +74,10 @@ export function seedGames() {
   }
 }
 
+// Juegos de fábrica: uno por motor (su id es el del motor), sirven de plantilla
+let factoryIds = null;
+const isFactory = (id) => (factoryIds ||= new Set(Object.values(seedTemplates()).map((c) => c.id || c.engine))).has(id);
+
 function rowToGame(r, { withDraft = true } = {}) {
   if (!r) return null;
   const pub = r.published_version ? one('SELECT version, math, created_at, note FROM game_versions WHERE game_id = ? AND version = ?', r.id, r.published_version) : null;
@@ -82,6 +86,8 @@ function rowToGame(r, { withDraft = true } = {}) {
     id: r.id, engine: r.engine, name: r.name, status: r.status, ownerOperatorId: r.owner_operator_id ?? null, brandId: r.brand_id ?? null,
     publishedVersion: r.published_version,
     publishedAt: pub?.created_at ?? null,
+    createdAt: r.created_at ?? null,
+    factory: !r.owner_operator_id && isFactory(r.id),
     math: pub?.math ? JSON.parse(pub.math) : null,
     draftUpdatedAt: r.draft_updated_at,
     hasUnpublishedChanges: pub ? stableStringify(draft) !== stableStringify(getVersionConfig(r.id, r.published_version)) : true,
@@ -143,6 +149,8 @@ export function publicConfig(id, c, version) {
   // Niveles de moneda con nombre (Hold & Win ELIGE Y FIJA): nombre, valor y color, sin probabilidades
   if (c.rules?.coinValues?.some((v) => v.name)) rules.coinTiers = c.rules.coinValues.filter((v) => v.name && v.value != null).map((v) => ({ name: v.name, value: v.value, ...(v.color ? { color: v.color } : {}) }));
   if (c.rules?.frameValues) rules.frameValues = c.rules.frameValues.map((f) => f.value);
+  if (c.rules?.pickValues) rules.pickValues = c.rules.pickValues.map((p) => p.value);
+  if (c.rules?.multReel?.values) rules.multReel = { enabled: !!c.rules.multReel.enabled, values: c.rules.multReel.values.map((v) => v.value) };
   if (c.rules?.pickSpecials) rules.pickSpecials = [...new Set(c.rules.pickSpecials.map((x) => x.type))].map((type) => ({ type }));
   if (c.rules?.multiplierValues) rules.multiplierValues = c.rules.multiplierValues.map((m) => m.value);
   // Premios de los cofres (sin sus probabilidades)
@@ -257,6 +265,11 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
       const info = { mode: b.mode, cost: b.get(draft), rtp: sim2.rtp, ci: [sim2.rtpLow, sim2.rtpHigh] };
       math.buyOptions.push(info);
       if (b.mode === 'buy') math.buy = { buyCost: info.cost, rtp: info.rtp, ci: info.ci };
+    }
+    // Juegos con nivel del jugador: el RTP publicado es el promedio; también se informa el del nivel 1
+    if (ENGINES[draft.engine].stateful) {
+      const l1 = await simulateAsync(draft, { spins: 300_000, seed: 77, freshState: true });
+      math.rtpLevel1 = l1.rtp;
     }
   }
   // Prueba silenciosa de todas las funciones: si algo falla no se publica; los avisos se informan.

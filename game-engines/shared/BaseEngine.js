@@ -176,10 +176,11 @@ export class BaseEngine {
     const rows = this.gridRows();
     if (Array.isArray(rows)) return box; // Megaways: altura variable, ocupa todo el espacio
     // Celdas casi cuadradas para cualquier cantidad de rodillos y filas, centradas en el espacio disponible.
-    const cols = this.gridCols();
-    const cell = Math.min(box.w / cols, box.h / rows, 210);
+    // gridExtraCols(): columnas extra a la derecha para piezas propias del motor (ej. rodillo multiplicador)
+    const cols = this.gridCols(), extra = this.gridExtraCols();
+    const cell = Math.min(box.w / (cols + extra), box.h / rows, 210);
     const w = cell * cols, h = cell * rows;
-    return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+    return { x: box.x + (box.w - cell * (cols + extra)) / 2, y: box.y + (box.h - h) / 2, w, h };
   }
 
   /** Texto de reglas con los números reales del juego (rodillos, filas, líneas). */
@@ -192,6 +193,7 @@ export class BaseEngine {
 
   gridRows() { return this.game.grid.rows; }
   gridCols() { return this.game.grid.reels; }
+  gridExtraCols() { return 0; }
 
   fillerIds() {
     return this.game.symbols.filter((s) => s.type === 'regular' || !s.type).map((s) => s.id);

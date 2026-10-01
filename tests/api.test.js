@@ -60,9 +60,9 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 13 juegos publicados', async () => {
+test('lista los 15 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win',
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win', 'level-up',
     'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
@@ -638,4 +638,29 @@ test('cash collect: el recolector cobra todas las monedas; niveles en giros grat
   assert.equal(buy.status, 200, JSON.stringify(buy.body));
   const { body: g } = await req('/api/v1/games/cash-collect');
   assert.ok(g.rules.coinValues.every((x) => typeof x === 'number'), 'sin probabilidades expuestas');
+});
+
+test('level-up: el nivel se guarda por jugador y apuesta, y la ronda se puede reproducir', async () => {
+  const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'level-up' } });
+  const auth = { authorization: `Bearer ${s.token}` };
+  const { body: sess } = await req('/api/v1/session', { headers: auth });
+  const [b1, b2] = sess.game.bet.levels;
+  const p0 = (await req(`/api/v1/progress?bet=${b1}`, { headers: auth })).body;
+  assert.deepEqual(p0.state, { level: 1, xp: 0, collect: 0 });
+  let last;
+  for (let i = 0; i < 5; i++) {
+    last = (await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: b1 } })).body;
+    assert.equal(last.result.engine, 'level-up');
+  }
+  const p1 = (await req(`/api/v1/progress?bet=${b1}`, { headers: auth })).body;
+  assert.deepEqual(p1.state, last.result.state);
+  assert.ok(p1.state.xp > 0 || p1.state.level > 1);
+  // Otra apuesta: otro progreso
+  const p2 = (await req(`/api/v1/progress?bet=${b2}`, { headers: auth })).body;
+  assert.deepEqual(p2.state, { level: 1, xp: 0, collect: 0 });
+  // La ronda guarda el estado anterior y se reproduce igual
+  const v = await req(`/api/admin/rounds/${last.roundId}/replay`, { headers: ADMIN });
+  assert.equal(v.status, 200, JSON.stringify(v.body));
+  assert.equal(v.body.match, true);
+  assert.equal((await req('/api/v1/progress?bet=12345', { headers: auth })).status, 400);
 });

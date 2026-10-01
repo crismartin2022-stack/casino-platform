@@ -1,0 +1,430 @@
+{
+  "engine": "level-up",
+  "name": "Huerta Dorada",
+  "grid": {
+    "reels": 5,
+    "rows": 3
+  },
+  "symbols": [
+    {
+      "id": "cherry",
+      "name": "Cereza",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%92&color=%23c0392b",
+      "pays": {
+        "3": 3.696869,
+        "4": 9.242172,
+        "5": 27.726516
+      }
+    },
+    {
+      "id": "lemon",
+      "name": "Limón",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%8B&color=%23f1c40f",
+      "pays": {
+        "3": 4.621086,
+        "4": 13.863258,
+        "5": 36.968688
+      }
+    },
+    {
+      "id": "grape",
+      "name": "Uvas",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%87&color=%238e44ad",
+      "pays": {
+        "3": 7.393738,
+        "4": 23.10543,
+        "5": 69.316289
+      }
+    },
+    {
+      "id": "bell",
+      "name": "Campana",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%94%94&color=%23f39c12",
+      "pays": {
+        "3": 13.863258,
+        "4": 46.21086,
+        "5": 138.63258
+      }
+    },
+    {
+      "id": "diamond",
+      "name": "Diamante",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%92%8E&color=%233498db",
+      "pays": {
+        "3": 27.726516,
+        "4": 92.42172,
+        "5": 369.686879
+      }
+    },
+    {
+      "id": "seven",
+      "name": "Siete",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=7&color=%23e74c3c",
+      "pays": {
+        "3": 46.21086,
+        "4": 231.0543,
+        "5": 924.217198
+      }
+    },
+    {
+      "id": "wild",
+      "name": "Comodín",
+      "type": "wild",
+      "image": "/gen/symbol.svg?label=WILD&color=%232ecc71",
+      "pays": {}
+    },
+    {
+      "id": "seed",
+      "name": "Semilla",
+      "type": "scatter",
+      "image": "/gen/symbol.svg?label=%F0%9F%8C%B1&color=%2327ae60",
+      "pays": {}
+    }
+  ],
+  "reels": [
+    [
+      "lemon",
+      "bell",
+      "lemon",
+      "wild",
+      "grape",
+      "bell",
+      "bell",
+      "cherry",
+      "grape",
+      "cherry",
+      "cherry",
+      "cherry",
+      "grape",
+      "diamond",
+      "lemon",
+      "grape",
+      "cherry",
+      "lemon",
+      "diamond",
+      "lemon",
+      "seed",
+      "lemon",
+      "grape",
+      "grape",
+      "diamond",
+      "cherry",
+      "grape",
+      "cherry",
+      "seed",
+      "seven",
+      "bell",
+      "cherry",
+      "lemon",
+      "lemon",
+      "cherry",
+      "lemon",
+      "grape",
+      "bell",
+      "lemon",
+      "seed",
+      "cherry",
+      "seven",
+      "cherry",
+      "wild",
+      "cherry"
+    ],
+    [
+      "lemon",
+      "seven",
+      "cherry",
+      "diamond",
+      "cherry",
+      "lemon",
+      "grape",
+      "bell",
+      "grape",
+      "cherry",
+      "lemon",
+      "cherry",
+      "bell",
+      "lemon",
+      "lemon",
+      "diamond",
+      "cherry",
+      "cherry",
+      "wild",
+      "lemon",
+      "grape",
+      "cherry",
+      "wild",
+      "lemon",
+      "grape",
+      "bell",
+      "grape",
+      "cherry",
+      "cherry",
+      "lemon",
+      "bell",
+      "lemon",
+      "lemon",
+      "cherry",
+      "grape",
+      "diamond",
+      "grape",
+      "grape",
+      "seven",
+      "bell",
+      "cherry",
+      "cherry"
+    ],
+    [
+      "grape",
+      "cherry",
+      "cherry",
+      "lemon",
+      "lemon",
+      "bell",
+      "lemon",
+      "cherry",
+      "seven",
+      "grape",
+      "cherry",
+      "diamond",
+      "lemon",
+      "seed",
+      "seven",
+      "grape",
+      "cherry",
+      "diamond",
+      "diamond",
+      "grape",
+      "cherry",
+      "seed",
+      "lemon",
+      "bell",
+      "grape",
+      "bell",
+      "bell",
+      "grape",
+      "lemon",
+      "cherry",
+      "lemon",
+      "cherry",
+      "wild",
+      "bell",
+      "wild",
+      "lemon",
+      "grape",
+      "grape",
+      "cherry",
+      "seed",
+      "lemon",
+      "cherry",
+      "lemon",
+      "cherry",
+      "cherry"
+    ],
+    [
+      "cherry",
+      "diamond",
+      "bell",
+      "seven",
+      "seven",
+      "lemon",
+      "lemon",
+      "diamond",
+      "grape",
+      "grape",
+      "cherry",
+      "bell",
+      "grape",
+      "cherry",
+      "lemon",
+      "grape",
+      "lemon",
+      "grape",
+      "cherry",
+      "cherry",
+      "cherry",
+      "grape",
+      "bell",
+      "wild",
+      "bell",
+      "lemon",
+      "lemon",
+      "diamond",
+      "grape",
+      "lemon",
+      "bell",
+      "lemon",
+      "lemon",
+      "cherry",
+      "lemon",
+      "grape",
+      "cherry",
+      "cherry",
+      "wild",
+      "cherry",
+      "cherry",
+      "cherry"
+    ],
+    [
+      "grape",
+      "bell",
+      "lemon",
+      "seed",
+      "grape",
+      "seven",
+      "bell",
+      "seven",
+      "cherry",
+      "wild",
+      "cherry",
+      "cherry",
+      "grape",
+      "bell",
+      "grape",
+      "lemon",
+      "diamond",
+      "grape",
+      "lemon",
+      "seed",
+      "bell",
+      "diamond",
+      "cherry",
+      "lemon",
+      "cherry",
+      "lemon",
+      "lemon",
+      "cherry",
+      "grape",
+      "cherry",
+      "cherry",
+      "wild",
+      "lemon",
+      "cherry",
+      "bell",
+      "lemon",
+      "grape",
+      "lemon",
+      "seed",
+      "cherry",
+      "grape",
+      "cherry",
+      "diamond",
+      "lemon",
+      "cherry"
+    ]
+  ],
+  "rules": {
+    "lines": 10,
+    "triggerCount": 3,
+    "maxLevel": 15,
+    "xpBase": 100,
+    "xpGrowth": 1.3,
+    "xpPerSpin": 5,
+    "collectTarget": 150,
+    "pickValues": [
+      {
+        "value": 0.924217,
+        "weight": 30
+      },
+      {
+        "value": 1.848434,
+        "weight": 28
+      },
+      {
+        "value": 2.772651,
+        "weight": 20
+      },
+      {
+        "value": 3.696869,
+        "weight": 13
+      },
+      {
+        "value": 4.621086,
+        "weight": 9
+      }
+    ],
+    "bonusXpBase": 10,
+    "bonusXpPerValue": 5,
+    "bonusLevelUp": true,
+    "goldenChance": 0.25,
+    "goldenMult": 2,
+    "rewards": [
+      {
+        "level": 5,
+        "type": "multiplier",
+        "value": 1.1
+      },
+      {
+        "level": 8,
+        "type": "goldenSeed"
+      },
+      {
+        "level": 10,
+        "type": "multiplier",
+        "value": 1.2
+      },
+      {
+        "level": 15,
+        "type": "jackpot",
+        "value": 46.21086
+      }
+    ],
+    "maxWin": 5000
+  },
+  "bet": {
+    "levels": [
+      10,
+      20,
+      50,
+      100,
+      200,
+      500,
+      1000
+    ],
+    "default": 100,
+    "currency": "USD"
+  },
+  "theme": {
+    "title": "Huerta Dorada",
+    "background": null,
+    "backgroundColor": "#0f0c29",
+    "palette": {
+      "primary": "#9b59b6",
+      "accent": "#ffd700",
+      "panel": "#1e1e1e",
+      "text": "#ffffff",
+      "reelBg": "#302b63"
+    },
+    "font": "Bungee"
+  },
+  "sounds": {
+    "music": null,
+    "spin": null,
+    "reelStop": null,
+    "win": null,
+    "bigWin": null,
+    "feature": null,
+    "click": null,
+    "coin": null
+  },
+  "rtpTarget": 0.96,
+  "id": "level-up",
+  "math": {
+    "rtp": 0.96,
+    "ci": [
+      0.9573,
+      0.9626
+    ],
+    "hitFrequency": 0.4609,
+    "featureEvery": 124,
+    "volatility": "baja",
+    "buy": null,
+    "buyOptions": [],
+    "rtpLevel1": 0.7841
+  }
+}

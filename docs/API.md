@@ -74,6 +74,7 @@ Respuesta de `/spin`:
 - `clientRoundId` hace la llamada **idempotente**: si se corta la conexión y el cliente reintenta con el mismo id, se devuelve la misma ronda (`"replayed": true`) sin cobrar dos veces.
 - `mode: "buy"` solo existe en motores con compra de bonus; el coste es `bet × rules.buyCost`. Bonus Buy tiene además `buy-pick`, `buy-wheel`, `buy-collect`, `buy-path` y `buy-sticky` (coste `bet × rules.bonusMenu.<bono>.cost`).
 - `mode: "ante"` (doble chance, en Tormenta del Olimpo y El Libro del Desierto) cuesta `bet × rules.anteCost` y da más scatters.
+- `GET /api/v1/progress?bet=100` (juegos con niveles, como Level Up): nivel, XP y colección del jugador para esa apuesta: `{ bet, state: { level, xp, collect }, xpNeed }`. Cada ronda trae `result.stateBefore` y `result.state`.
 - `GET /api/v1/engines` lista los motores con su ficha (`card`: cuadrícula, pagos, bonus, funciones, volatilidad, frecuencia del bonus, compra) y el esquema editable de sus reglas (`ruleSchema`).
 - Errores: `400` apuesta o modo inválido, `401` sesión inválida/expirada, `402` saldo insuficiente, `429` demasiadas peticiones, `502` billetera del operador no disponible.
 

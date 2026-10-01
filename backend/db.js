@@ -134,6 +134,15 @@ CREATE TABLE IF NOT EXISTS table_state (
   state TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Progreso del jugador en juegos con niveles (Level Up): uno por jugador + juego + apuesta
+CREATE TABLE IF NOT EXISTS player_progress (
+  player_id TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  bet INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (player_id, game_id, bet)
+);
 CREATE TABLE IF NOT EXISTS operator_users (
   id TEXT PRIMARY KEY,
   operator_id TEXT NOT NULL REFERENCES operators(id),

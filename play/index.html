@@ -257,6 +257,32 @@
     .bk-img { width: 70%; max-height: 60%; object-fit: contain; filter: drop-shadow(0 4px 6px #0008); }
     .bk-name { color: #5a2a0e; font-size: 18px; }
     .bk-book.done { box-shadow: 0 0 40px var(--accent), 0 0 90px color-mix(in srgb, var(--accent) 60%, transparent); animation: mgpop .5s ease-out; }
+    /* Level Up: nivel, XP, colección y recompensas */
+    .lu-panel { position: absolute; left: calc(var(--gx) - var(--gw) / 2 - 16px); top: calc(var(--gy) + 4px); transform: translateX(-100%); width: 200px; flex-direction: column; align-items: stretch; z-index: 4; display: flex; gap: 8px;
+      background: rgba(0,0,0,.6); border: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 14px; padding: 6px 12px; font-family: var(--font); }
+    .lu-panel.pop { animation: mgpop .5s ease-out; }
+    .lu-card { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+    .lu-card .lu-bars { flex-basis: 100%; }
+    .lu-icon { font-size: 26px; filter: drop-shadow(0 0 6px var(--accent)); }
+    .lu-info { display: flex; flex-direction: column; line-height: 1; } .lu-info small { font-size: 10px; color: color-mix(in srgb, var(--accent) 70%, #fff); letter-spacing: .1em; }
+    .lu-num { font-size: 24px; color: var(--accent); }
+    .lu-bars { display: flex; flex-direction: column; gap: 2px; min-width: 120px; flex: 1; }
+    .lu-bar { position: relative; height: 9px; border-radius: 99px; background: #333; overflow: hidden; }
+    .lu-bar .lu-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #9b59b6, #c39bd3); transition: width .4s ease; }
+    .lu-bar.col { height: 14px; } .lu-bar.col .lu-fill { background: linear-gradient(90deg, #27ae60, #f1c40f); }
+    .lu-segs { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(10, 1fr); }
+    .lu-segs span { border-right: 1px solid #0006; font-size: 9px; display: grid; place-items: center; } .lu-segs span:last-child { border: 0; }
+    .lu-xptext { font-size: 10px; opacity: .85; }
+    .lu-next { font-size: 11px; line-height: 1.25; color: color-mix(in srgb, var(--accent) 80%, #fff); }
+    .lu-rewards { pointer-events: auto; border: 0; border-radius: 10px; padding: 8px 10px; font: 800 11px system-ui; background: var(--accent); color: #000; cursor: pointer; }
+    .lu-rws { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; text-align: left; }
+    .lu-rw { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #fff1; border: 1px solid #fff2; opacity: .6; }
+    .lu-rw.on { opacity: 1; border-color: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent); }
+    .lu-rw-ic { font-size: 24px; } .lu-rw div { flex: 1; display: flex; flex-direction: column; } .lu-rw small { opacity: .8; } .lu-rw em { font-style: normal; font-weight: 800; color: var(--accent); }
+    #hud[data-orient="portrait"] .lu-panel { left: 50%; top: calc(92px + env(safe-area-inset-top)); transform: translateX(-50%); flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; width: min(94vw, 420px); padding: 5px 8px; gap: 6px; }
+    #hud[data-orient="portrait"] .lu-next { flex-basis: 100%; text-align: center; }
+    #hud[data-orient="portrait"] .lu-card { flex: 1; flex-wrap: nowrap; }
+    #hud[data-orient="portrait"] .lu-card .lu-bars { flex-basis: auto; }
     .wheel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
     .wheel div { padding: 14px 6px; border-radius: 12px; background: rgba(255,255,255,.08); font: 800 16px system-ui; text-align: center; transition: background .08s; }
     .wheel div.hot { background: var(--accent); color: #000; }

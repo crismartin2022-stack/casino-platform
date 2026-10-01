@@ -50,6 +50,28 @@ export function hasFeature(r) {
   return !!((r.freeSpins && (r.freeSpins.awarded > 0 || r.freeSpins.spins?.length)) || r.holdAndWin || r.respins?.length || r.bonus);
 }
 
+/** Progreso guardado del jugador en un juego con niveles (por apuesta). */
+export function loadProgress(playerId, gameId, bet, engine, config) {
+  const r = one('SELECT state FROM player_progress WHERE player_id = ? AND game_id = ? AND bet = ?', playerId, gameId, bet);
+  const s = r ? JSON.parse(r.state) : engine.initialState(config);
+  return engine.cleanState ? engine.cleanState(config.rules, s) : s;
+}
+function saveProgress(playerId, gameId, bet, state) {
+  run(`INSERT INTO player_progress (player_id, game_id, bet, state, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT (player_id, game_id, bet) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`, playerId, gameId, bet, JSON.stringify(state));
+}
+
+/** Nivel del jugador para la apuesta indicada (lo pide el juego al abrir y al cambiar la apuesta). */
+export function playerProgress(token, bet) {
+  const session = getSession(token);
+  const { config } = loadConfigFor(session);
+  const engine = getEngine(config.engine);
+  if (!engine.stateful) throw new HttpError(400, 'Este juego no tiene niveles');
+  if (!config.bet.levels.includes(bet)) throw new HttpError(400, `Apuesta no permitida. Niveles: ${config.bet.levels.join(', ')}`);
+  const state = loadProgress(session.player_id, session.game_id, bet, engine, config);
+  return { bet, state, xpNeed: engine.xpNeeded(config.rules, state.level) };
+}
+
 export async function playRound(token, { bet, mode = 'base', clientRoundId = null, force = false }) {
   const session = getSession(token);
   const prior = existingRound(token, clientRoundId);
@@ -65,11 +87,16 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   // Forzar bonus: SOLO en la vista previa del borrador (demo), para probar sonidos y animaciones del bonus.
   if (force && session.source !== 'draft') throw new HttpError(403, 'Forzar el bonus solo está permitido en la vista previa del borrador');
   let rng = recordingRng(cryptoRng());
+  // Juegos con nivel del jugador: el estado se lee y se guarda en el mismo paso (sin esperas en el medio)
   const produce = () => {
+    const state = engine.stateful ? loadProgress(session.player_id, session.game_id, bet, engine, config) : undefined;
     for (let i = 0; i < (force ? 60_000 : 1); i++) {
       if (i) rng = recordingRng(cryptoRng());
-      const res = engine.play(config, rng, { mode });
-      if (!force || hasFeature(res)) return res;
+      const res = engine.play(config, rng, engine.stateful ? { mode, state } : { mode });
+      if (!force || hasFeature(res)) {
+        if (engine.stateful) saveProgress(session.player_id, session.game_id, bet, res.state);
+        return res;
+      }
     }
     throw new HttpError(409, 'Este juego no tiene un bonus que se pueda forzar (o es demasiado raro): revisa la frecuencia del bonus en Matemática');
   };
@@ -157,7 +184,9 @@ export function replayRound(roundId) {
   }
   const draws = JSON.parse(r.rng);
   const rng = replayRng(draws);
-  const res = getEngine(config.engine).play(config, rng, { mode: r.play_mode });
+  const eng = getEngine(config.engine);
+  const stored = r.result ? JSON.parse(r.result) : null;
+  const res = eng.play(config, rng, eng.stateful ? { mode: r.play_mode, state: stored?.stateBefore } : { mode: r.play_mode });
   const win = toCents(res.totalWin, r.bet);
   return { roundId, stored: r.win, recomputed: win, match: win === r.win && rng.consumed === draws.length, drawsUsed: rng.consumed, result: res };
 }
