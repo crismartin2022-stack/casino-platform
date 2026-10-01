@@ -12,5 +12,7 @@ export const ENGINE_LOADERS = {
   'megaways-cascade': () => import('./engine-megaways-cascade/src/MegawaysCascadeEngine.js').then((m) => m.MegawaysCascadeEngine),
   'treasure-chests': () => import('./engine-treasure-chests/src/TreasureChestsEngine.js').then((m) => m.TreasureChestsEngine),
   'cash-collect': () => import('./engine-cash-collect/src/CashCollectEngine.js').then((m) => m.CashCollectEngine),
+  'level-up': () => import('./engine-level-up/src/LevelUpEngine.js').then((m) => m.LevelUpEngine),
+  'classic-reels': () => import('./engine-classic-reels/src/ClassicReelsEngine.js').then((m) => m.ClassicReelsEngine),
   craps: () => import('./engine-craps/src/CrapsEngine.js').then((m) => m.CrapsEngine),
 };

@@ -1,6 +1,6 @@
 # 🎰 Casino Platform
 
-Plataforma de tragamonedas lista para Railway: **13 motores de juego** (12 tragamonedas y Craps de mesa), **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
+Plataforma de tragamonedas lista para Railway: **15 motores de juego** (14 tragamonedas y Craps de mesa), **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
 
 Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `worker_threads` integrados).
 
@@ -20,6 +20,8 @@ Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `w
 | `megaways-cascade` | Megaways con cascadas (+0,5 por caída), comodines que multiplican, símbolos misterio y 10 giros por scatter | Cascada Infinita |
 | `treasure-chests` | 5×4 con premios por fila y cofres que multiplican el premio | Cofres de la Corona |
 | `cash-collect` | 5×3, monedas con dinero que cobra el recolector; niveles en giros gratis | Pesca de Oro |
+| `classic-reels` | Clásico 3×3 de frutas, BAR y 7 (1 a 5 líneas): cerezas que pagan desde una, cualquier BAR, comodín ×2 (dos comodines ×4) y rodillo multiplicador ×1–×10 | Frutas de Oro |
+| `level-up` | 5×3 con NIVEL DEL JUGADOR guardado por apuesta: barra de XP, colección de semillas (Drop & Collect), bonus de cofres y recompensas por nivel (multiplicador, semillas doradas y jackpot que reinicia al nivel 1) | Huerta Dorada |
 | `craps` | Mesa de Craps: Pass/Don't Pass, Come/Don't Come, odds, números, field (2 y 12 pagan 2 a 1), hardways. Dados 3D, lanzamiento arrastrando con medidor de potencia, fichas que se arrastran a la mesa, partículas de premio, pagos editables con RTP exacto | Dados de Oro |
 
 **Todas las funciones son editables** en 📈 Matemática → ⚙ Funciones del motor (formulario por motor; también en JSON en «Avanzado»). Cada precio de compra y de la doble chance se calcula para respetar el RTP.
@@ -118,6 +120,8 @@ Todas toman los colores de la paleta del juego y funcionan en PC y celular; los 
 - **Cambiar motor (copia)** (Versiones → 🔁): crea un juego nuevo con otro motor conservando el diseño (fondos, logo, marco, botonera, carteles, textos, tipografías, sonidos, bonus, fichas y marca); los símbolos pasan por equivalencia y la matemática se calibra al RTP del original. El original no se toca.
 - **Eliminar un juego** (Versiones → 🗑 Eliminar juego): con confirmación escribiendo el nombre; no se permite si tuvo jugadas con dinero real (se conservan para auditoría: en ese caso, desactivarlo).
 - **Vista previa en el celular**: el botón **↗ Abrir** la abre en su propia pestaña a pantalla completa.
+- **Lista de juegos ordenada**: el panel separa ⚙ Motores (los juegos de fábrica, uno por motor), 📝 Borradores (nunca publicados, los últimos editados primero) y ⭐ Creados (publicados, los más nuevos primero). Cada grupo se pliega y recuerda si estaba abierto.
+- **Level Up y el RTP**: el nivel se guarda en el servidor por jugador + juego + apuesta (tabla `player_progress`), así nadie sube de nivel con apuestas chicas para cobrar con grandes. Cada ronda guarda el estado anterior y se reproduce igual en la auditoría. El RTP publicado es el promedio a largo plazo (el simulador arrastra el nivel de giro en giro); también se certifica y se informa en las reglas el RTP del nivel 1 (`math.rtpLevel1`).
 - **Elegir motor con fichas**: al crear un juego o cambiar de motor, cada motor se muestra en una ficha con cuadrícula, forma de pago, bonus, funciones, volatilidad, frecuencia del bonus, frecuencia de premio y compra.
 - **Funciones del motor** (Matemática → ⚙): formulario generado desde el esquema de cada motor (`/api/v1/engines` → `ruleSchema`) con todas sus funciones, incluidas las nuevas (casillas doradas, rayo de Zeus, doble chance, marcos, ELIGE Y FIJA, bonus sorpresa, colecciona, camino…).
 - **Doble chance** (`rules.anteCost`, `rules.anteScatterChance`): botón en el juego para pagar un poco más por giro y ver más scatters; el precio lo calcula «Ajustar RTP».

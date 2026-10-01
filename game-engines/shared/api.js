@@ -24,6 +24,8 @@ export class GameApi {
   session() { return this.request('/api/v1/session'); }
   balance() { return this.request('/api/v1/balance'); }
   history(limit = 20) { return this.request(`/api/v1/history?limit=${limit}`); }
+  /** Nivel del jugador en juegos con niveles (por apuesta). */
+  progress(bet) { return this.request(`/api/v1/progress?bet=${encodeURIComponent(bet)}`); }
 
   /** clientRoundId hace la petición idempotente: si se corta la conexión, reintentar no cobra dos veces. */
   async spin(bet, mode = 'base', { force = false } = {}) {

@@ -136,22 +136,27 @@ function setupOperatorShell() {
 // ------------------------------------------------------------------ Juegos
 async function loadGames() {
   [S.games, S.brands] = await Promise.all([api('/api/admin/games'), api('/api/admin/brands').catch(() => [])]);
-  // Agrupados por marca (el servidor ya los ordena por marca y nombre)
-  const groups = new Map();
-  for (const g of S.games) {
-    const k = g.brandId || '';
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(g);
-  }
+  // Tres grupos: Motores (juegos de fábrica, uno por motor), Borradores (nunca publicados) y Creados (publicados, los más nuevos primero)
   const brandOf = (id) => S.brands.find((b) => b.id === id);
   const item = (g) => `<a data-game="${esc(g.id)}" class="${g.id === S.gameId ? 'on' : ''}">
-    ${esc(g.name)}<small>${esc(g.engine)} · v${g.publishedVersion ?? '—'}${g.hasUnpublishedChanges ? ' · cambios sin publicar' : ''}${g.status !== 'active' ? ' · desactivado' : ''}</small></a>`;
-  const multi = groups.size > 1 || (groups.size === 1 && !groups.has(''));
-  $('#gameList').innerHTML = [...groups.entries()].map(([k, list]) => {
-    const b = brandOf(k);
-    const head = !multi ? '' : `<div class="brand-head">${b?.logo && !/\.(mp4|webm)(\?|$)/i.test(b.logo) ? `<img src="${esc(b.logo)}" alt="" />` : '<span>🏷</span>'}<b>${esc(b ? b.name : 'Sin marca')}</b><em>${list.length}</em></div>`;
-    return head + list.map(item).join('');
+    ${esc(g.name)}<small>${esc(g.engine)} · ${g.publishedVersion ? `v${g.publishedVersion}` : 'sin publicar'}${g.publishedVersion && g.hasUnpublishedChanges ? ' · <b class="gl-pend">cambios sin publicar</b>' : ''}${g.status !== 'active' ? ' · desactivado' : ''}${g.brandId && brandOf(g.brandId) ? ` · 🏷 ${esc(brandOf(g.brandId).name)}` : ''}</small></a>`;
+  const by = (k) => (a, b) => String(b[k] || '').localeCompare(String(a[k] || ''));
+  const groups = [
+    { id: 'engines', title: 'Motores', icon: '⚙', list: S.games.filter((g) => g.factory).sort((a, b) => a.name.localeCompare(b.name, 'es')) },
+    { id: 'drafts', title: 'Borradores', icon: '📝', list: S.games.filter((g) => !g.factory && !g.publishedVersion).sort(by('draftUpdatedAt')) },
+    { id: 'created', title: 'Creados', icon: '⭐', list: S.games.filter((g) => !g.factory && g.publishedVersion).sort(by('createdAt')) },
+  ];
+  let folded = {};
+  try { folded = JSON.parse(localStorage.getItem('gl-folded') || '{}'); } catch {}
+  $('#gameList').innerHTML = groups.filter((gr) => gr.list.length || gr.id !== 'engines').map((gr) => {
+    const open = !folded[gr.id] || gr.list.some((g) => g.id === S.gameId);
+    return `<details class="gl-group" data-group="${gr.id}" ${open ? 'open' : ''}><summary><span>${gr.icon} ${gr.title}</span><em>${gr.list.length}</em></summary>
+      ${gr.list.length ? gr.list.map(item).join('') : `<p class="muted gl-empty">${gr.id === 'drafts' ? 'Sin borradores' : 'Todavía no creaste juegos'}</p>`}</details>`;
   }).join('');
+  $$('#gameList details.gl-group').forEach((d) => d.addEventListener('toggle', () => {
+    folded[d.dataset.group] = !d.open;
+    try { localStorage.setItem('gl-folded', JSON.stringify(folded)); } catch {}
+  }));
   $$('#gameList a').forEach((a) => a.addEventListener('click', () => selectGame(a.dataset.game)));
 }
 
@@ -452,7 +457,7 @@ const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe
   ['bonusSub', 'Subtítulo de la entrada al bonus (vacío = el automático del juego; «-» = sin subtítulo)', 'Automático'],
   ['bonusTotal', 'Total del bonus', 'TOTAL DEL BONUS'], ['respins', 'Re-giros ({n} = restantes)', 'RE-GIROS: {n}'], ['holdWin', 'Entrada Hold & Win', 'HOLD & WIN']];
 // Subtítulo automático de la entrada al bonus en cada motor (se puede reemplazar en Carteles → Textos)
-const BONUS_SUB = { 'cash-collect': 'EL RECOLECTOR SUBE DE NIVEL', 'treasure-chests': 'BONUS DE COFRES', 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
+const BONUS_SUB = { 'level-up': 'ELIGE UN COFRE', 'cash-collect': 'EL RECOLECTOR SUBE DE NIVEL', 'treasure-chests': 'BONUS DE COFRES', 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
   'expanding-symbol': 'SÍMBOLO ESPECIAL: …', megaways: '¡BONUS!', 'hold-win': 'N MONEDAS · 3 RE-GIROS', 'sticky-wilds': 'COMODINES FIJOS / CAMINANTES', 'scatter-pays': 'LOS MULTIPLICADORES SE ACUMULAN' };
 // En qué cartel se muestra cada texto (para usar su tipografía)
 const TEXT_KIND = { win: 'win', bigWin: 'big', megaWin: 'big', freeSpins: 'feature', bonusSub: 'feature', bonusTotal: 'feature', holdWin: 'feature', spinOf: 'status', respins: 'status', multiplier: 'status' };
@@ -1678,7 +1683,7 @@ async function tabMath(v) {
     <div class="card stack"><h3 style="margin:0">Versión publicada</h3>
       ${m ? `<div class="kpi"><div><small>RTP</small><b>${pct(m.rtp)}</b></div><div><small>IC 95 %</small><b style="font-size:14px">${pct(m.ci?.[0])} – ${pct(m.ci?.[1])}</b></div>
       <div><small>Frecuencia de premio</small><b>${pct(m.hitFrequency)}</b></div><div><small>Bonus cada</small><b>${m.featureEvery ? `1/${m.featureEvery}` : '—'}</b></div>
-      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
+      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${m.rtpLevel1 != null ? `<div><small>RTP en el nivel 1</small><b>${pct(m.rtpLevel1)}</b></div>` : ''}${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
       .map((b) => `<div><small>${b.mode === 'ante' ? 'Doble chance' : `Compra ${esc(BUY_NAMES[b.mode] || b.mode)}`}</small><b>${b.cost}× · ${pct(b.rtp)}</b></div>`).join('')}</div>` : '<p class="muted">Sin publicar.</p>'}
     </div>
     <div class="card stack"><h3 style="margin:0">Tamaño de la cuadrícula${d.rules.lines != null ? ' y líneas' : ''}</h3>

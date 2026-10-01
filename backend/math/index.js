@@ -15,6 +15,8 @@ import * as megawaysCascade from './megaways-cascade.js';
 import * as craps from './craps.js';
 import * as treasureChests from './treasure-chests.js';
 import * as cashCollect from './cash-collect.js';
+import * as classicReels from './classic-reels.js';
+import * as levelUp from './level-up.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -34,6 +36,8 @@ export const ENGINES = {
   [megawaysCascade.id]: megawaysCascade,
   [treasureChests.id]: treasureChests,
   [cashCollect.id]: cashCollect,
+  [classicReels.id]: classicReels,
+  [levelUp.id]: levelUp,
   [craps.id]: craps,
 };
 
@@ -109,7 +113,7 @@ export function validateConfig(config) {
  * Simulación Monte Carlo. Devuelve RTP con intervalo de confianza del 95 %,
  * frecuencia de premio, frecuencia de bonus, volatilidad y premio máximo observado.
  */
-export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345, timeBudgetMs = 20_000 } = {}) {
+export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345, timeBudgetMs = 20_000, freshState = false } = {}) {
   const engine = getEngine(config.engine);
   if (engine.kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP se calcula exacto: mira la tabla de apuestas'), { status: 400 });
   const rng = seededRng(seed);
@@ -117,13 +121,17 @@ export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345,
   let sum = 0, sumSq = 0, hits = 0, features = 0, maxWin = 0, n = 0, capped = 0;
   const buckets = { '0': 0, '0-1x': 0, '1-5x': 0, '5-20x': 0, '20-100x': 0, '100-1000x': 0, '1000x+': 0 };
   const t0 = Date.now();
+  // Motores con estado del jugador (Level Up): el estado pasa de un giro al siguiente, como un jugador real.
+  // freshState = true mide el juego siempre desde el estado inicial (ej. RTP en el nivel 1).
+  let state = engine.stateful ? engine.initialState(config) : undefined;
   for (; n < spins; n++) {
     if ((n & 1023) === 0 && Date.now() - t0 > timeBudgetMs) break;
-    const res = engine.play(config, rng, { mode });
+    const res = engine.play(config, rng, engine.stateful ? { mode, state: freshState ? engine.initialState(config) : state } : { mode });
+    if (engine.stateful) state = res.state;
     const w = res.totalWin / cost; // retorno por unidad apostada
     sum += w; sumSq += w * w;
     if (res.totalWin > 0) hits++;
-    if (res.freeSpins || res.holdAndWin) features++;
+    if (res.freeSpins || res.holdAndWin || res.bonus) features++;
     if (res.capped) capped++;
     if (res.totalWin > maxWin) maxWin = res.totalWin;
     const x = res.totalWin;

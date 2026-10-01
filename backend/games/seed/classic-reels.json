@@ -1,0 +1,338 @@
+{
+  "engine": "classic-reels",
+  "name": "Frutas de Oro",
+  "grid": {
+    "reels": 3,
+    "rows": 3
+  },
+  "symbols": [
+    {
+      "id": "cherry",
+      "name": "Cereza",
+      "type": "regular",
+      "cherry": true,
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%92&color=%23c0392b",
+      "pays": {
+        "1": 0.306171,
+        "2": 1.224686,
+        "3": 4.592574
+      }
+    },
+    {
+      "id": "lemon",
+      "name": "Limón",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%8B&color=%23f1c40f",
+      "pays": {
+        "3": 4.592574
+      }
+    },
+    {
+      "id": "orange",
+      "name": "Naranja",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%8A&color=%23e67e22",
+      "pays": {
+        "3": 6.123432
+      }
+    },
+    {
+      "id": "plum",
+      "name": "Ciruela",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%8D%87&color=%238e44ad",
+      "pays": {
+        "3": 7.65429
+      }
+    },
+    {
+      "id": "bell",
+      "name": "Campana",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=%F0%9F%94%94&color=%23f39c12",
+      "pays": {
+        "3": 12.246863
+      }
+    },
+    {
+      "id": "bar1",
+      "name": "BAR",
+      "type": "regular",
+      "bar": true,
+      "image": "/gen/symbol.svg?label=BAR&color=%232c3e50",
+      "pays": {
+        "3": 15.308579
+      }
+    },
+    {
+      "id": "bar2",
+      "name": "DOBLE BAR",
+      "type": "regular",
+      "bar": true,
+      "image": "/gen/symbol.svg?label=BAR%20BAR&color=%2334495e",
+      "pays": {
+        "3": 30.617158
+      }
+    },
+    {
+      "id": "bar3",
+      "name": "TRIPLE BAR",
+      "type": "regular",
+      "bar": true,
+      "image": "/gen/symbol.svg?label=BAR%C2%B3&color=%231a252f",
+      "pays": {
+        "3": 61.234317
+      }
+    },
+    {
+      "id": "seven",
+      "name": "Siete",
+      "type": "regular",
+      "image": "/gen/symbol.svg?label=7&color=%23e74c3c",
+      "pays": {
+        "3": 153.08579
+      }
+    },
+    {
+      "id": "wild",
+      "name": "Comodín",
+      "type": "wild",
+      "image": "/gen/symbol.svg?label=WILD&color=%2316a085",
+      "pays": {
+        "3": 306.171583
+      }
+    }
+  ],
+  "reels": [
+    [
+      "bar1",
+      "plum",
+      "orange",
+      "bar1",
+      "bar2",
+      "lemon",
+      "bar3",
+      "lemon",
+      "plum",
+      "bar1",
+      "lemon",
+      "bell",
+      "orange",
+      "bar2",
+      "wild",
+      "orange",
+      "plum",
+      "lemon",
+      "plum",
+      "bar1",
+      "bell",
+      "bar2",
+      "orange",
+      "lemon",
+      "lemon",
+      "seven",
+      "orange",
+      "bar2",
+      "bar3",
+      "lemon",
+      "cherry",
+      "seven",
+      "bell",
+      "lemon",
+      "plum",
+      "bell",
+      "orange",
+      "bar1",
+      "cherry",
+      "bell",
+      "orange",
+      "orange",
+      "plum",
+      "bar3",
+      "orange",
+      "lemon",
+      "bar1"
+    ],
+    [
+      "plum",
+      "bell",
+      "bar3",
+      "orange",
+      "cherry",
+      "plum",
+      "bar1",
+      "wild",
+      "orange",
+      "lemon",
+      "lemon",
+      "orange",
+      "lemon",
+      "bar2",
+      "bar1",
+      "bell",
+      "plum",
+      "bar1",
+      "seven",
+      "cherry",
+      "bell",
+      "orange",
+      "lemon",
+      "orange",
+      "bar1",
+      "bar1",
+      "lemon",
+      "cherry",
+      "bar3",
+      "bar2",
+      "seven",
+      "cherry",
+      "bar2",
+      "cherry",
+      "lemon",
+      "plum",
+      "orange",
+      "bar1",
+      "bar2",
+      "plum",
+      "plum",
+      "bell",
+      "cherry",
+      "lemon",
+      "bar3",
+      "cherry",
+      "orange",
+      "bell"
+    ],
+    [
+      "bar2",
+      "bar3",
+      "cherry",
+      "seven",
+      "bell",
+      "bar1",
+      "orange",
+      "orange",
+      "bar1",
+      "plum",
+      "plum",
+      "cherry",
+      "lemon",
+      "bell",
+      "orange",
+      "plum",
+      "cherry",
+      "wild",
+      "bell",
+      "orange",
+      "orange",
+      "lemon",
+      "bar3",
+      "plum",
+      "bar1",
+      "orange",
+      "bell",
+      "plum",
+      "bar1",
+      "lemon",
+      "cherry",
+      "lemon",
+      "lemon",
+      "lemon",
+      "seven",
+      "bar3",
+      "bar2",
+      "lemon",
+      "bar2",
+      "cherry",
+      "plum",
+      "cherry",
+      "bar1",
+      "bar2",
+      "cherry",
+      "bar1",
+      "orange",
+      "bell"
+    ]
+  ],
+  "rules": {
+    "lines": 5,
+    "wildMult": 2,
+    "anyBarPay": 6.123432,
+    "multReel": {
+      "enabled": true,
+      "values": [
+        {
+          "value": 1,
+          "weight": 70
+        },
+        {
+          "value": 2,
+          "weight": 18
+        },
+        {
+          "value": 3,
+          "weight": 7
+        },
+        {
+          "value": 5,
+          "weight": 4
+        },
+        {
+          "value": 10,
+          "weight": 1
+        }
+      ]
+    },
+    "maxWin": 2500
+  },
+  "bet": {
+    "levels": [
+      5,
+      10,
+      25,
+      50,
+      100,
+      200,
+      500,
+      1000
+    ],
+    "default": 50,
+    "currency": "USD"
+  },
+  "theme": {
+    "title": "Frutas de Oro",
+    "background": null,
+    "backgroundColor": "#2b0a12",
+    "palette": {
+      "primary": "#c0392b",
+      "accent": "#ffd23f",
+      "panel": "#1a0509",
+      "text": "#ffffff",
+      "reelBg": "#3b0d18"
+    },
+    "font": "Bungee"
+  },
+  "sounds": {
+    "music": null,
+    "spin": null,
+    "reelStop": null,
+    "win": null,
+    "bigWin": null,
+    "feature": null,
+    "click": null
+  },
+  "rtpTarget": 0.96,
+  "id": "classic-reels",
+  "math": {
+    "rtp": 0.96,
+    "ci": [
+      0.957,
+      0.963
+    ],
+    "hitFrequency": 0.3072,
+    "featureEvery": null,
+    "volatility": "media",
+    "buy": null,
+    "buyOptions": []
+  }
+}

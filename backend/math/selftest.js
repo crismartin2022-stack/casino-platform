@@ -151,6 +151,14 @@ export function selfTest(config, { plays = 20_000, seed = 777, math = null, rtpS
   if (math?.precision > 0.005 && !math?.rejected) add({ id: 'rtpPrecision', area: 'Matemática', label: 'Precisión de la certificación', status: 'warn',
     detail: `El RTP quedó certificado con ±${(math.precision * 100).toFixed(2)} %: este juego es muy volátil y en el tiempo disponible no se llegó a ±0,5 %.`,
     fix: 'Para dinero real conviene ±0,5 % o menos: dar más tiempo a la certificación (PUBLISH_SIM_BUDGET_MS) o más núcleos al servidor (SIM_THREADS), y volver a publicar.', agent: null });
+  // Nivel del jugador: el RTP del nivel 1 es menor que el promedio (las recompensas suben el retorno)
+  if (engine.stateful) {
+    const l1 = math?.rtpLevel1 ?? simulate(config, { spins: 120_000, seed: seed + 9, timeBudgetMs: 10_000, freshState: true }).rtp;
+    const low = l1 < 0.75;
+    add({ id: 'rtpLevel1', area: 'Matemática', label: 'RTP en el nivel 1', status: low ? 'warn' : 'info',
+      detail: `En el nivel 1 el juego devuelve ${pct(l1)}; el ${pct(math?.rtp ?? config.rtpTarget)} es el promedio subiendo de nivel. Se informa en las reglas del juego.`,
+      fix: low ? 'La diferencia es grande: bajar las recompensas de nivel (multiplicadores y jackpot) o subir los pagos base, y volver a ajustar el RTP.' : '', agent: low ? 'math' : null });
+  }
   if (!(config.rtpTarget <= 1)) add({ id: 'rtpOver', area: 'Matemática', label: 'RTP por encima de 100 %', status: 'warn', detail: 'El juego devuelve más de lo que recauda.', fix: 'Solo para promociones o demo: para dinero real usar un RTP ≤ 100 %.', agent: 'math' });
   void cost;
   return { checks, ms: Date.now() - t0 };

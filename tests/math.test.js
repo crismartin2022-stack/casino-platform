@@ -394,3 +394,57 @@ test('scatter-pays: rayo de Zeus y doble chance', () => {
   assert.ok(zeus > 50 && ante > 100);
   assert.equal(costMultiplier(e, c, 'ante'), c.rules.anteCost);
 });
+
+test('classic-reels: cerezas desde una, cualquier BAR, comodín que multiplica y rodillo multiplicador', async () => {
+  const { evaluateClassicLine } = await import('../backend/math/classic-reels.js');
+  const c = seeds['classic-reels'];
+  const syms = symbolMap(c);
+  const R = c.rules;
+  const pay = (id, n) => c.symbols.find((s) => s.id === id).pays[String(n)];
+  assert.equal(evaluateClassicLine(['cherry', 'lemon', 'bell'], syms, R).pay, pay('cherry', 1));
+  assert.equal(evaluateClassicLine(['cherry', 'cherry', 'bell'], syms, R).pay, pay('cherry', 2));
+  assert.equal(evaluateClassicLine(['bar1', 'bar3', 'bar2'], syms, R).pay, R.anyBarPay);
+  assert.equal(evaluateClassicLine(['seven', 'wild', 'seven'], syms, R).pay, pay('seven', 3) * R.wildMult);
+  assert.equal(evaluateClassicLine(['seven', 'wild', 'wild'], syms, R).pay, pay('seven', 3) * R.wildMult ** 2);
+  assert.equal(evaluateClassicLine(['wild', 'wild', 'wild'], syms, R).pay, pay('wild', 3));
+  assert.equal(evaluateClassicLine(['lemon', 'cherry', 'cherry'], syms, R), null);
+  const e = ENGINES['classic-reels'];
+  const rng = seededRng(2);
+  let multHit = 0;
+  for (let i = 0; i < 5000; i++) {
+    const r = e.play(c, rng);
+    if (!r.capped) assert.ok(Math.abs(r.totalWin - r.lineWin * r.multiplier) < 1e-6);
+    if (r.multiplier > 1 && r.lineWin > 0) multHit++;
+  }
+  assert.ok(multHit > 0);
+});
+
+test('level-up: el estado del jugador pasa de giro en giro, sube de nivel y el jackpot reinicia', () => {
+  const e = ENGINES['level-up'];
+  const c = seeds['level-up'];
+  const R = c.rules;
+  const rng = seededRng(5);
+  let st = e.initialState(c);
+  let ups = 0, jackpots = 0, bonuses = 0, collects = 0;
+  for (let i = 0; i < 20000; i++) {
+    const r = e.play(c, rng, { state: st });
+    assert.deepEqual(r.stateBefore, e.cleanState(R, st));
+    ups += r.levelUps.length;
+    if (r.bonus) bonuses++;
+    if (r.collect.completed) collects++;
+    if (r.jackpot) { jackpots++; assert.equal(r.state.level, 1); }
+    // El multiplicador del nivel solo se aplica desde su nivel
+    const m = Math.max(1, ...R.rewards.filter((x) => x.type === 'multiplier' && x.level <= r.stateBefore.level).map((x) => x.value));
+    assert.equal(r.levelMult, m);
+    assert.ok(r.state.level >= 1 && r.state.level <= R.maxLevel && r.state.xp < r.xpNeed);
+    st = r.state;
+  }
+  assert.ok(ups > 20 && bonuses > 20 && collects > 3 && jackpots > 0, JSON.stringify({ ups, bonuses, collects, jackpots }));
+  // Mismo estado + mismos números = mismo resultado (auditoría)
+  const rec = recordingRng(seededRng(9));
+  const s0 = { level: 9, xp: 10, collect: 3 };
+  const a = e.play(c, rec, { state: s0 });
+  const b = e.play(c, replayRng(rec.draws), { state: s0 });
+  assert.equal(a.totalWin, b.totalWin);
+  assert.deepEqual(a.state, b.state);
+});

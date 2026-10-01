@@ -88,6 +88,9 @@ export function registerRoutes(r) {
     json(res, out);
   });
 
+  // Nivel del jugador en juegos con niveles (Level Up), por apuesta
+  r.get('/api/v1/progress', async (req, res) => json(res, rounds.playerProgress(bearer(req), Number(req.query.bet))));
+
   // Juegos de mesa (Craps)
   r.get('/api/v1/table', async (req, res) => json(res, await table.getTable(bearer(req))));
   r.post('/api/v1/table/bets', async (req, res) => {
