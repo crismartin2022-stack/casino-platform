@@ -110,7 +110,7 @@ async function start() {
   const fromHash = decodeURIComponent(location.hash.slice(1));
   if (S.games.some((g) => g.id === fromHash)) selectGame(fromHash);
   else if (isOp()) { openView(fromHash && VIEWS[fromHash] ? fromHash : 'summary'); if (S.me.user.mustChangePassword) askNewPassword(); }
-  else if (S.games[0]) selectGame(S.games[0].id);
+  else openView('home');
 }
 
 /** Portal del operador: marca, menú y pestañas según sus permisos. */
@@ -122,6 +122,7 @@ function setupOperatorShell() {
   $('#newGameBtn').hidden = !(L.canCreateGames && can('games'));
   $('#newGameBtn').textContent = `＋ Nuevo juego (${L.usedGames} de ${L.maxGames})`;
   $('#platformTitle').textContent = 'Mi casino';
+  $('#homeNav').hidden = true;
   const items = [['summary', '📊 Resumen'], ['plays', '🎲 Jugadas'], ['players', '👤 Jugadores'], ['catalog', '🎰 Catálogo de juegos'],
     ['integration', '🔌 Integración'], ...(can('users') ? [['users', '👥 Usuarios']] : []), ['account', '🔑 Mi cuenta']];
   $('#platformNav').innerHTML = items.map(([k, l]) => `<a data-view="${k}">${l}</a>`).join('');
@@ -139,7 +140,7 @@ async function loadGames() {
   // Tres grupos: Motores (juegos de fábrica, uno por motor), Borradores (nunca publicados) y Creados (publicados, los más nuevos primero)
   const brandOf = (id) => S.brands.find((b) => b.id === id);
   const item = (g) => `<a data-game="${esc(g.id)}" class="${g.id === S.gameId ? 'on' : ''}">
-    ${esc(g.name)}<small>${esc(g.engine)} · ${g.publishedVersion ? `v${g.publishedVersion}` : 'sin publicar'}${g.publishedVersion && g.hasUnpublishedChanges ? ' · <b class="gl-pend">cambios sin publicar</b>' : ''}${g.status !== 'active' ? ' · desactivado' : ''}${g.brandId && brandOf(g.brandId) ? ` · 🏷 ${esc(brandOf(g.brandId).name)}` : ''}</small></a>`;
+    ${esc(g.name)}<small class="gl-eng">${esc(S.engines[g.engine]?.name || g.engine)}${S.engines[g.engine]?.card?.tagline ? ` · ${esc(S.engines[g.engine].card.tagline)}` : ''}</small><small>${g.publishedVersion ? `v${g.publishedVersion}` : 'sin publicar'}${g.publishedVersion && g.hasUnpublishedChanges ? ' · <b class="gl-pend">cambios sin publicar</b>' : ''}${g.status !== 'active' ? ' · desactivado' : ''}${g.brandId && brandOf(g.brandId) ? ` · 🏷 ${esc(brandOf(g.brandId).name)}` : ''}</small></a>`;
   const by = (k) => (a, b) => String(b[k] || '').localeCompare(String(a[k] || ''));
   const groups = [
     { id: 'engines', title: 'Motores', icon: '⚙', list: S.games.filter((g) => g.factory).sort((a, b) => a.name.localeCompare(b.name, 'es')) },
@@ -150,11 +151,14 @@ async function loadGames() {
   try { folded = JSON.parse(localStorage.getItem('gl-folded') || '{}'); } catch {}
   $('#gameList').innerHTML = groups.filter((gr) => gr.list.length || gr.id !== 'engines').map((gr) => {
     const open = !folded[gr.id] || gr.list.some((g) => g.id === S.gameId);
-    return `<details class="gl-group" data-group="${gr.id}" ${open ? 'open' : ''}><summary><span>${gr.icon} ${gr.title}</span><em>${gr.list.length}</em></summary>
-      ${gr.list.length ? gr.list.map(item).join('') : `<p class="muted gl-empty">${gr.id === 'drafts' ? 'Sin borradores' : 'Todavía no creaste juegos'}</p>`}</details>`;
+    return `<div class="gl-group ${open ? '' : 'closed'}" data-group="${gr.id}"><button type="button" class="gl-head" aria-expanded="${open}"><span>${gr.icon} ${gr.title}</span><em>${gr.list.length}</em></button>
+      <div class="gl-items">${gr.list.length ? gr.list.map(item).join('') : `<p class="muted gl-empty">${gr.id === 'drafts' ? 'Sin borradores' : 'Todavía no creaste juegos'}</p>`}</div></div>`;
   }).join('');
-  $$('#gameList details.gl-group').forEach((d) => d.addEventListener('toggle', () => {
-    folded[d.dataset.group] = !d.open;
+  $$('#gameList .gl-head').forEach((btn) => btn.addEventListener('click', () => {
+    const g = btn.closest('.gl-group');
+    const closed = g.classList.toggle('closed');
+    btn.setAttribute('aria-expanded', String(!closed));
+    folded[g.dataset.group] = closed;
     try { localStorage.setItem('gl-folded', JSON.stringify(folded)); } catch {}
   }));
   $$('#gameList a').forEach((a) => a.addEventListener('click', () => selectGame(a.dataset.game)));
@@ -310,25 +314,26 @@ function showCheck(rep, { title = 'Prueba del juego', publishing = false } = {})
 
 // ---- Fichas para elegir motor: qué hace, cuadrícula, pagos, bonus, volatilidad, frecuencia y compra ----
 const VOL_LABEL = { baja: 'Volatilidad baja', media: 'Volatilidad media', alta: 'Volatilidad alta', 'muy alta': 'Volatilidad muy alta' };
+/** Contenido de la ficha de un motor: qué hace, cuadrícula, pagos, bonus, funciones y números de la semilla. */
+function engineCardBody(e) {
+  const c = e.card || {};
+  const buys = (c.buy || []).filter((b) => b.mode !== 'ante');
+  const badges = [
+    c.volatility ? VOL_LABEL[c.volatility] || `Volatilidad ${c.volatility}` : null,
+    c.featureEvery ? `Bonus cada ~${c.featureEvery} giros` : null,
+    c.hitFrequency ? `Premio en ${Math.round(c.hitFrequency * 100)} % de los giros` : null,
+    buys.length ? `Compra desde ${Math.min(...buys.map((x) => x.cost))}×` : null,
+    (c.buy || []).some((b) => b.mode === 'ante') ? 'Doble chance' : null,
+  ].filter(Boolean);
+  return `<b class="eng-name">${esc(e.name)}</b>${c.tagline ? `<span class="eng-tag">${esc(c.tagline)}</span>` : ''}
+    <span class="eng-desc">${esc(e.description || '')}</span>
+    <dl>${c.grid ? `<dt>Cuadrícula</dt><dd>${esc(c.grid)}</dd>` : ''}${c.pays ? `<dt>Paga por</dt><dd>${esc(c.pays)}</dd>` : ''}${c.bonus ? `<dt>Bonus</dt><dd>${esc(c.bonus)}</dd>` : ''}</dl>
+    ${c.features?.length ? `<ul>${c.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    <span class="eng-badges">${badges.map((b) => `<i>${esc(b)}</i>`).join('')}</span>`;
+}
 function enginePicker(engines, inputId, selected = engines[0]?.id) {
   return `<input type="hidden" id="${inputId}" value="${esc(selected || '')}" />
-    <div class="eng-cards" data-for="${inputId}">${engines.map((e) => {
-      const c = e.card || {};
-      const badges = [
-        c.volatility ? VOL_LABEL[c.volatility] || `Volatilidad ${c.volatility}` : null,
-        c.featureEvery ? `Bonus cada ~${c.featureEvery} giros` : null,
-        c.hitFrequency ? `Premio en ${Math.round(c.hitFrequency * 100)} % de los giros` : null,
-        ...(c.buy || []).filter((b) => b.mode !== 'ante').slice(0, 1).map((b) => `Compra desde ${Math.min(...c.buy.filter((x) => x.mode !== 'ante').map((x) => x.cost))}×`),
-        (c.buy || []).some((b) => b.mode === 'ante') ? 'Doble chance' : null,
-      ].filter(Boolean);
-      return `<button type="button" class="eng-card ${e.id === selected ? 'sel' : ''}" data-engine="${esc(e.id)}">
-        <b class="eng-name">${esc(e.name)}</b>
-        <span class="eng-desc">${esc(e.description || '')}</span>
-        <dl>${c.grid ? `<dt>Cuadrícula</dt><dd>${esc(c.grid)}</dd>` : ''}${c.pays ? `<dt>Paga por</dt><dd>${esc(c.pays)}</dd>` : ''}${c.bonus ? `<dt>Bonus</dt><dd>${esc(c.bonus)}</dd>` : ''}</dl>
-        ${c.features?.length ? `<ul>${c.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-        <span class="eng-badges">${badges.map((b) => `<i>${esc(b)}</i>`).join('')}</span>
-      </button>`;
-    }).join('')}</div>`;
+    <div class="eng-cards" data-for="${inputId}">${engines.map((e) => `<button type="button" class="eng-card ${e.id === selected ? 'sel' : ''}" data-engine="${esc(e.id)}">${engineCardBody(e)}</button>`).join('')}</div>`;
 }
 function bindEnginePicker(root, inputId, onChange) {
   const box = $(`.eng-cards[data-for="${inputId}"]`, root);
@@ -341,12 +346,13 @@ function bindEnginePicker(root, inputId, onChange) {
   });
 }
 
-$('#newGameBtn').addEventListener('click', guard(async () => {
+$('#newGameBtn').addEventListener('click', () => openNewGame());
+const openNewGame = guard(async (preset = null) => {
   if (isOp()) return newOwnGame();
   const engines = await (await fetch('/api/v1/engines')).json();
   openPicker('Nuevo juego', `<div class="stack">
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
-    <div><label>Motor — toca una ficha para elegirlo</label>${enginePicker(engines, 'ngEngine')}</div>
+    <div><label>Motor — toca una ficha para elegirlo</label>${enginePicker(engines, 'ngEngine', preset || engines[0]?.id)}</div>
     <div><label>Marca</label><select id="ngBrand"><option value="">— Sin marca —</option>${(S.brands || []).map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select></div>
     <div><label>Copiar diseño de (opcional)</label><select id="ngFrom"><option value="">— Plantilla del motor —</option>${S.games.map((g) => `<option value="${esc(g.id)}" data-engine="${esc(g.engine)}">${esc(g.name)}</option>`).join('')}</select></div>
     ${uiPicker()}
@@ -365,7 +371,7 @@ $('#newGameBtn').addEventListener('click', guard(async () => {
       toast('Juego creado como borrador. Pide a los agentes que lo diseñen y luego publícalo.');
     }));
   });
-}));
+});
 
 // ---- Diseño libre: tablero de la botonera y editor visual ----
 function customHudCard(t) {
@@ -2002,6 +2008,40 @@ function openView(name, ...args) {
   v.innerHTML = '';
   guard(VIEWS[name])(v, ...args);
 }
+
+// ---- Inicio: fichas de los motores (de qué se trata cada uno), borradores y juegos creados ----
+VIEWS.home = async (v) => {
+  const engines = Object.values(S.engines);
+  const byEngine = (id) => S.games.find((g) => g.factory && g.engine === id);
+  const drafts = S.games.filter((g) => !g.factory && !g.publishedVersion).sort((a, b) => String(b.draftUpdatedAt || '').localeCompare(String(a.draftUpdatedAt || '')));
+  const created = S.games.filter((g) => !g.factory && g.publishedVersion).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const gameCard = (g) => `<button type="button" class="home-game" data-open="${esc(g.id)}"><b>${esc(g.name)}</b>
+    <small>${esc(S.engines[g.engine]?.name || g.engine)} · ${g.publishedVersion ? `v${g.publishedVersion}` : 'sin publicar'}${g.publishedVersion && g.hasUnpublishedChanges ? ' · <span class="gl-pend">cambios sin publicar</span>' : ''}</small></button>`;
+  v.innerHTML = `<div class="stack home">
+    <div class="home-head"><div><h2 style="margin:0">🏠 Inicio</h2>
+      <p class="muted" style="margin:4px 0 0">${engines.length} motores · ${drafts.length} borradores · ${created.length} juegos creados</p></div>
+      <button class="primary" id="homeNew">＋ Nuevo juego</button></div>
+    <section class="stack"><h3 class="home-title">📝 Borradores <em>${drafts.length}</em></h3>
+      ${drafts.length ? `<div class="home-games">${drafts.map(gameCard).join('')}</div>` : '<p class="muted" style="margin:0">Sin borradores. Crea un juego desde la ficha de un motor.</p>'}</section>
+    <section class="stack"><h3 class="home-title">⭐ Creados <em>${created.length}</em></h3>
+      ${created.length ? `<div class="home-games">${created.map(gameCard).join('')}</div>` : '<p class="muted" style="margin:0">Todavía no publicaste juegos propios.</p>'}</section>
+    <section class="stack"><h3 class="home-title">⚙ Motores <em>${engines.length}</em></h3>
+      <p class="muted" style="margin:0">Cada ficha explica de qué se trata el motor. «Ver juego» abre su juego de ejemplo; «Crear juego» arma uno nuevo con ese motor.</p>
+      <div class="eng-cards home-engines">${engines.map((e) => {
+        const g = byEngine(e.id);
+        return `<div class="eng-card">${engineCardBody(e)}
+          <div class="home-actions">${g ? `<button class="small" data-open="${esc(g.id)}">▶ Ver juego: ${esc(g.name)}</button>` : ''}<button class="small primary" data-new="${esc(e.id)}">＋ Crear juego</button></div></div>`;
+      }).join('')}</div></section></div>`;
+  $('#homeNew', v).addEventListener('click', () => openNewGame());
+  $('.home', v).addEventListener('click', (ev) => {
+    const o = ev.target.closest('[data-open]');
+    if (o) return selectGame(o.dataset.open);
+    const n = ev.target.closest('[data-new]');
+    if (n) openNewGame(n.dataset.new);
+  });
+};
+$('#homeNav')?.addEventListener('click', () => openView('home'));
+$('#brand')?.addEventListener('click', () => { if (!isOp()) openView('home'); });
 
 async function viewOperators(v) {
   const ops = await api('/api/admin/operators');

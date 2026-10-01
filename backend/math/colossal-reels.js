@@ -6,7 +6,7 @@ import {
 
 export const id = 'colossal-reels';
 export const name = 'Colossal Reels';
-export const description = '5x4 con símbolos gigantes 2x2, 3x3 y 4x4 en 3D; giros gratis con colosales (garantizado en cada giro, ajustable con rules.fsColossalChance).';
+export const description = '5x4 con símbolos gigantes 2x2, 3x3 y 4x4 en 3D; giros gratis con colosales (garantizados en cada giro o a veces, configurable).';
 
 function colossalSpin(config, rng, syms, forceColossal) {
   const R = config.rules;

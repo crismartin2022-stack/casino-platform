@@ -226,13 +226,43 @@ td .amt { font-size: 11px; color: var(--accent); margin-top: 2px; white-space: n
 
 /* Lista de juegos agrupada: Motores / Borradores / Creados */
 .gl-group { margin: 2px 0 6px; }
-.gl-group > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 8px;
-  font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.gl-group > summary::-webkit-details-marker { display: none; }
-.gl-group > summary::before { content: '▸'; margin-right: 6px; transition: transform .15s; }
-.gl-group[open] > summary::before { transform: rotate(90deg); }
-.gl-group > summary span { flex: 1; }
-.gl-group > summary em { font-style: normal; background: var(--panel2); border: 1px solid var(--line); border-radius: 99px; padding: 0 7px; font-size: 11px; }
-.gl-group > summary:hover { background: var(--panel2); }
+.gl-head { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 8px; border: 0; border-radius: 8px; background: none;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); cursor: pointer; text-align: left; }
+.gl-head::before { content: '▾'; transition: transform .15s; }
+.gl-group.closed .gl-head::before { transform: rotate(-90deg); }
+.gl-head span { flex: 1; }
+.gl-head em { font-style: normal; background: var(--panel2); border: 1px solid var(--line); border-radius: 99px; padding: 0 7px; font-size: 11px; }
+.gl-head:hover { background: var(--panel2); }
+.gl-group.closed .gl-items { display: none; }
 .gl-empty { font-size: 12px; padding: 2px 10px 6px; margin: 0; }
 .gl-pend { color: var(--warn); font-weight: 600; }
+@media (max-width: 1100px) {
+  /* Celular: todo en la misma fila deslizable; cada grupo es una etiqueta seguida de sus juegos */
+  .side nav#gameList { gap: 8px; }
+  .gl-group { display: flex; flex: none; align-items: center; gap: 4px; margin: 0; }
+  .gl-items { display: flex; gap: 4px; }
+  .gl-head { width: auto; flex: none; white-space: nowrap; padding: 6px 10px; border: 1px dashed var(--line); border-radius: 10px; background: var(--panel); }
+  .gl-head::before { display: none; }
+  .gl-group.closed .gl-head { opacity: .75; }
+  .gl-empty { display: none; }
+}
+
+/* Inicio del panel */
+.home-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.home-title { margin: 6px 0 0; display: flex; align-items: center; gap: 8px; }
+.home-title em { font-style: normal; font-size: 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; }
+.home-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.home-game { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; }
+.home-game small { color: var(--muted); }
+.home-engines { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.home-engines .eng-card { cursor: default; }
+.home-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.brand { cursor: pointer; }
+@media (max-width: 1100px) {
+  .side nav#homeNav { flex: none; }
+  .home-engines { grid-template-columns: 1fr; }
+  .home-games { grid-template-columns: 1fr; }
+}
+
+.gl-eng { color: var(--accent) !important; opacity: .85; }
+.eng-tag { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: -4px; }
