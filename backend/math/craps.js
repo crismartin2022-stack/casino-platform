@@ -259,6 +259,18 @@ export function enabledRtps(config) {
 }
 
 export function validate(config) {
+  const L = config.rules?.live;
+  const liveErrors = [];
+  if (L?.enabled) {
+    if (!(L.bettingSeconds >= 5 && L.bettingSeconds <= 120)) liveErrors.push('rules.live.bettingSeconds (tiempo para apostar) debe estar entre 5 y 120');
+    if (!(L.rollSeconds >= 2 && L.rollSeconds <= 60)) liveErrors.push('rules.live.rollSeconds (duración de la tirada del crupier) debe estar entre 2 y 60');
+    if (!(L.resultSeconds >= 1 && L.resultSeconds <= 60)) liveErrors.push('rules.live.resultSeconds debe estar entre 1 y 60');
+    if (!(L.closeSeconds >= 0 && L.closeSeconds <= 10)) liveErrors.push('rules.live.closeSeconds debe estar entre 0 y 10');
+  }
+  return [...liveErrors, ...validateBase(config)];
+}
+
+function validateBase(config) {
   const errors = [];
   const R = config.rules || {};
   if (!R.bets || typeof R.bets !== 'object') errors.push('Falta rules.bets (qué apuestas están habilitadas)');
@@ -304,5 +316,22 @@ export function defaults() {
       dice: { face: '#fbfbfb', pip: '#c0392b', edge: '#cccccc', radius: 18, scale: 1, faces: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null } },
     },
     sounds: { music: null, roll: null, dice: null, chip: null, win: null, bigWin: null, lose: null, click: null },
+  };
+}
+
+/** Juego de ejemplo de la MESA EN VIVO: tira el crupier para todos con cuenta regresiva para apostar. */
+export function liveDefaults() {
+  const d = defaults();
+  return {
+    ...d,
+    id: 'craps-live',
+    name: 'Dados en Vivo',
+    rules: { ...d.rules, live: { enabled: true, bettingSeconds: 20, closeSeconds: 2, rollSeconds: 9, resultSeconds: 5, historySize: 20 } },
+    theme: {
+      ...d.theme, title: 'Dados en Vivo', backgroundColor: '#1a0d06',
+      palette: { primary: '#b8860b', accent: '#ffd700', panel: '#140a04', text: '#ffffff', reelBg: '#14532d' },
+      // Crupier grabado: un video por combinación ("3-4") o por total ("7"); sin videos se ven los dados 3D
+      croupier: { enabled: true, name: 'Crupier', clips: {}, totals: {}, idle: null, intro: null },
+    },
   };
 }

@@ -5,6 +5,7 @@ import { config, ROOT, DATA_DIR, providers } from './config.js';
 import { registerRoutes } from './routes.js';
 import { seedGames } from './services/games.js';
 import { retryPendingCredits } from './services/rounds.js';
+import { startLiveTables } from './services/live.js';
 
 const router = new Router();
 registerRoutes(router);
@@ -55,6 +56,7 @@ const server = createServer(async (req, res) => {
 });
 
 seedGames();
+startLiveTables();
 setInterval(() => retryPendingCredits().catch((e) => console.error('[retry]', e.message)), 60_000).unref();
 
 server.listen(config.port, () => {

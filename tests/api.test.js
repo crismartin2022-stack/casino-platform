@@ -60,9 +60,9 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 15 juegos publicados', async () => {
+test('lista los 16 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win', 'level-up',
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'craps', 'expanding-symbol', 'hold-win', 'level-up',
     'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
@@ -663,4 +663,41 @@ test('level-up: el nivel se guarda por jugador y apuesta, y la ronda se puede re
   assert.equal(v.status, 200, JSON.stringify(v.body));
   assert.equal(v.body.match, true);
   assert.equal((await req('/api/v1/progress?bet=12345', { headers: auth })).status, 400);
+});
+
+test('dados en vivo: mesa compartida con cuenta regresiva, no va más y la misma tirada para todos', async () => {
+  // Tiempos cortos para la prueba
+  await req('/api/admin/games/craps-live/draft', { method: 'PATCH', headers: ADMIN, body: { ops: [{ op: 'set', path: 'rules.live', value: { enabled: true, bettingSeconds: 5, closeSeconds: 0, rollSeconds: 2, resultSeconds: 1 } }] } });
+  const pub = await req('/api/admin/games/craps-live/publish', { method: 'POST', headers: ADMIN, body: { note: 'prueba' } });
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  const join = async () => {
+    const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'craps-live' } });
+    return { authorization: `Bearer ${s.token}` };
+  };
+  const a = await join(), b = await join();
+  const t0 = (await req('/api/v1/live', { headers: a })).body.table;
+  assert.ok(['betting', 'closed', 'rolling', 'result'].includes(t0.phase));
+  // El jugador no puede tirar: tira el crupier
+  assert.equal((await req('/api/v1/table/roll', { method: 'POST', headers: a, body: {} })).status, 409);
+  // Esperar la próxima cuenta regresiva y apostar los dos
+  const until = async (fn, ms = 15000) => { const end = Date.now() + ms; while (Date.now() < end) { const t = (await req('/api/v1/live', { headers: a })).body.table; if (fn(t)) return t; await new Promise((r) => setTimeout(r, 150)); } throw new Error('la mesa no avanzó'); };
+  const bet = await until((t) => t.phase === 'betting' && t.endsAt - t.serverNow > 1500);
+  const amount = (await req('/api/v1/table', { headers: a })).body.analysis ? 100 : 100;
+  const kind = bet.tablePhase === 'comeOut' ? { type: 'pass' } : { type: 'field' };
+  assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: a, body: { ...kind, amount } })).status, 200);
+  assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: b, body: { type: 'field', amount } })).status, 200);
+  const rolled = await until((t) => (t.phase === 'rolling' || t.phase === 'result') && t.roundNo === bet.roundNo && t.roll);
+  // Con la mesa cerrada no se puede apostar
+  if (rolled.phase === 'rolling') assert.equal((await req('/api/v1/table/bets', { method: 'POST', headers: a, body: { type: 'field', amount } })).status, 409);
+  const ma = (await req('/api/v1/table', { headers: a })).body, mb = (await req('/api/v1/table', { headers: b })).body;
+  assert.equal(ma.lastLive.rollId, rolled.roll.id);
+  assert.equal(mb.lastLive.rollId, rolled.roll.id);
+  assert.deepEqual(ma.lastLive.dice, rolled.roll.dice);
+  assert.deepEqual(mb.lastLive.dice, rolled.roll.dice);
+  // La ronda de cada jugador se reproduce igual (auditoría)
+  const v = await req(`/api/admin/rounds/${mb.lastLive.roundId}/replay`, { headers: ADMIN });
+  assert.equal(v.status, 200, JSON.stringify(v.body));
+  assert.equal(v.body.match, true);
+  const lr = await req(`/api/admin/live-rolls/${rolled.roll.id}`, { headers: ADMIN });
+  assert.deepEqual(lr.body.dice, rolled.roll.dice);
 });

@@ -143,6 +143,26 @@ CREATE TABLE IF NOT EXISTS player_progress (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (player_id, game_id, bet)
 );
+-- Mesas en vivo (dados con crupier): estado compartido de la mesa y cada tirada del crupier
+CREATE TABLE IF NOT EXISTS live_tables (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS live_rolls (
+  id TEXT PRIMARY KEY,
+  table_id TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  round_no INTEGER NOT NULL,
+  version INTEGER,
+  dice TEXT NOT NULL,
+  rng TEXT NOT NULL,
+  phase_before TEXT,
+  point_before INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_live_rolls_game ON live_rolls(game_id, created_at);
 CREATE TABLE IF NOT EXISTS operator_users (
   id TEXT PRIMARY KEY,
   operator_id TEXT NOT NULL REFERENCES operators(id),

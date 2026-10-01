@@ -16,6 +16,14 @@ for (const e of Object.values(ENGINES).filter((x) => !only.length || only.includ
     config.math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, hitFrequency: a.hitFrequency, exact: true };
     writeFileSync(new URL(`${e.id}.json`, out), JSON.stringify(config, null, 2));
     console.log(e.id, 'RTP exacto por apuesta', JSON.stringify(a.perBet));
+    // Mesa en vivo con crupier (Dados en Vivo)
+    if (e.liveDefaults) {
+      const lc = e.liveDefaults();
+      const la = e.analyze(lc);
+      lc.math = { rtp: la.rtp, perBet: la.perBet, volatility: la.volatility, hitFrequency: la.hitFrequency, exact: true };
+      writeFileSync(new URL(`${lc.id}.json`, out), JSON.stringify(lc, null, 2));
+      console.log(lc.id, 'mesa en vivo');
+    }
     continue;
   }
   const { config, final, buy, buyOptions, history } = tuneRtp(e.defaults(), { spins: Number(process.env.SPINS) || 2_000_000, iterations: 4 });

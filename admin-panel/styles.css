@@ -266,3 +266,9 @@ td .amt { font-size: 11px; color: var(--accent); margin-top: 2px; white-space: n
 
 .gl-eng { color: var(--accent) !important; opacity: .85; }
 .eng-tag { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: -4px; }
+
+/* Videos del crupier por resultado */
+.cv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.cv-cell { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--panel2); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cv-cell.has { border-color: var(--ok); }
+.cv-cell .row { gap: 4px; flex-wrap: wrap; }

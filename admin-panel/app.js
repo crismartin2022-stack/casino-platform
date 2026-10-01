@@ -702,8 +702,8 @@ function openPicker(title, html, onMount) {
 async function pickAsset(kind, { animated = false } = {}) {
   let list = await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=${kind}`);
   if (animated) list = [...list, ...(await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=video`))];
-  const accept = { image: `image/png,image/jpeg,image/webp,image/svg+xml,image/gif${animated ? ',video/mp4,video/webm' : ''}`, sound: 'audio/mpeg,audio/wav,audio/ogg', font: '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf' }[kind];
-  const title = { image: animated ? 'Elegir imagen, GIF o video' : 'Elegir imagen', sound: 'Elegir sonido', font: 'Elegir tipografía' }[kind];
+  const accept = { image: `image/png,image/jpeg,image/webp,image/svg+xml,image/gif${animated ? ',video/mp4,video/webm' : ''}`, sound: 'audio/mpeg,audio/wav,audio/ogg', font: '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf', video: 'video/mp4,video/webm' }[kind];
+  const title = { image: animated ? 'Elegir imagen, GIF o video' : 'Elegir imagen', sound: 'Elegir sonido', font: 'Elegir tipografía', video: 'Elegir video (MP4 o WebM)' }[kind];
   return new Promise((resolve) => {
     openPicker(title, `
       <div class="row" style="margin-bottom:12px"><input type="file" id="pkUpload" accept="${accept}" />${animated ? '<span class="muted">GIF animado o video MP4/WebM (hasta 60 MB; mejor cortos y livianos, en bucle).</span>' : ''}</div>
@@ -1046,7 +1046,7 @@ async function tabDesign(v) {
         ${slider('pFrameYM', 'Marco — subir / bajar en celular', t.frameOffsetYMobile ?? t.frameOffsetY ?? 0, -150, 150, 2, 'px')}`}
       </div>
       <div class="row"><button class="small" id="pReset">Volver a la posición original</button></div></div>
-    ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) : ''}
+    ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) + croupierCard(S.game.draft) : ''}
     <div class="card stack" ${engineInfo(S.game.engine).kind === 'table' ? 'hidden' : ''}><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
       <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
       <div><label>Separación entre celdas (<span id="lGapV">${t.cellGap ?? 6}</span> px)</label><input id="lGap" type="range" min="0" max="16" step="1" value="${t.cellGap ?? 6}" /></div>
@@ -1140,6 +1140,7 @@ async function tabDesign(v) {
   })));
   bindMetersCard(v);
   bindDiceCard(v);
+  bindCroupierCard(v);
   bindCustomHudCard(v);
   bindMessagesCard(v);
   bindWinTiersCard(v);
@@ -1333,6 +1334,116 @@ function diceCard(D) {
         <td class="row"><button class="small" data-dface>Imagen…</button>${faces[f] ? '<button class="small danger" data-dfclear>Quitar</button>' : ''}</td></tr>`).join('')}
     </tbody></table>
     <div class="row"><button class="primary" id="dkSave">Guardar dados</button><span class="muted">También puedes pedirle al 🖌 Artista “haz dados dorados con puntos negros” o imágenes para cada cara.</span></div></div>`;
+}
+
+// ---- Mesa en vivo y crupier grabado (Dados) ----
+const COMBOS = [];
+for (let a = 1; a <= 6; a++) for (let b = a; b <= 6; b++) COMBOS.push(`${a}-${b}`);
+function croupierCard(d) {
+  const L = { enabled: false, bettingSeconds: 20, closeSeconds: 2, rollSeconds: 9, resultSeconds: 5, ...(d.rules?.live || {}) };
+  const C = { enabled: false, name: 'Crupier', clips: {}, totals: {}, idle: null, autoSeconds: 0, playerThrow: true, ...(d.theme?.croupier || {}) };
+  const cell = (k, url, kind) => `<div class="cv-cell ${url ? 'has' : ''}" data-cv="${kind}:${k}">
+    <b>${kind === 'clips' ? k.replace('-', ' + ') : `= ${k}`}</b>${url ? '<span>🎬</span>' : '<span class="muted">—</span>'}
+    <div class="row"><button class="small" data-cvup>${url ? 'Cambiar' : 'Video…'}</button>${url ? '<button class="small ghost" data-cvplay>▶</button><button class="small danger" data-cvdel>✕</button>' : ''}</div></div>`;
+  const have = COMBOS.filter((k) => C.clips?.[k]).length, haveT = Object.values(C.totals || {}).filter(Boolean).length;
+  return `<div class="card stack" id="crCard"><h3 style="margin:0">🎩 Mesa en vivo y crupier grabado</h3>
+    <p class="muted" style="margin:0">En la <b>mesa en vivo</b> todos los jugadores juegan la misma tirada, como la ruleta europea en vivo: cuenta regresiva para apostar, «no va más», tira el crupier y se paga a todos.
+      Los dados los sortea el servidor en el «no va más»; el video que se ve es el del crupier grabado que coincide con ese resultado. Si falta el video de un resultado, se ven los dados 3D.</p>
+    <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="lvOn" style="width:auto" ${L.enabled ? 'checked' : ''} /> Mesa en vivo (tira el crupier para todos)</label>
+    <div class="grid2">
+      <div><label>Segundos para apostar</label><input type="number" id="lvBet" min="5" max="120" value="${L.bettingSeconds}" /></div>
+      <div><label>Duración de la tirada (s) — lo que dura el video</label><input type="number" id="lvRoll" min="2" max="60" value="${L.rollSeconds}" /></div>
+      <div><label>«No va más» (s)</label><input type="number" id="lvClose" min="0" max="10" value="${L.closeSeconds}" /></div>
+      <div><label>Mostrar resultados (s)</label><input type="number" id="lvRes" min="1" max="60" value="${L.resultSeconds}" /></div>
+      <div><label>Nombre del crupier</label><input id="crName" value="${esc(C.name || 'Crupier')}" /></div>
+      <div><label>Mesa normal: el crupier tira solo a los (s, 0 = nunca)</label><input type="number" id="crAuto" min="0" max="60" value="${C.autoSeconds || 0}" /></div>
+    </div>
+    <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="crOn" style="width:auto" ${C.enabled ? 'checked' : ''} /> Mesa normal: botón «Crupier» para que tire el crupier grabado</label>
+    <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="crPlayer" style="width:auto" ${C.playerThrow !== false ? 'checked' : ''} /> Mesa normal: el jugador también puede tirar</label>
+    <div class="row"><b>Crupier animado:</b> ${C.avatar === false ? '<span class="muted">oculto</span>' : C.avatar ? `<img src="${esc(C.avatar)}" style="height:54px;border-radius:8px" />` : '<span class="muted">el dibujado de fábrica</span>'}
+      <button class="small" id="crAv">Imagen o GIF…</button>${C.avatar ? '<button class="small ghost" id="crAvDef">Usar el dibujado</button>' : ''}
+      <button class="small ghost" id="crAvHide">${C.avatar === false ? 'Mostrar' : 'Ocultar'}</button>
+      <span class="muted">Al lanzar: ${C.avatarThrow ? `<img src="${esc(C.avatarThrow)}" style="height:40px;border-radius:6px;vertical-align:middle" />` : 'la misma'}</span><button class="small" id="crAvT">Imagen al lanzar…</button></div>
+    <p class="muted" style="margin:0">El crupier aparece en la bandeja: saluda mientras se apuesta, levanta la mano en el «no va más», lanza y anuncia el resultado. Pídele al 🖌 Artista «un crupier de casino elegante, cuerpo entero, fondo transparente» y súbelo acá.</p>
+    <details class="card" style="background:var(--panel2)"><summary><b>🎬 Cómo hacer los videos del crupier con IA (Runway, Kling, Sora…)</b></summary>
+      <ol style="margin:8px 0;padding-left:20px;line-height:1.5">
+        <li>Pide un clip por resultado, siempre con el mismo crupier, la misma mesa y la misma cámara, de 5 a 9 segundos (lo que pongas en «Duración de la tirada»).</li>
+        <li>Texto sugerido para cada clip (cambia los números):<br><code id="crPrompt">Video realista de un crupier de casino elegante (chaleco negro, moño rojo) en una mesa de dados de paño verde, cámara fija frontal. El crupier lanza dos dados blancos con puntos rojos que ruedan por la mesa y se detienen mostrando 3 y 4 bien visibles hacia la cámara. Iluminación cálida de casino, 6 segundos, sin texto.</code>
+          <button class="small" id="crCopy">Copiar</button></li>
+        <li>Revisa cada clip: los dados del final tienen que mostrar exactamente ese resultado (las IA a veces se equivocan; si pasa, vuelve a generarlo).</li>
+        <li>Nombra cada archivo con el resultado (<code>1-1.mp4</code>, <code>1-2.mp4</code> … <code>6-6.mp4</code>) o por total (<code>total-2.mp4</code> … <code>total-12.mp4</code>) y súbelos todos juntos con «Subir varios a la vez».</li>
+        <li>Opcional: un clip del crupier esperando, sin lanzar, para el bucle de espera.</li>
+      </ol></details>
+    <div class="row"><b>Video del crupier esperando (en bucle):</b> ${C.idle ? '🎬 cargado' : '<span class="muted">ninguno</span>'} <button class="small" id="crIdle">Video…</button>${C.idle ? '<button class="small danger" id="crIdleDel">Quitar</button>' : ''}</div>
+    <div class="row"><input type="file" id="crBulk" multiple accept="video/mp4,video/webm" style="max-width:320px" />
+      <span class="muted">Subir varios a la vez: nombra cada archivo con el resultado, por ejemplo <code>3-4.mp4</code> (combinación) o <code>total-7.mp4</code> (total).</span><span id="crBulkMsg" class="muted"></span></div>
+    <h4 style="margin:6px 0 0">Por combinación (${have} de 21)</h4>
+    <div class="cv-grid">${COMBOS.map((k) => cell(k, C.clips?.[k], 'clips')).join('')}</div>
+    <h4 style="margin:6px 0 0">Por total (${haveT} de 11) — se usan si falta la combinación</h4>
+    <div class="cv-grid">${[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => cell(String(n), C.totals?.[n], 'totals')).join('')}</div>
+    <div class="row"><button class="primary" id="crSave">Guardar mesa y crupier</button><span class="error" id="crErr"></span></div></div>`;
+}
+function bindCroupierCard(v) {
+  const card = $('#crCard', v);
+  if (!card) return;
+  const setPath = async (path, value, msg) => { await patchDraft([{ op: 'set', path, value }], msg); renderTab(); };
+  card.addEventListener('click', guard(async (e) => {
+    const cellEl = e.target.closest('[data-cv]');
+    if (!cellEl) return;
+    const [kind, key] = cellEl.dataset.cv.split(':');
+    const url = S.game.draft.theme?.croupier?.[kind]?.[key];
+    if (e.target.matches('[data-cvplay]') && url) return openPicker(`Video ${key}`, `<video src="${esc(url)}" controls autoplay playsinline style="width:100%;max-height:70vh;border-radius:10px"></video>`);
+    // Se guarda el mapa completo (las claves de los totales son números y no deben volverse una lista)
+    const map = { ...(S.game.draft.theme?.croupier?.[kind] || {}) };
+    if (e.target.matches('[data-cvdel]')) { delete map[key]; return setPath(`theme.croupier.${kind}`, map, 'Video quitado'); }
+    if (e.target.matches('[data-cvup]')) {
+      const u = await pickAsset('video');
+      if (u) { map[key] = u; await setPath(`theme.croupier.${kind}`, map, `Video del ${key} guardado`); }
+    }
+  }));
+  $('#crAv', card).addEventListener('click', guard(async () => { const u = await pickAsset('image', { animated: true }); if (u) await setPath('theme.croupier.avatar', u, 'Imagen del crupier guardada'); }));
+  $('#crAvT', card).addEventListener('click', guard(async () => { const u = await pickAsset('image', { animated: true }); if (u) await setPath('theme.croupier.avatarThrow', u, 'Imagen al lanzar guardada'); }));
+  $('#crAvDef', card)?.addEventListener('click', guard(() => setPath('theme.croupier.avatar', null, 'Se usa el crupier dibujado')));
+  $('#crAvHide', card).addEventListener('click', guard(() => setPath('theme.croupier.avatar', S.game.draft.theme?.croupier?.avatar === false ? null : false, 'Crupier actualizado')));
+  $('#crCopy', card).addEventListener('click', () => { navigator.clipboard?.writeText($('#crPrompt', card).textContent); toast('Texto copiado'); });
+  $('#crIdle', card).addEventListener('click', guard(async () => { const u = await pickAsset('video'); if (u) await setPath('theme.croupier.idle', u, 'Video de espera guardado'); }));
+  $('#crIdleDel', card)?.addEventListener('click', guard(() => setPath('theme.croupier.idle', null, 'Video de espera quitado')));
+  $('#crBulk', card).addEventListener('change', guard(async (e) => {
+    const files = [...e.target.files];
+    const ops = [];
+    let n = 0, skipped = [];
+    for (const f of files) {
+      const name = f.name.toLowerCase().replace(/\.[a-z0-9]+$/, '');
+      let path = null;
+      const combo = name.match(/([1-6])\D+([1-6])(?!\d)/);
+      const tot = name.match(/(?:total|t)\D*(1[0-2]|[2-9])\b/) || name.match(/^(1[0-2]|[2-9])$/);
+      if (combo && !/total/.test(name)) { const [a, b] = [Number(combo[1]), Number(combo[2])].sort(); path = ['clips', `${a}-${b}`]; }
+      else if (tot) path = ['totals', tot[1]];
+      if (!path) { skipped.push(f.name); continue; }
+      $('#crBulkMsg', card).textContent = `Subiendo ${++n} de ${files.length}…`;
+      const a = await uploadFile(f, 'video');
+      ops.push({ kind: path[0], key: path[1], url: a.url });
+    }
+    if (ops.length) {
+      const C = S.game.draft.theme?.croupier || {};
+      const clips = { ...(C.clips || {}) }, totals = { ...(C.totals || {}) };
+      for (const o of ops) (o.kind === 'clips' ? clips : totals)[o.key] = o.url;
+      await patchDraft([{ op: 'set', path: 'theme.croupier.clips', value: clips }, { op: 'set', path: 'theme.croupier.totals', value: totals }], `${ops.length} video(s) del crupier guardados`);
+    }
+    if (skipped.length) toast(`Sin resultado en el nombre (se omitieron): ${skipped.join(', ')}`);
+    renderTab();
+  }));
+  $('#crSave', card).addEventListener('click', guard(async () => {
+    $('#crErr', card).textContent = '';
+    const num = (id) => Number($(`#${id}`, card).value);
+    try {
+      await patchDraft([
+        { op: 'set', path: 'rules.live', value: { ...(S.game.draft.rules?.live || {}), enabled: $('#lvOn', card).checked, bettingSeconds: num('lvBet'), closeSeconds: num('lvClose'), rollSeconds: num('lvRoll'), resultSeconds: num('lvRes'), historySize: 20 } },
+        { op: 'merge', path: 'theme.croupier', value: { name: $('#crName', card).value.trim() || 'Crupier', enabled: $('#crOn', card).checked, playerThrow: $('#crPlayer', card).checked, autoSeconds: num('crAuto') } },
+      ], 'Mesa y crupier guardados');
+      renderTab();
+    } catch (err) { $('#crErr', card).textContent = `${err.message}${err.details ? ': ' + err.details.join(' · ') : ''}`; }
+  }));
 }
 
 function diePreview(D, n) {
@@ -2012,7 +2123,6 @@ function openView(name, ...args) {
 // ---- Inicio: fichas de los motores (de qué se trata cada uno), borradores y juegos creados ----
 VIEWS.home = async (v) => {
   const engines = Object.values(S.engines);
-  const byEngine = (id) => S.games.find((g) => g.factory && g.engine === id);
   const drafts = S.games.filter((g) => !g.factory && !g.publishedVersion).sort((a, b) => String(b.draftUpdatedAt || '').localeCompare(String(a.draftUpdatedAt || '')));
   const created = S.games.filter((g) => !g.factory && g.publishedVersion).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   const gameCard = (g) => `<button type="button" class="home-game" data-open="${esc(g.id)}"><b>${esc(g.name)}</b>
@@ -2028,9 +2138,10 @@ VIEWS.home = async (v) => {
     <section class="stack"><h3 class="home-title">⚙ Motores <em>${engines.length}</em></h3>
       <p class="muted" style="margin:0">Cada ficha explica de qué se trata el motor. «Ver juego» abre su juego de ejemplo; «Crear juego» arma uno nuevo con ese motor.</p>
       <div class="eng-cards home-engines">${engines.map((e) => {
-        const g = byEngine(e.id);
+        // Juegos de ejemplo del motor (Craps tiene dos: la mesa normal y la mesa en vivo con crupier)
+        const ex = S.games.filter((g) => g.factory && g.engine === e.id).sort((a, b) => (a.id === e.id ? -1 : b.id === e.id ? 1 : 0));
         return `<div class="eng-card">${engineCardBody(e)}
-          <div class="home-actions">${g ? `<button class="small" data-open="${esc(g.id)}">▶ Ver juego: ${esc(g.name)}</button>` : ''}<button class="small primary" data-new="${esc(e.id)}">＋ Crear juego</button></div></div>`;
+          <div class="home-actions">${ex.map((g) => `<button class="small" data-open="${esc(g.id)}">▶ Ver juego: ${esc(g.name)}</button>`).join('')}<button class="small primary" data-new="${esc(e.id)}">＋ Crear juego</button></div></div>`;
       }).join('')}</div></section></div>`;
   $('#homeNew', v).addEventListener('click', () => openNewGame());
   $('.home', v).addEventListener('click', (ev) => {
