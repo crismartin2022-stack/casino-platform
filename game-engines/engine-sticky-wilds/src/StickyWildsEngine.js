@@ -8,7 +8,9 @@ export class StickyWildsEngine extends BaseEngine {
     const how = R.wildMode === 'walking'
       ? 'Cada comodín que cae da un RE-GIRO gratis y se mueve un rodillo a la izquierda hasta salir de la pantalla. En los giros gratis los comodines también caminan.'
       : 'En los giros gratis, cada comodín que cae queda FIJO en su lugar hasta que termina el bonus.';
-    return `${this.gridLabel()}, ${R.lines} líneas; paga de izquierda a derecha. ${how} ${R.scattersToTrigger} o más scatters dan ${R.freeSpins} giros gratis${R.fsMultiplier > 1 ? ` con premios ×${R.fsMultiplier}` : ''}.`;
+    return `${this.gridLabel()}, ${R.lines} líneas; paga de izquierda a derecha. ${how} ${R.scattersToTrigger} o más scatters dan ${R.freeSpins} giros gratis${R.fsMultiplier > 1 ? ` con premios ×${R.fsMultiplier}` : ''}.`
+      + (R.fsStickyRandom > 0 ? ` Al empezar el bonus aparecen ${R.fsStickyRandom} comodines ${R.wildMode === 'walking' ? '' : 'fijos '}en posiciones al azar.` : '')
+      + (R.fsExtraChance > 0 ? ` En cada giro gratis hay un ${Math.round(R.fsExtraChance * 100)} % de probabilidad de ganar +${R.fsExtraSpins || 5} giros${R.fsExtraMax > 0 ? ` (hasta ${R.fsExtraMax} ${R.fsExtraMax === 1 ? 'vez' : 'veces'} por bonus)` : ''}.` : '');
   }
 
   payUnit() { return 1 / (this.game.rules?.lines || 9); }
@@ -61,16 +63,33 @@ export class StickyWildsEngine extends BaseEngine {
     const fs = result.freeSpins;
     if (fs) {
       await this.featureIntro(this.msg('freeSpins', { n: fs.awarded }), fs.mode === 'walking' ? 'COMODINES CAMINANTES' : 'COMODINES FIJOS');
-      let i = 0;
+      if (fs.startWilds?.length) {
+        // Los comodines al azar caen uno por uno antes del primer giro
+        const wildId = this.game.symbols.find((x) => x.type === 'wild')?.id;
+        for (const k of fs.startWilds) {
+          const [c, r] = k.split(',').map(Number);
+          this.sound.play('feature', { rate: 1.2 });
+          await this.grid.replaceCell(c, r, wildId);
+          this.drawHeld(fs.startWilds.slice(0, fs.startWilds.indexOf(k) + 1));
+          await wait(this.hud.turbo ? 120 : 380);
+        }
+        await this.hud.showBanner(`<small>COMODINES ${fs.mode === 'walking' ? 'CAMINANTES' : 'FIJOS'}</small><b>${fs.startWilds.length} WILDS</b>`, { kind: 'feature', ms: 1300 });
+      }
+      let i = 0, total = fs.awarded;
       for (const s of fs.spins) {
         i++;
-        this.hud.setStatus(`${this.msg('spinOf', { i, n: fs.spins.length })} · ${s.held.length} COMODINES ${fs.mode === 'walking' ? 'CAMINANDO' : 'FIJOS'}`);
+        this.hud.setStatus(`${this.msg('spinOf', { i, n: total })} · ${s.held.length} COMODINES ${fs.mode === 'walking' ? 'CAMINANDO' : 'FIJOS'}`);
         this.grid.undim();
         this.grid.startSpin();
         await wait(this.hud.turbo ? 100 : 260);
         await this.stopReels(s.grid, { scatterId: this.scatterId() });
         this.drawHeld(fs.mode === 'sticky' ? s.held : s.overlay);
         await this.presentWins(s.wins, s.win);
+        if (s.extra) {
+          total += s.extra;
+          this.sound.play('feature');
+          await this.hud.showBanner(`<small>¡GIROS EXTRA!</small><b>+${s.extra} GIROS</b>`, { kind: 'feature', ms: 1500 });
+        }
       }
       this.hud.setStatus('');
       this.heldLayer.clear();

@@ -1,6 +1,6 @@
 # 🎰 Casino Platform
 
-Plataforma de tragamonedas lista para Railway: **11 motores de juego** (10 tragamonedas y Craps de mesa), **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
+Plataforma de tragamonedas lista para Railway: **13 motores de juego** (12 tragamonedas y Craps de mesa), **RNG y matemática en el servidor**, **API para operadores** (billetera interna o *seamless*) y un **panel con agentes de IA** que rediseñan los juegos: imágenes con Venice, sonido y música con ElevenLabs, diseño y matemática con Claude.
 
 Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `worker_threads` integrados).
 
@@ -9,20 +9,22 @@ Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `w
 | Motor | Mecánica | Juego de ejemplo |
 | --- | --- | --- |
 | `reel-rush` | 5×3, 243 formas, cascadas con multiplicador creciente | Reel Rush |
-| `megaways` | 6 rodillos de 2–7 filas (hasta 117.649 formas), giros gratis con multiplicador | Templo Megaways |
-| `bonus-buy` | 5×3, 20 líneas, giros gratis ×3 y compra directa del bonus | Tesoro del Dragón |
-| `hold-win` | 5×3, 10 líneas, monedas fijas con re-giros y 4 jackpots | Monedas de la Suerte |
-| `colossal-reels` | 5×4, 1.024 formas, símbolos gigantes 2×2/3×3 con entrada pseudo-3D | Titanes Colosales |
-| `cluster-pays` | 7×7, paga por grupos de 5+ iguales que se tocan, cascadas con multiplicador | Gemas Conectadas |
-| `scatter-pays` | 6×5, paga con 8+ iguales en cualquier lugar, cascadas y bombas multiplicadoras acumulables; compra de bonus | Tormenta del Olimpo |
-| `expanding-symbol` | 5×3 estilo "Book": libro comodín/scatter y símbolo especial que se expande en giros gratis | El Libro del Desierto |
-| `sticky-wilds` | 5×3, comodines fijos en giros gratis o comodines caminantes con re-giros (configurable) | Forajidos del Oeste |
-| `megaways-cascade` | Megaways con cascadas, multiplicador +0,5 por caída y símbolos misterio | Cascada Infinita |
-| `craps` | Mesa de Craps: Pass/Don't Pass, Come/Don't Come, odds, números, field, hardways. Dados 3D, lanzamiento arrastrando, pagos editables con RTP exacto | Dados de Oro |
+| `megaways` | 6 rodillos de 2–7 filas (hasta 117.649 formas); 2+ comodines y símbolos multiplicador suman al multiplicador del giro; 10 giros gratis por cada scatter | Templo Megaways |
+| `bonus-buy` | 5×3, 20 líneas; giros gratis ×2 con 3 wilds fijos al azar y +5 giros; BONUS SORPRESA; ruleta real, «Elige y gana» con casillas ×2, «Colecciona» y «El camino»; menú de compra | Tesoro del Dragón |
+| `hold-win` | 5×5, 20 líneas; ELIGE Y FIJA: el jugador elige qué moneda misteriosa fijar (Bronce a Diamante, +10 % al fijar), especiales (bonus, ×, jackpot, reset, +1 ronda) y jackpots por posiciones fijas | Monedas de la Suerte |
+| `colossal-reels` | 5×4, 1.024 formas, símbolos gigantes 2×2/3×3/4×4 con entrada pseudo-3D | Titanes Colosales |
+| `cluster-pays` | 7×7, grupos de 5+, cascadas; CASILLAS DORADAS ×2 → ×32; giros gratis con casillas que no se borran; compra | Gemas Conectadas |
+| `scatter-pays` | 6×5, 8+ iguales en cualquier lugar, cascadas y bombas ×2–×100 acumulables; RAYO DE ZEUS; doble chance; compra | Tormenta del Olimpo |
+| `expanding-symbol` | 5×3 estilo "Book": el libro elige el símbolo que se expande; segundo especial al reactivar; marcos multiplicadores; doble chance | El Libro del Desierto |
+| `sticky-wilds` | 5×3; 10 giros ×2 con 3 comodines fijos al azar y +5 giros; comodines fijos o caminantes (configurable) | Forajidos del Oeste |
+| `megaways-cascade` | Megaways con cascadas (+0,5 por caída), comodines que multiplican, símbolos misterio y 10 giros por scatter | Cascada Infinita |
+| `treasure-chests` | 5×4 con premios por fila y cofres que multiplican el premio | Cofres de la Corona |
+| `cash-collect` | 5×3, monedas con dinero que cobra el recolector; niveles en giros gratis | Pesca de Oro |
+| `craps` | Mesa de Craps: Pass/Don't Pass, Come/Don't Come, odds, números, field (2 y 12 pagan 2 a 1), hardways. Dados 3D, lanzamiento arrastrando con medidor de potencia, fichas que se arrastran a la mesa, partículas de premio, pagos editables con RTP exacto | Dados de Oro |
 
-**Bonus Buy** incluye un menú de compra (giros gratis, giros gratis con wilds fijos, ruleta de la fortuna y "elige un premio"), y **Hold & Win** tiene monedas especiales (multiplicadoras y +1 re-giro). Cada precio de compra se calcula para respetar el RTP.
+**Todas las funciones son editables** en 📈 Matemática → ⚙ Funciones del motor (formulario por motor; también en JSON en «Avanzado»). Cada precio de compra y de la doble chance se calcula para respetar el RTP.
 
-Los 10 vienen con la tabla de pagos ajustada a **RTP 96 %** (`npm run simulate` para recalcular).
+Todos vienen con la tabla de pagos ajustada a **RTP 96 %** (`npm run simulate` para recalcular).
 
 ## Estructura
 
@@ -116,6 +118,10 @@ Todas toman los colores de la paleta del juego y funcionan en PC y celular; los 
 - **Cambiar motor (copia)** (Versiones → 🔁): crea un juego nuevo con otro motor conservando el diseño (fondos, logo, marco, botonera, carteles, textos, tipografías, sonidos, bonus, fichas y marca); los símbolos pasan por equivalencia y la matemática se calibra al RTP del original. El original no se toca.
 - **Eliminar un juego** (Versiones → 🗑 Eliminar juego): con confirmación escribiendo el nombre; no se permite si tuvo jugadas con dinero real (se conservan para auditoría: en ese caso, desactivarlo).
 - **Vista previa en el celular**: el botón **↗ Abrir** la abre en su propia pestaña a pantalla completa.
+- **Elegir motor con fichas**: al crear un juego o cambiar de motor, cada motor se muestra en una ficha con cuadrícula, forma de pago, bonus, funciones, volatilidad, frecuencia del bonus, frecuencia de premio y compra.
+- **Funciones del motor** (Matemática → ⚙): formulario generado desde el esquema de cada motor (`/api/v1/engines` → `ruleSchema`) con todas sus funciones, incluidas las nuevas (casillas doradas, rayo de Zeus, doble chance, marcos, ELIGE Y FIJA, bonus sorpresa, colecciona, camino…).
+- **Doble chance** (`rules.anteCost`, `rules.anteScatterChance`): botón en el juego para pagar un poco más por giro y ver más scatters; el precio lo calcula «Ajustar RTP».
+- **Actualizaciones de fábrica**: los juegos de ejemplo que no se tocaron reciben la versión nueva automáticamente al desplegar (nueva versión creada por el sistema); los editados no cambian.
 - **Logo y marco**: tamaño del logo y posición vertical del logo y del marco, por separado en PC y celular (`theme.logoScale`, `theme.logoOffsetY`, `theme.logoOffsetYMobile`, `theme.frameOffsetY`, `theme.frameOffsetYMobile`).
 
 ## Monedas

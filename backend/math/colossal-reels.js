@@ -6,7 +6,7 @@ import {
 
 export const id = 'colossal-reels';
 export const name = 'Colossal Reels';
-export const description = '5x4 con símbolos gigantes 2x2 y 3x3 renderizados en 3D; giros gratis con colosales (garantizado en cada giro, ajustable con rules.fsColossalChance).';
+export const description = '5x4 con símbolos gigantes 2x2, 3x3 y 4x4 en 3D; giros gratis con colosales (garantizado en cada giro, ajustable con rules.fsColossalChance).';
 
 function colossalSpin(config, rng, syms, forceColossal) {
   const R = config.rules;
@@ -64,8 +64,8 @@ export function validate(config) {
   }
   if (!(R.colossalChance >= 0 && R.colossalChance <= 1)) errors.push('rules.colossalChance debe estar entre 0 y 1');
   if (R.fsColossalChance != null && !(R.fsColossalChance >= 0 && R.fsColossalChance <= 1)) errors.push('rules.fsColossalChance (colosal en giros gratis) debe estar entre 0 y 1');
-  if (!Array.isArray(R.colossalSizes) || R.colossalSizes.some((s) => ![2, 3].includes(s.size) || !(s.weight > 0))) {
-    errors.push('rules.colossalSizes debe ser [{size: 2|3, weight > 0}]');
+  if (!Array.isArray(R.colossalSizes) || R.colossalSizes.some((s) => ![2, 3, 4].includes(s.size) || !(s.weight > 0))) {
+    errors.push('rules.colossalSizes debe ser [{size: 2|3|4, weight > 0}]');
   }
   const ids = new Set((config.symbols || []).map((s) => s.id));
   for (const cs of R.colossalSymbols || []) if (!ids.has(cs.symbol)) errors.push(`Símbolo colosal inexistente: ${cs.symbol}`);
@@ -101,7 +101,7 @@ export function defaults() {
     reels: [1, 2, 3, 4, 5].map((i) => buildStrip(w, 5000 + i)),
     rules: {
       colossalChance: 0.2,
-      colossalSizes: [{ size: 2, weight: 75 }, { size: 3, weight: 25 }],
+      colossalSizes: [{ size: 2, weight: 70 }, { size: 3, weight: 25 }, { size: 4, weight: 5 }], // el 4x4 del diseño original
       colossalSymbols: [
         { symbol: 'sword', weight: 30 }, { symbol: 'shield', weight: 30 }, { symbol: 'helmet', weight: 20 },
         { symbol: 'titan', weight: 12 }, { symbol: 'wild', weight: 8 },

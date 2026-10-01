@@ -89,6 +89,15 @@ const CSS = `
 .cr-roll { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 55%, #fff), var(--primary) 60%, color-mix(in srgb, var(--primary) 55%, #000));
   font-size: 16px; padding: 14px 26px; border-radius: 999px; box-shadow: 0 0 0 3px var(--accent), 0 6px 16px #000; color: #fff; }
 .cr-roll:disabled, .cr-btn:disabled { opacity: .45; cursor: not-allowed; }
+.cr-power { position: absolute; right: 10px; top: 12px; bottom: 30px; width: 12px; border-radius: 99px; background: #0008; border: 1px solid #fff4; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.cr-power.show { opacity: 1; }
+.cr-power i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 99px; background: linear-gradient(to top, #2ecc71, #f1c40f 60%, #e74c3c); }
+.cr-power b { position: absolute; right: 18px; top: -2px; color: #fff; text-shadow: 0 1px 3px #000; font: 800 12px var(--cr-font, system-ui); white-space: nowrap; }
+.cr-ghost { position: fixed; z-index: 70; width: 46px; height: 46px; border-radius: 50%; border: 4px dashed #fff; display: grid; place-items: center; font: 800 12px var(--cr-font, system-ui); color: #fff;
+  pointer-events: none; transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 10px 20px #000a; }
+.cr-zone.drop { outline: 3px solid var(--accent); outline-offset: -3px; }
+.cr-part { position: fixed; z-index: 45; pointer-events: none; font-size: 18px; animation: crpart var(--d, 1s) cubic-bezier(.2,.7,.4,1) forwards; }
+@keyframes crpart { to { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
 .cr-float { position: fixed; pointer-events: none; font: 900 22px var(--cr-font, system-ui); color: var(--accent); text-shadow: 0 2px 6px #000; animation: crfloat 1.2s ease-out forwards; z-index: 30; }
 @keyframes crfloat { to { transform: translateY(-60px); opacity: 0; } }
 .cr-banner { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); padding: 16px 34px; border-radius: 20px; background: #000c; border: 3px solid var(--accent); text-align: center; z-index: 40; animation: crpop .3s; }
@@ -213,7 +222,8 @@ export class CrapsEngine {
     this.totalEl = h('div', { class: 'cr-total' });
     this.aim = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.hist = h('div', { class: 'cr-hist' });
-    this.tray = h('div', { class: 'cr-tray' }, this.aim, this.hist, this.dice[0].el, this.dice[1].el, this.totalEl, h('div', { class: 'hint' }, 'Arrastra y suelta para lanzar los dados'));
+    this.powerEl = h('div', { class: 'cr-power' }, h('i'), h('b'));
+    this.tray = h('div', { class: 'cr-tray' }, this.aim, this.powerEl, this.hist, this.dice[0].el, this.dice[1].el, this.totalEl, h('div', { class: 'hint' }, 'Arrastra y suelta para lanzar (más largo = más fuerte) · arrastra fichas a la mesa'));
     this.bindThrow();
     this.phaseEl = h('div', { class: 'cr-phase' });
     const side = h('div', { class: 'cr-side' }, this.phaseEl, this.tray);
@@ -221,9 +231,13 @@ export class CrapsEngine {
     this.balEl = h('b', {}, '—');
     this.onTableEl = h('b', {}, '—');
     this.winEl = h('b', {}, this.fmt(0));
-    this.chipBtns = this.levels.map((v, i) => h('button', {
-      style: `background: hsl(${(i * 67 + 350) % 360} 65% 38%)`, onclick: () => { this.chip = v; this.render(); this.sound.play('click'); },
-    }, this.fmt(v).replace(/[^0-9.,]/g, '').replace(/[.,]00$/, '')));
+    this.chipBtns = this.levels.map((v, i) => {
+      const b = h('button', {
+        style: `background: hsl(${(i * 67 + 350) % 360} 65% 38%)`, onclick: () => { if (b.dragged) return; this.chip = v; this.render(); this.sound.play('click'); },
+      }, this.fmt(v).replace(/[^0-9.,]/g, '').replace(/[.,]00$/, ''));
+      this.bindChipDrag(b, v);
+      return b;
+    });
     this.undoBtn = h('button', { class: 'cr-btn', onclick: () => this.undo() }, '↶ Deshacer');
     this.clearBtn = h('button', { class: 'cr-btn', onclick: () => this.clearPending() }, 'Limpiar');
     this.rollBtn = h('button', { class: 'cr-btn cr-roll', onclick: () => this.throwDice(0.65 + Math.random() * 0.3, { x: (Math.random() - 0.5) * 0.8, y: -1 }) }, '🎲 TIRAR');
@@ -274,6 +288,54 @@ export class CrapsEngine {
     d.el.style.transform = `translate3d(${x}px, ${y}px, 0) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${spin}deg)`;
   }
 
+  // ---------------------------------------------------------------- Fichas: arrastrar y soltar sobre la mesa
+  bindChipDrag(btn, value) {
+    let ghost = null, over = null, sx = 0, sy = 0;
+    const zoneAt = (x, y) => document.elementFromPoint(x, y)?.closest?.('.cr-zone');
+    btn.addEventListener('pointerdown', (e) => {
+      if (this.busy) return;
+      btn.dragged = false; sx = e.clientX; sy = e.clientY;
+      btn.setPointerCapture?.(e.pointerId);
+    });
+    btn.addEventListener('pointermove', (e) => {
+      if (sx === 0 && sy === 0) return;
+      if (!ghost && Math.hypot(e.clientX - sx, e.clientY - sy) < 10) return;
+      if (!ghost) {
+        btn.dragged = true;
+        ghost = h('div', { class: 'cr-ghost', style: btn.getAttribute('style') }, btn.textContent);
+        document.body.append(ghost);
+        this.sound.play('click');
+      }
+      ghost.style.left = `${e.clientX}px`; ghost.style.top = `${e.clientY}px`;
+      const z = zoneAt(e.clientX, e.clientY);
+      if (z !== over) { over?.classList.remove('drop'); over = z; over?.classList.add('drop'); }
+    });
+    const end = (e) => {
+      sx = 0; sy = 0;
+      if (!ghost) return;
+      ghost.remove(); ghost = null;
+      over?.classList.remove('drop');
+      const z = over; over = null;
+      const zone = z && [...this.zones.values()].find((x) => x.el === z);
+      if (zone) { this.chip = value; this.onZone(zone.type, zone.number); }
+      setTimeout(() => { btn.dragged = false; }, 0);
+    };
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+  }
+
+  /** Partículas de premio: fichas y estrellas que saltan desde la zona ganadora. */
+  particles(el, n = 18) {
+    const r = el.getBoundingClientRect();
+    const icons = ['🪙', '✨', '💰', '⭐'];
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 110;
+      const p = h('div', { class: 'cr-part', style: `left:${r.left + r.width / 2}px; top:${r.top + r.height / 2}px; --x:${Math.cos(a) * d}px; --y:${Math.sin(a) * d - 40}px; --r:${(Math.random() - 0.5) * 540}deg; --d:${0.8 + Math.random() * 0.6}s` }, icons[i % icons.length]);
+      document.body.append(p);
+      setTimeout(() => p.remove(), 1500);
+    }
+  }
+
   // ---------------------------------------------------------------- Lanzamiento arrastrando
   bindThrow() {
     let start = null;
@@ -286,11 +348,18 @@ export class CrapsEngine {
       if (!start) return;
       const p = pos(e);
       line.setAttribute('x1', start.x); line.setAttribute('y1', start.y); line.setAttribute('x2', p.x); line.setAttribute('y2', p.y); line.setAttribute('opacity', '0.8');
+      // Medidor de potencia: la distancia arrastrada
+      const pw = Math.min(1, Math.hypot(p.x - start.x, p.y - start.y) / 220);
+      this.powerEl.classList.add('show');
+      this.powerEl.firstChild.style.height = `${Math.round(pw * 100)}%`;
+      this.powerEl.lastChild.textContent = `${Math.round(pw * 100)} %`;
+      line.setAttribute('stroke', pw > 0.85 ? '#e74c3c' : pw > 0.5 ? '#f1c40f' : '#2ecc71');
     });
     this.tray.addEventListener('pointerup', (e) => {
       if (!start) return;
       const p = pos(e);
       line.setAttribute('opacity', '0');
+      this.powerEl.classList.remove('show');
       const dx = p.x - start.x, dy = p.y - start.y;
       const dist = Math.hypot(dx, dy);
       start = null;
@@ -480,6 +549,7 @@ export class CrapsEngine {
         z.el.classList.add('win');
         won += res.payout;
         this.float(z.el, `+${this.fmt(res.payout)}`);
+        this.particles(z.el, Math.min(30, 10 + Math.round(res.payout / Math.max(1, this.levels[0]) / 2)));
       } else if (res.outcome === 'lose') z.el.classList.add('lose');
     }
     if (won) this.sound.play('win'); else if (r.result.resolutions.some((x) => x.outcome === 'lose')) this.sound.play('lose');

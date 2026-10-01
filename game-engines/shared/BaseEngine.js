@@ -288,6 +288,7 @@ export class BaseEngine {
       onForce: this.session.source === 'draft' ? () => this.spin('base', { force: true }) : null,
     });
     this.hud.onTurbo = (v) => { this.grid.turbo = v; };
+    this.buildAnte();
   }
 
   /** Gancho para limpiar capas propias del motor (etiquetas, colosales…) antes de girar. */
@@ -337,6 +338,7 @@ export class BaseEngine {
   // ---------------------------------------------------------------- Ciclo de juego
   async spin(mode = 'base', { force = false } = {}) {
     if (this.busy) return;
+    if (mode === 'base' && this.ante && this.supportsAnte()) mode = 'ante';
     const bet = this.hud.bet;
     const cost = Math.round(bet * this.costFor(mode));
     if (this.hud.balance < cost) { this.hud.error('Saldo insuficiente para esta apuesta.'); return; }
@@ -551,8 +553,29 @@ export class BaseEngine {
     const R = this.game.rules || {};
     if (mode === 'base') return 1;
     if (mode === 'buy') return R.buyCost || 1;
-    const key = { 'buy-sticky': 'sticky', 'buy-wheel': 'wheel', 'buy-pick': 'pick' }[mode];
-    return R.bonusMenu?.[key]?.cost || 1;
+    if (mode === 'ante') return R.anteCost || 1;
+    return R.bonusMenu?.[mode.replace(/^buy-/, '')]?.cost || 1;
+  }
+
+  /** Doble chance (apuesta extra por más probabilidad de bonus): botón para activarla o no. */
+  supportsAnte() { return (this.game.rules?.anteCost || 0) > 0 && (this.game.modes || ['ante']).includes('ante'); }
+  buildAnte() {
+    if (!this.supportsAnte()) return;
+    const R = this.game.rules;
+    const root = this.hudRoot;
+    let box = root.querySelector('.buybox');
+    if (!box) { box = document.createElement('div'); box.className = 'buybox'; root.append(box); }
+    const btn = document.createElement('button');
+    btn.className = 'buy ante';
+    const paint = () => {
+      btn.innerHTML = `<small>DOBLE CHANCE</small><b>${this.ante ? 'SÍ' : 'NO'}</b><small>apuesta ×${R.anteCost}</small>`;
+      btn.classList.toggle('on', !!this.ante);
+      this.hud.renderBet?.();
+    };
+    btn.onclick = () => { if (this.busy) return; this.ante = !this.ante; this.sound.play('click'); paint(); };
+    box.append(btn);
+    this.anteBtn = btn;
+    paint();
   }
 
   /** Opciones de compra disponibles: [{ mode, name, cost }]. */
@@ -560,10 +583,10 @@ export class BaseEngine {
     const R = this.game.rules || {};
     const out = [];
     if (R.buyCost) out.push({ mode: 'buy', name: 'Giros gratis', cost: R.buyCost });
-    const names = { sticky: 'Giros gratis con wilds fijos', wheel: 'Ruleta de la fortuna', pick: 'Elige un premio' };
-    for (const [key, mode] of [['sticky', 'buy-sticky'], ['wheel', 'buy-wheel'], ['pick', 'buy-pick']]) {
+    const names = { sticky: 'Giros gratis con wilds fijos', wheel: 'Ruleta de la fortuna', pick: 'Elige un premio', collect: 'Colecciona', path: 'El camino' };
+    for (const key of ['sticky', 'wheel', 'pick', 'collect', 'path']) {
       const o = R.bonusMenu?.[key];
-      if (o) out.push({ mode, name: o.name || names[key], cost: o.cost });
+      if (o?.enabled && o.cost) out.push({ mode: `buy-${key}`, name: o.name || names[key], cost: o.cost });
     }
     return out;
   }

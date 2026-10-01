@@ -8,7 +8,7 @@ import {
 
 export const id = 'megaways-cascade';
 export const name = 'Megaways Cascada';
-export const description = 'Megaways con cascadas, multiplicador que sube +0,5 por caída, símbolos misterio y giros gratis con multiplicador que no se reinicia.';
+export const description = 'Megaways con cascadas (+0,5 por caída), comodines que multiplican, símbolos misterio y giros gratis con multiplicador que no se reinicia.';
 export const gridLimits = { reels: [4, 8] };
 export const paysBy = 'ways';
 
@@ -33,9 +33,12 @@ function cascadeSpin(config, rng, syms, strips, startMult) {
   for (let k = 0; k < 60; k++) {
     const { grid, revealed } = reveal(raw, syms, rng, R);
     const wins = evaluateWays(grid, syms);
-    const stepWin = round6(sumPays(wins) * mult);
+    // Diseño original: con rules.wildMultMin o más comodines, cada comodín suma +1 al multiplicador de esa caída
+    const wilds = R.wildMultMin > 0 ? findSymbols(grid, (sid) => syms.get(sid)?.type === 'wild').length : 0;
+    const wildMult = R.wildMultMin > 0 && wilds >= R.wildMultMin ? wilds : 0;
+    const stepWin = round6(sumPays(wins) * (mult + wildMult));
     const ways = grid.reduce((a, col) => a * col.length, 1);
-    steps.push({ raw: cloneGrid(raw), grid: cloneGrid(grid), revealed, wins, multiplier: mult, win: stepWin, ways });
+    steps.push({ raw: cloneGrid(raw), grid: cloneGrid(grid), revealed, wins, multiplier: mult, ...(wildMult && wins.length ? { wildMult } : {}), win: stepWin, ways });
     if (!wins.length) break;
     win += stepWin;
     mult = round6(mult + R.cascadeStep);
@@ -76,6 +79,7 @@ export function validate(config) {
   const R = config.rules || {};
   if (!Array.isArray(R.rowWeights) || R.rowWeights.some((w) => w.rows < 2 || w.rows > 7 || !(w.weight > 0))) errors.push('rules.rowWeights debe ser [{rows: 2..7, weight > 0}]');
   if (!(R.cascadeStep >= 0 && R.cascadeStep <= 5)) errors.push('rules.cascadeStep debe estar entre 0 y 5');
+  if (R.wildMultMin != null && !(Number.isInteger(R.wildMultMin) && R.wildMultMin >= 0 && R.wildMultMin <= 10)) errors.push('rules.wildMultMin debe ser un entero entre 0 (apagado) y 10');
   const regular = new Set((config.symbols || []).filter((s) => (s.type || 'regular') === 'regular').map((s) => s.id));
   if (config.symbols?.some((s) => s.type === 'mystery')) {
     if (!Array.isArray(R.mysteryWeights) || !R.mysteryWeights.length) errors.push('rules.mysteryWeights es obligatorio si hay símbolo misterio');
@@ -113,7 +117,8 @@ export function defaults() {
       rowWeights: [{ rows: 2, weight: 10 }, { rows: 3, weight: 25 }, { rows: 4, weight: 30 }, { rows: 5, weight: 20 }, { rows: 6, weight: 10 }, { rows: 7, weight: 5 }],
       cascadeStep: 0.5,
       mysteryWeights: [{ symbol: 'nine', weight: 30 }, { symbol: 'ten', weight: 25 }, { symbol: 'jack', weight: 18 }, { symbol: 'queen', weight: 12 }, { symbol: 'king', weight: 9 }, { symbol: 'ace', weight: 6 }],
-      scattersToTrigger: 4, freeSpins: 10, extraSpinsPerScatter: 5, retriggerScatters: 3, retrigger: 5, fsKeepMultiplier: true, maxWin: 10000,
+      // Diseño original: 3+ scatters dan 10 giros por cada scatter; 2+ comodines suman su cantidad al multiplicador
+      scattersToTrigger: 3, freeSpins: 30, extraSpinsPerScatter: 10, retriggerScatters: 3, retrigger: 5, fsKeepMultiplier: true, wildMultMin: 2, maxWin: 10000,
     },
     bet: { levels: [20, 50, 100, 200, 500, 1000, 2000, 5000], default: 100, currency: 'USD' },
     theme: {

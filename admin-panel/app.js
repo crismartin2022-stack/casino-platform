@@ -302,17 +302,52 @@ function showCheck(rep, { title = 'Prueba del juego', publishing = false } = {})
   });
 }
 
+
+// ---- Fichas para elegir motor: qué hace, cuadrícula, pagos, bonus, volatilidad, frecuencia y compra ----
+const VOL_LABEL = { baja: 'Volatilidad baja', media: 'Volatilidad media', alta: 'Volatilidad alta', 'muy alta': 'Volatilidad muy alta' };
+function enginePicker(engines, inputId, selected = engines[0]?.id) {
+  return `<input type="hidden" id="${inputId}" value="${esc(selected || '')}" />
+    <div class="eng-cards" data-for="${inputId}">${engines.map((e) => {
+      const c = e.card || {};
+      const badges = [
+        c.volatility ? VOL_LABEL[c.volatility] || `Volatilidad ${c.volatility}` : null,
+        c.featureEvery ? `Bonus cada ~${c.featureEvery} giros` : null,
+        c.hitFrequency ? `Premio en ${Math.round(c.hitFrequency * 100)} % de los giros` : null,
+        ...(c.buy || []).filter((b) => b.mode !== 'ante').slice(0, 1).map((b) => `Compra desde ${Math.min(...c.buy.filter((x) => x.mode !== 'ante').map((x) => x.cost))}×`),
+        (c.buy || []).some((b) => b.mode === 'ante') ? 'Doble chance' : null,
+      ].filter(Boolean);
+      return `<button type="button" class="eng-card ${e.id === selected ? 'sel' : ''}" data-engine="${esc(e.id)}">
+        <b class="eng-name">${esc(e.name)}</b>
+        <span class="eng-desc">${esc(e.description || '')}</span>
+        <dl>${c.grid ? `<dt>Cuadrícula</dt><dd>${esc(c.grid)}</dd>` : ''}${c.pays ? `<dt>Paga por</dt><dd>${esc(c.pays)}</dd>` : ''}${c.bonus ? `<dt>Bonus</dt><dd>${esc(c.bonus)}</dd>` : ''}</dl>
+        ${c.features?.length ? `<ul>${c.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+        <span class="eng-badges">${badges.map((b) => `<i>${esc(b)}</i>`).join('')}</span>
+      </button>`;
+    }).join('')}</div>`;
+}
+function bindEnginePicker(root, inputId, onChange) {
+  const box = $(`.eng-cards[data-for="${inputId}"]`, root);
+  box?.addEventListener('click', (e) => {
+    const card = e.target.closest('.eng-card');
+    if (!card) return;
+    for (const x of $$('.eng-card', box)) x.classList.toggle('sel', x === card);
+    $(`#${inputId}`, root).value = card.dataset.engine;
+    onChange?.(card.dataset.engine);
+  });
+}
+
 $('#newGameBtn').addEventListener('click', guard(async () => {
   if (isOp()) return newOwnGame();
   const engines = await (await fetch('/api/v1/engines')).json();
   openPicker('Nuevo juego', `<div class="stack">
     <div><label>Nombre</label><input id="ngName" placeholder="Ej. Faraón Dorado" /></div>
-    <div><label>Motor</label><select id="ngEngine">${engines.map((e) => `<option value="${e.id}">${esc(e.name)} — ${esc(e.description)}</option>`).join('')}</select></div>
+    <div><label>Motor — toca una ficha para elegirlo</label>${enginePicker(engines, 'ngEngine')}</div>
     <div><label>Marca</label><select id="ngBrand"><option value="">— Sin marca —</option>${(S.brands || []).map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select></div>
     <div><label>Copiar diseño de (opcional)</label><select id="ngFrom"><option value="">— Plantilla del motor —</option>${S.games.map((g) => `<option value="${esc(g.id)}" data-engine="${esc(g.engine)}">${esc(g.name)}</option>`).join('')}</select></div>
     ${uiPicker()}
     <button class="primary" id="ngCreate">Crear</button></div>`, (root, close) => {
     bindUiPicker(root);
+    bindEnginePicker(root, 'ngEngine');
     $('#ngCreate', root).addEventListener('click', guard(async () => {
       const engine = $('#ngEngine', root).value;
       const from = $('#ngFrom', root).selectedOptions[0];
@@ -417,7 +452,7 @@ const MSG_TEXTS = [['win', 'Premio (arriba del importe; vacío = solo el importe
   ['bonusSub', 'Subtítulo de la entrada al bonus (vacío = el automático del juego; «-» = sin subtítulo)', 'Automático'],
   ['bonusTotal', 'Total del bonus', 'TOTAL DEL BONUS'], ['respins', 'Re-giros ({n} = restantes)', 'RE-GIROS: {n}'], ['holdWin', 'Entrada Hold & Win', 'HOLD & WIN']];
 // Subtítulo automático de la entrada al bonus en cada motor (se puede reemplazar en Carteles → Textos)
-const BONUS_SUB = { 'treasure-chests': 'BONUS DE COFRES', 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
+const BONUS_SUB = { 'cash-collect': 'EL RECOLECTOR SUBE DE NIVEL', 'treasure-chests': 'BONUS DE COFRES', 'colossal-reels': 'COLOSAL GARANTIZADO', 'megaways-cascade': 'EL MULTIPLICADOR NO SE REINICIA', 'bonus-buy': 'TODOS LOS PREMIOS ×N / WILDS FIJOS',
   'expanding-symbol': 'SÍMBOLO ESPECIAL: …', megaways: '¡BONUS!', 'hold-win': 'N MONEDAS · 3 RE-GIROS', 'sticky-wilds': 'COMODINES FIJOS / CAMINANTES', 'scatter-pays': 'LOS MULTIPLICADORES SE ACUMULAN' };
 // En qué cartel se muestra cada texto (para usar su tipografía)
 const TEXT_KIND = { win: 'win', bigWin: 'big', megaWin: 'big', freeSpins: 'feature', bonusSub: 'feature', bonusTotal: 'feature', holdWin: 'feature', spinOf: 'status', respins: 'status', multiplier: 'status' };
@@ -1406,7 +1441,7 @@ async function tabSounds(v) {
 }
 
 // ------------------------------------------------------------------ Pestaña: Matemática
-const BUY_NAMES = { buy: 'giros gratis', 'buy-sticky': 'wilds fijos', 'buy-wheel': 'ruleta', 'buy-pick': 'elige premio' };
+const BUY_NAMES = { buy: 'giros gratis', 'buy-sticky': 'wilds fijos', 'buy-wheel': 'ruleta', 'buy-pick': 'elige premio', 'buy-collect': 'colecciona', 'buy-path': 'el camino', ante: 'doble chance' };
 
 // ---- Matemática de juegos de mesa (Craps): pagos editables y RTP exacto por apuesta ----
 const CRAPS_BETS = [['pass', 'Pass Line'], ['dontPass', "Don't Pass"], ['come', 'Come'], ['dontCome', "Don't Come"], ['odds', 'Odds'],
@@ -1493,6 +1528,148 @@ async function tabMathTable(v) {
   }));
 }
 
+
+// ---- Funciones del motor: formulario generado desde el esquema de cada motor (rules sin tocar JSON) ----
+const rGet = (o, path) => path.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+function rSet(o, path, val) {
+  const ks = path.split('.');
+  let cur = o;
+  for (const k of ks.slice(0, -1)) { if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = {}; cur = cur[k]; }
+  cur[ks.at(-1)] = val;
+}
+function fnFieldHtml(f, val, d, idx) {
+  const id = `fn${idx}`;
+  const attrs = `data-fn="${idx}" id="${id}"`;
+  const lim = (x) => `${x.min != null ? `min="${x.min}"` : ''} ${x.max != null ? `max="${x.max}"` : ''} step="${x.step ?? (x.t === 'int' ? 1 : 'any')}"`;
+  const optHtml = (o, v) => o.map(([ov, ol]) => `<option value="${esc(JSON.stringify(ov))}" ${JSON.stringify(ov) === JSON.stringify(v) ? 'selected' : ''}>${esc(ol)}</option>`).join('');
+  // Primero los normales; también los especiales (ej. el comodín puede ser colosal)
+  const regular = [...(d.symbols || []).filter((x) => (x.type || 'regular') === 'regular'), ...(d.symbols || []).filter((x) => (x.type || 'regular') !== 'regular')];
+  const cell = (c, v) => {
+    if (c.t === 'select') return `<select data-c="${esc(c.k)}" data-ct="select">${optHtml(c.o, v)}</select>`;
+    if (c.t === 'symbol') return `<select data-c="${esc(c.k)}" data-ct="symbol">${regular.map((x) => `<option value="${esc(x.id)}" ${x.id === v ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select>`;
+    if (c.t === 'text') return `<input data-c="${esc(c.k)}" data-ct="text" value="${esc(v ?? '')}" />`;
+    return `<input type="number" data-c="${esc(c.k)}" data-ct="${c.t}" value="${v ?? ''}" ${lim(c)} />`;
+  };
+  let input;
+  switch (f.t) {
+    case 'bool': input = `<label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" ${attrs} style="width:auto" ${val ? 'checked' : ''} /> ${esc(f.l)}</label>`; break;
+    case 'select': input = `<select ${attrs}>${optHtml(f.o, val)}</select>`; break;
+    case 'text': input = `<input ${attrs} value="${esc(val ?? '')}" />`; break;
+    case 'pct': input = `<div class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" ${attrs} value="${val == null ? '' : +(val * 100).toFixed(4)}" min="${(f.min ?? 0) * 100}" max="${(f.max ?? 1) * 100}" step="${(f.step ?? 0.01) * 100}" /><span>%</span></div>`; break;
+    case 'list': input = `<input ${attrs} value="${esc((val || []).join(', '))}" placeholder="1, 2, 3" />`; break;
+    case 'multi': input = `<div class="row" ${attrs}>${f.o.map(([ov, ol]) => `<label class="row" style="gap:6px;margin:0;color:var(--text)"><input type="checkbox" value="${esc(ov)}" style="width:auto" ${(val || []).includes(ov) ? 'checked' : ''} />${esc(ol)}</label>`).join('')}</div>`; break;
+    case 'kv': {
+      const rows = Object.entries(val || {});
+      input = `<table class="fn-table" ${attrs} data-kind="kv"><tr><th>${esc(f.kl || 'Clave')}</th><th>${esc(f.vl || 'Valor')}</th><th></th></tr>
+        ${rows.map(([k, v2]) => `<tr><td><input type="number" data-c="k" value="${esc(k)}" /></td><td><input type="number" data-c="v" value="${v2}" step="any" /></td><td><button type="button" class="small ghost" data-del>✕</button></td></tr>`).join('')}
+        <tr class="fn-add"><td colspan="3"><button type="button" class="small" data-add>＋ Agregar</button></td></tr></table>`;
+      break;
+    }
+    case 'table': {
+      const rows = Array.isArray(val) ? val : [];
+      input = `<table class="fn-table" ${attrs} data-kind="table"><tr>${f.cols.map((c) => `<th>${esc(c.l)}</th>`).join('')}<th></th></tr>
+        ${rows.map((r) => `<tr>${f.cols.map((c) => `<td>${cell(c, r[c.k])}</td>`).join('')}<td><button type="button" class="small ghost" data-del>✕</button></td></tr>`).join('')}
+        <tr class="fn-add"><td colspan="${f.cols.length + 1}"><button type="button" class="small" data-add>＋ Agregar fila</button></td></tr></table>`;
+      break;
+    }
+    default: input = `<input type="number" ${attrs} value="${val ?? ''}" ${lim(f)} ${f.nullable ? 'placeholder="(apagado)"' : ''} />`;
+  }
+  return `<div class="fn-field fn-${f.t}">${f.t === 'bool' ? '' : `<label for="${id}">${esc(f.l)}</label>`}${input}${f.help ? `<div class="muted fn-help">${esc(f.help)}</div>` : ''}</div>`;
+}
+function engineFunctionsCard(d) {
+  const schema = engineInfo(d.engine).ruleSchema || [];
+  if (!schema.length) return '';
+  const R = d.rules || {};
+  const visible = (f) => !f.when || Object.entries(f.when).every(([k, v]) => rGet(R, k) === v);
+  const groups = [];
+  schema.forEach((f, i) => {
+    if (!visible(f)) return;
+    let g = groups.find((x) => x.name === (f.g || 'General'));
+    if (!g) groups.push(g = { name: f.g || 'General', html: [] });
+    g.html.push(fnFieldHtml(f, rGet(R, f.k), d, i));
+  });
+  return `<div class="card stack" id="fnCard"><h3 style="margin:0">⚙ Funciones del motor</h3>
+    <p class="muted" style="margin:0">Todo lo que hace ${esc(engineInfo(d.engine).name || d.engine)}: bonus, multiplicadores, giros gratis, compras y funciones especiales. Después de guardar pulsa «Ajustar RTP al objetivo» para recalibrar los pagos y los precios.</p>
+    ${groups.map((g) => `<details class="fn-group" open><summary>${esc(g.name)}</summary><div class="fn-grid">${g.html.join('')}</div></details>`).join('')}
+    <div class="row"><button class="primary" id="fnSave">Guardar funciones</button><span class="error" id="fnErr"></span></div></div>`;
+}
+function readEngineFunctions(root, d) {
+  const schema = engineInfo(d.engine).ruleSchema || [];
+  const rules = structuredClone(d.rules);
+  const num = (x, t) => (x === '' || x == null ? null : t === 'int' ? Math.round(Number(x)) : Number(x));
+  for (const el of $$('[data-fn]', root)) {
+    const f = schema[Number(el.dataset.fn)];
+    if (!f) continue;
+    let v;
+    switch (f.t) {
+      case 'bool': v = el.checked; break;
+      case 'select': v = JSON.parse(el.value); break;
+      case 'text': v = el.value; break;
+      case 'pct': v = el.value === '' ? null : +(Number(el.value) / 100).toFixed(8); break;
+      case 'list': v = el.value.split(/[,;\s]+/).filter(Boolean).map(Number); break;
+      case 'multi': v = $$('input:checked', el).map((x) => x.value); break;
+      case 'kv': v = Object.fromEntries($$('tr', el).filter((tr) => $('[data-c="k"]', tr)).map((tr) => [String(Math.round(Number($('[data-c="k"]', tr).value))), Number($('[data-c="v"]', tr).value)]).filter(([k, x]) => k !== 'NaN' && Number.isFinite(x))); break;
+      case 'table': v = $$('tr', el).filter((tr) => $('[data-c]', tr)).map((tr) => {
+        const row = {};
+        for (const c of $$('[data-c]', tr)) {
+          const t = c.dataset.ct;
+          const x = t === 'select' ? JSON.parse(c.value) : t === 'text' || t === 'symbol' ? c.value : num(c.value, t);
+          if (x !== '' && x != null) row[c.dataset.c] = x;
+        }
+        return row;
+      }); break;
+      default: v = num(el.value, f.t);
+    }
+    if (f.nullable && v === 0 && f.k.endsWith('Cost')) v = null;
+    // Funciones que este juego no tenía y quedaron vacías: no se agregan
+    const empty = v == null || v === false || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
+    if (empty && rGet(d.rules, f.k) === undefined) continue;
+    rSet(rules, f.k, v);
+  }
+  return rules;
+}
+function bindEngineFunctions(root, d) {
+  const card = $('#fnCard', root);
+  if (!card) return;
+  const schema = engineInfo(d.engine).ruleSchema || [];
+  card.addEventListener('click', (e) => {
+    if (e.target.matches('[data-del]')) { e.target.closest('tr').remove(); return; }
+    if (e.target.matches('[data-add]')) {
+      const tbl = e.target.closest('table');
+      const f = schema[Number(tbl.dataset.fn)];
+      const add = e.target.closest('tr');
+      const tmp = document.createElement('tbody');
+      if (tbl.dataset.kind === 'kv') tmp.innerHTML = '<tr><td><input type="number" data-c="k" /></td><td><input type="number" data-c="v" step="any" /></td><td><button type="button" class="small ghost" data-del>✕</button></td></tr>';
+      else {
+        const html = fnFieldHtml({ ...f, k: f.k }, [{}], d, tbl.dataset.fn);
+        const probe = document.createElement('div'); probe.innerHTML = html;
+        tmp.append($$('tr', probe).find((tr) => $('[data-c]', tr)));
+      }
+      add.before(...tmp.children);
+    }
+  });
+  // Los campos que dependen de otro (ej. tipo de bonus) aparecen al cambiarlo
+  const deps = new Set(schema.flatMap((f) => Object.keys(f.when || {})));
+  card.addEventListener('change', (e) => {
+    const f = schema[Number(e.target.dataset.fn)];
+    if (f && deps.has(f.k)) {
+      const rules = readEngineFunctions(root, d);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = engineFunctionsCard({ ...d, rules });
+      card.replaceWith(tmp.firstElementChild);
+      bindEngineFunctions(root, { ...d, rules, _orig: d._orig || d });
+    }
+  });
+  $('#fnSave', root).addEventListener('click', guard(async () => {
+    $('#fnErr', root).textContent = '';
+    try {
+      const rules = readEngineFunctions(root, d);
+      await patchDraft([{ op: 'set', path: 'rules', value: rules }], 'Funciones guardadas. Pulsa «Ajustar RTP al objetivo» para recalibrar pagos y precios');
+      renderTab();
+    } catch (e) { $('#fnErr', root).textContent = `${e.message}${e.details ? ': ' + e.details.join(' · ') : ''}`; }
+  }));
+}
+
 async function tabMath(v) {
   if (engineInfo(S.game.engine).kind === 'table') return tabMathTable(v);
   const d = S.game.draft;
@@ -1502,7 +1679,7 @@ async function tabMath(v) {
       ${m ? `<div class="kpi"><div><small>RTP</small><b>${pct(m.rtp)}</b></div><div><small>IC 95 %</small><b style="font-size:14px">${pct(m.ci?.[0])} – ${pct(m.ci?.[1])}</b></div>
       <div><small>Frecuencia de premio</small><b>${pct(m.hitFrequency)}</b></div><div><small>Bonus cada</small><b>${m.featureEvery ? `1/${m.featureEvery}` : '—'}</b></div>
       <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
-      .map((b) => `<div><small>Compra ${esc(BUY_NAMES[b.mode] || b.mode)}</small><b>${b.cost}× · ${pct(b.rtp)}</b></div>`).join('')}</div>` : '<p class="muted">Sin publicar.</p>'}
+      .map((b) => `<div><small>${b.mode === 'ante' ? 'Doble chance' : `Compra ${esc(BUY_NAMES[b.mode] || b.mode)}`}</small><b>${b.cost}× · ${pct(b.rtp)}</b></div>`).join('')}</div>` : '<p class="muted">Sin publicar.</p>'}
     </div>
     <div class="card stack"><h3 style="margin:0">Tamaño de la cuadrícula${d.rules.lines != null ? ' y líneas' : ''}</h3>
       <div class="row">
@@ -1521,12 +1698,13 @@ async function tabMath(v) {
         <div style="width:160px"><label>RTP objetivo</label><input id="mTarget" type="number" step="0.001" min="0.85" max="1.10" value="${d.rtpTarget}" /><div class="muted">0.85 a 1.10 (85 %–110 %)</div></div>
         <div id="rtpWarn" class="error" style="max-width:330px" ${d.rtpTarget > 1 ? '' : 'hidden'}>⚠ Por encima de 100 % el juego paga más de lo que recauda: pierdes dinero con cada apuesta. Úsalo solo para promociones o demo.</div>
         <div style="width:170px"><label>Giros a simular</label><select id="mSpins"><option>200000</option><option selected>500000</option><option>1000000</option><option>3000000</option></select></div>
-        ${engineInfo(d.engine).modes?.length > 1 ? `<div style="width:190px"><label>Modo</label><select id="mMode"><option value="base">Juego base</option>${engineInfo(d.engine).modes.filter((x) => x !== 'base' && (x === 'buy' || d.rules.bonusMenu?.[{ 'buy-sticky': 'sticky', 'buy-wheel': 'wheel', 'buy-pick': 'pick' }[x]]?.enabled)).map((x) => `<option value="${x}">Compra: ${BUY_NAMES[x]}</option>`).join('')}</select></div>` : ''}
+        ${engineInfo(d.engine).modes?.length > 1 ? `<div style="width:190px"><label>Modo</label><select id="mMode"><option value="base">Juego base</option>${engineInfo(d.engine).modes.filter((x) => x !== 'base' && ((x === 'buy' && d.rules.buyCost) || (x === 'ante' && d.rules.anteCost) || d.rules.bonusMenu?.[x.replace(/^buy-/, '')]?.enabled)).map((x) => `<option value="${x}">${x === 'ante' ? 'Doble chance' : `Compra: ${BUY_NAMES[x] || x}`}</option>`).join('')}</select></div>` : ''}
         <button id="mSim">Simular</button><button class="primary" id="mTune">Ajustar RTP al objetivo</button>
       </div>
       <div id="mOut"></div>
     </div>
-    <div class="card stack"><h3 style="margin:0">Reglas del motor (<code>rules</code>)</h3>
+    ${engineFunctionsCard(d)}
+    <details class="card stack"><summary><b>Avanzado: reglas en JSON (<code>rules</code>)</b></summary>
       <p class="muted">${d.rules.bonusMenu ? 'Aquí también se edita el menú de compra (<code>bonusMenu</code>): activar/desactivar cada bono, giros, segmentos de la ruleta y premios del "elige un premio". Los precios se recalculan al pulsar “Ajustar RTP”.' : ''}
       ${d.rules.specialCoins ? 'Monedas especiales: <code>specialChance</code> y <code>specialCoins</code> (multiplicador o +1 re-giro).' : ''}
       ${d.rules.wildMode ? 'Modo de comodines: <code>wildMode</code> = "sticky" (fijos en giros gratis) o "walking" (caminan y dan re-giros).' : ''}</p>
@@ -1536,8 +1714,11 @@ async function tabMath(v) {
         <p class="muted" style="margin:0">100 % = un colosal garantizado en cada giro gratis. Menos % = sale a veces; 0 % = nunca. Cambia cuánto paga el bonus: después pulsa «Ajustar RTP al objetivo».</p>
         <div class="row"><button id="mFsColSave">Guardar</button></div></div>` : ''}
       <textarea id="mRules" rows="14">${esc(JSON.stringify(d.rules, null, 2))}</textarea>
-      <div class="row"><button id="mRulesSave">Guardar reglas</button><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button><button id="mAutoSave" class="ghost">Giros automáticos (${esc((d.bet.autoSpins || [10, 25, 50, 100]).join(' · '))})…</button></div>
-    </div></div>`;
+      <div class="row"><button id="mRulesSave">Guardar reglas</button></div>
+    </details>
+    <div class="card row"><button id="mBetSave" class="ghost">Editar niveles de apuesta…</button><button id="mAutoSave" class="ghost">Giros automáticos (${esc((d.bet.autoSpins || [10, 25, 50, 100]).join(' · '))})…</button></div>
+    </div>`;
+  bindEngineFunctions(v, d);
   const showSim = (s, title) => {
     $('#mOut').innerHTML = `<h4>${title}</h4><div class="kpi">
       <div><small>RTP</small><b>${pct(s.rtp)}</b></div><div><small>IC 95 %</small><b style="font-size:14px">${pct(s.rtpLow)} – ${pct(s.rtpHigh)}</b></div>
@@ -1759,10 +1940,11 @@ async function tabVersions(v) {
     openPicker('Cambiar motor (crea una copia)', `<div class="stack">
       <p class="muted" style="margin:0">Se crea un <b>juego nuevo</b> con el motor que elijas y el diseño de «${esc(g.name)}»: fondos, logo, marco, botonera, carteles, textos, tipografías, sonidos, ambiente del bonus, fichas por moneda y marca.
         Las imágenes y nombres de los símbolos pasan por equivalencia (comodín con comodín, scatter con scatter, y los normales de menor a mayor pago). La matemática es la del motor nuevo, calibrada al RTP de este juego. <b>El original no se toca.</b></p>
-      <div><label>Motor nuevo</label><select id="cvEngine">${engines.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} — ${esc(e.description)}</option>`).join('')}</select></div>
+      <div><label>Motor nuevo — toca una ficha para elegirlo</label>${enginePicker(engines, 'cvEngine')}</div>
       <div><label>Nombre del juego nuevo</label><input id="cvName" value="${esc(g.name)} 2" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="cvTune" style="width:auto" checked /> Calibrar la matemática al RTP de este juego (${pct(g.draft.rtpTarget)}) — puede tardar hasta ~1 minuto</label>
       <div class="row"><button class="primary" id="cvGo">Crear copia con el motor nuevo</button><span class="muted" id="cvMsg"></span></div></div>`, (root, close) => {
+      bindEnginePicker(root, 'cvEngine');
       $('#cvGo', root).addEventListener('click', guard(async () => {
         $('#cvMsg', root).textContent = '⏳ Creando y calibrando…';
         const r = await busy($('#cvGo', root), () => api(`/api/admin/games/${encodeURIComponent(S.gameId)}/convert`, { method: 'POST', body: { engine: $('#cvEngine', root).value, name: $('#cvName', root).value.trim(), tune: $('#cvTune', root).checked } }));

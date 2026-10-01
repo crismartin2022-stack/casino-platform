@@ -7,11 +7,14 @@ import * as holdWin from './hold-win.js';
 import * as colossal from './colossal-reels.js';
 import * as clusterPays from './cluster-pays.js';
 import * as scatterPays from './scatter-pays.js';
+import { RULE_SCHEMAS, ENGINE_CARDS } from './rule-schemas.js';
+import { readFileSync } from 'node:fs';
 import * as expanding from './expanding-symbol.js';
 import * as stickyWilds from './sticky-wilds.js';
 import * as megawaysCascade from './megaways-cascade.js';
 import * as craps from './craps.js';
 import * as treasureChests from './treasure-chests.js';
+import * as cashCollect from './cash-collect.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -30,6 +33,7 @@ export const ENGINES = {
   [stickyWilds.id]: stickyWilds,
   [megawaysCascade.id]: megawaysCascade,
   [treasureChests.id]: treasureChests,
+  [cashCollect.id]: cashCollect,
   [craps.id]: craps,
 };
 
@@ -58,12 +62,33 @@ export function getEngine(id) {
   return e;
 }
 
-export const engineList = () => Object.values(ENGINES).map((e) => ({
-  id: e.id, name: e.name, description: e.description, modes: e.modes || ['base'],
-  kind: e.kind || 'slot',
-  paysBy: e.kind === 'table' ? 'table' : e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
-  variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
-}));
+// Ficha de cada motor: lo que muestra la semilla calibrada (volatilidad, frecuencia, compra) para elegir motor
+let seedMath = null;
+function seedMathOf(id) {
+  if (!seedMath) {
+    seedMath = {};
+    for (const x of Object.keys(ENGINES)) {
+      try { seedMath[x] = JSON.parse(readFileSync(new URL(`../games/seed/${x}.json`, import.meta.url), 'utf8')).math || null; } catch { seedMath[x] = null; }
+    }
+  }
+  return seedMath[id];
+}
+
+export const engineList = () => Object.values(ENGINES).map((e) => {
+  const m = seedMathOf(e.id);
+  return {
+    id: e.id, name: e.name, description: e.description, modes: e.modes || ['base'],
+    kind: e.kind || 'slot',
+    paysBy: e.kind === 'table' ? 'table' : e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
+    variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
+    card: {
+      ...(ENGINE_CARDS[e.id] || {}),
+      ...(m ? { rtp: m.rtp, volatility: m.volatility || null, hitFrequency: m.hitFrequency ?? null, featureEvery: m.featureEvery ?? null,
+        buy: (m.buyOptions || []).map((b) => ({ mode: b.mode, cost: b.cost })) } : {}),
+    },
+    ruleSchema: RULE_SCHEMAS[e.id] || [],
+  };
+});
 
 export function costMultiplier(engine, config, mode = 'base') {
   return engine.costMultiplier ? engine.costMultiplier(config, mode) : 1;
@@ -344,7 +369,9 @@ export function priceBuys(engine, cfg, target, spins = 400_000, seed = 777) {
     // Valor esperado del bono medido por lotes hasta ±0,5 % (o un tercio del tiempo de refinado por modo)
     const probe = simulatePooled(cfg, { mode: b.mode, seed: seed + 5, targetHalf: 0.005, budgetMs: refineBudget() / 3, minSpins: Math.max(20_000, spins / 10), chunk: 100_000 });
     const ev = probe.rtp * probe.costMultiplier;
-    b.set(cfg, Math.max(5, Math.round(ev / target)));
+    // Precio redondeado hacia arriba (2 decimales si es menor que 10×, si no 1): el RTP de la compra nunca supera el objetivo
+    const raw = ev / target, k = raw < 10 ? 100 : 10;
+    b.set(cfg, Math.max(1, Math.ceil(raw * k - 1e-9) / k));
     // RTP de la compra con el precio nuevo (el retorno es inversamente proporcional al precio)
     const q = probe.costMultiplier / Math.max(1e-9, costMultiplier(engine, cfg, b.mode));
     const r4 = (x) => Math.round(x * q * 1e4) / 1e4;

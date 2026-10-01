@@ -38,23 +38,28 @@ export function seedTemplates() {
 }
 
 // Juegos de fábrica recalibrados (bonus más frecuente). Se actualizan solos SOLO si nadie los tocó.
-const FACTORY_RECALIBRATED = { 'megaways-cascade': 'Recalibración de fábrica: bonus cada ~185 giros', 'scatter-pays': 'Recalibración de fábrica: bonus cada ~185 giros' };
+const FACTORY_RECALIBRATED = { 'bonus-buy': 'Actualización de fábrica: bonos del diseño original (sorpresa 5 %, Colecciona, El camino)', 'treasure-chests': 'Actualización de fábrica: símbolos 9, 8 y 7 como el diseño original', 'megaways-cascade': 'Actualización de fábrica: diseño original (comodines multiplican, 10 giros por scatter)', 'scatter-pays': 'Recalibración de fábrica: bonus cada ~185 giros',
+  'hold-win': 'Actualización de fábrica: diseño original 5x5, ELIGE Y FIJA, especiales y jackpots por fijas', megaways: 'Actualización de fábrica: diseño original (comodines y símbolos multiplicador, 10 giros por scatter)',
+  'sticky-wilds': 'Actualización de fábrica: diseño original (3 comodines fijos al azar, +5 giros)', craps: 'Actualización de fábrica: Field paga 2 a 1 con el 12 (diseño original)' };
 
 export function seedGames() {
   const templates = seedTemplates();
   for (const c of Object.values(templates)) {
     const existing = one('SELECT * FROM games WHERE id = ?', c.id);
-    if (existing && FACTORY_RECALIBRATED[c.id] && existing.published_version === 1) {
-      const v1 = one("SELECT config, created_by FROM game_versions WHERE game_id = ? AND version = 1", c.id);
+    if (existing && FACTORY_RECALIBRATED[c.id]) {
+      // Solo si la última versión publicada es de fábrica (creada por el sistema) y el borrador no se tocó
+      const n = existing.published_version;
+      const last = one('SELECT config, created_by FROM game_versions WHERE game_id = ? AND version = ?', c.id, n);
+      const top = one('SELECT MAX(version) AS v FROM game_versions WHERE game_id = ?', c.id)?.v;
       const { math, ...config } = c;
-      const untouched = v1?.created_by === 'system' && stableStringify(JSON.parse(existing.draft)) === stableStringify(JSON.parse(v1.config));
-      if (untouched && mathHash(JSON.parse(v1.config)) !== mathHash(config)) {
+      const untouched = top === n && last?.created_by === 'system' && stableStringify(JSON.parse(existing.draft)) === stableStringify(JSON.parse(last.config));
+      if (untouched && mathHash(JSON.parse(last.config)) !== mathHash(config)) {
         tx(() => {
-          run('INSERT INTO game_versions (game_id, version, config, math_hash, math, note, created_by) VALUES (?, 2, ?, ?, ?, ?, ?)',
-            c.id, JSON.stringify(config), mathHash(config), JSON.stringify(math || null), FACTORY_RECALIBRATED[c.id], 'system');
-          run('UPDATE games SET draft = ?, draft_updated_at = ?, published_version = 2 WHERE id = ?', JSON.stringify(config), now(), c.id);
+          run('INSERT INTO game_versions (game_id, version, config, math_hash, math, note, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            c.id, n + 1, JSON.stringify(config), mathHash(config), JSON.stringify(math || null), FACTORY_RECALIBRATED[c.id], 'system');
+          run('UPDATE games SET draft = ?, draft_updated_at = ?, published_version = ? WHERE id = ?', JSON.stringify(config), now(), n + 1, c.id);
         });
-        console.log(`[seed] ${c.id} recalibrado (v2)`);
+        console.log(`[seed] ${c.id} actualizado de fábrica (v${n + 1})`);
       }
     }
     if (existing) continue;
@@ -133,8 +138,12 @@ export function publicConfig(id, c, version) {
   const { reels, freeSpinReels, ...rest } = structuredClone(c);
   const rules = { ...rest.rules };
   for (const k of ['rowWeights', 'coinValues', 'colossalSymbols', 'colossalSizes', 'landChance', 'colossalChance',
-    'multiplierValues', 'mysteryWeights', 'expandWeights', 'specialCoins', 'specialChance', 'bonusMenu']) delete rules[k];
+    'multiplierValues', 'mysteryWeights', 'expandWeights', 'specialCoins', 'specialChance', 'bonusMenu', 'frameValues', 'pickSpecials', 'anteScatterChance']) delete rules[k];
   if (c.rules?.coinValues) rules.coinValues = c.rules.coinValues.filter((v) => v.value != null).map((v) => v.value);
+  // Niveles de moneda con nombre (Hold & Win ELIGE Y FIJA): nombre, valor y color, sin probabilidades
+  if (c.rules?.coinValues?.some((v) => v.name)) rules.coinTiers = c.rules.coinValues.filter((v) => v.name && v.value != null).map((v) => ({ name: v.name, value: v.value, ...(v.color ? { color: v.color } : {}) }));
+  if (c.rules?.frameValues) rules.frameValues = c.rules.frameValues.map((f) => f.value);
+  if (c.rules?.pickSpecials) rules.pickSpecials = [...new Set(c.rules.pickSpecials.map((x) => x.type))].map((type) => ({ type }));
   if (c.rules?.multiplierValues) rules.multiplierValues = c.rules.multiplierValues.map((m) => m.value);
   // Premios de los cofres (sin sus probabilidades)
   if (c.rules?.chestPrizes) rules.chestPrizes = [...new Set(c.rules.chestPrizes.map((p) => p.mult))].sort((a, b) => a - b);
@@ -143,8 +152,9 @@ export function publicConfig(id, c, version) {
   // Menú de compra: nombre, precio y lo necesario para dibujar (sin probabilidades)
   if (c.rules?.bonusMenu) {
     rules.bonusMenu = Object.fromEntries(Object.entries(c.rules.bonusMenu).filter(([, o]) => o?.enabled).map(([k, o]) => [k, {
-      name: o.name, cost: o.cost, freeSpins: o.freeSpins, spins: o.spins, multStep: o.multStep, picks: o.picks, tiles: o.tiles,
+      enabled: true, name: o.name, cost: o.cost, freeSpins: o.freeSpins, spins: o.spins, multStep: o.multStep, picks: o.picks, tiles: o.tiles,
       segments: o.segments?.map((x) => x.value), prizes: o.prizes?.map((x) => x.value),
+      bonusMult: o.bonusMult, items: o.items, length: o.length, stepMin: o.stepMin, stepMax: o.stepMax,
     }]));
   }
   return { id, version, ...rest, rules };
@@ -331,7 +341,7 @@ export async function convertEngine(fromId, { engine, name, brandId, tune = true
   const value = (x) => Math.max(0, ...Object.values(x.pays || {}).map(Number));
   const srcSyms = src.symbols || [];
   const pickType = (types) => { for (const t of types) { const f = srcSyms.find((x) => kind(x) === t && !used.has(x.id)); if (f) return f; } return null; };
-  const EQUIV = { wild: ['wild', 'wildscatter'], scatter: ['scatter', 'wildscatter'], wildscatter: ['wildscatter', 'scatter', 'wild'], coin: ['coin'], multiplier: ['multiplier'], mystery: ['mystery'] };
+  const EQUIV = { wild: ['wild', 'wildscatter'], scatter: ['scatter', 'wildscatter'], wildscatter: ['wildscatter', 'scatter', 'wild'], coin: ['coin'], collector: ['collector'], multiplier: ['multiplier'], mystery: ['mystery'] };
   const srcReg = srcSyms.filter((x) => kind(x) === 'regular').sort((a, b) => value(a) - value(b));
   const dstReg = (c.symbols || []).filter((x) => kind(x) === 'regular').sort((a, b) => value(a) - value(b));
   const regMap = new Map();

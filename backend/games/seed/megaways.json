@@ -13,10 +13,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=9&color=%233498db",
       "pays": {
-        "3": 0.092841,
-        "4": 0.185681,
-        "5": 0.464203,
-        "6": 0.928406
+        "3": 0.024176,
+        "4": 0.048354,
+        "5": 0.120883,
+        "6": 0.241766
       }
     },
     {
@@ -25,10 +25,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=10&color=%232980b9",
       "pays": {
-        "3": 0.092841,
-        "4": 0.185681,
-        "5": 0.464203,
-        "6": 0.928406
+        "3": 0.024176,
+        "4": 0.048354,
+        "5": 0.120883,
+        "6": 0.241766
       }
     },
     {
@@ -37,10 +37,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=J&color=%2327ae60",
       "pays": {
-        "3": 0.139261,
-        "4": 0.278522,
-        "5": 0.696305,
-        "6": 1.39261
+        "3": 0.036265,
+        "4": 0.07253,
+        "5": 0.181324,
+        "6": 0.362649
       }
     },
     {
@@ -49,10 +49,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=Q&color=%2316a085",
       "pays": {
-        "3": 0.139261,
-        "4": 0.278522,
-        "5": 0.696305,
-        "6": 1.39261
+        "3": 0.036265,
+        "4": 0.07253,
+        "5": 0.181324,
+        "6": 0.362649
       }
     },
     {
@@ -61,10 +61,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=K&color=%23d35400",
       "pays": {
-        "3": 0.185681,
-        "4": 0.464203,
-        "5": 0.928406,
-        "6": 2.321017
+        "3": 0.048354,
+        "4": 0.120883,
+        "5": 0.241766,
+        "6": 0.604414
       }
     },
     {
@@ -73,10 +73,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=A&color=%23c0392b",
       "pays": {
-        "3": 0.185681,
-        "4": 0.464203,
-        "5": 0.928406,
-        "6": 2.321017
+        "3": 0.048354,
+        "4": 0.120883,
+        "5": 0.241766,
+        "6": 0.604414
       }
     },
     {
@@ -85,10 +85,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%8E%AD&color=%238e44ad",
       "pays": {
-        "3": 0.464203,
-        "4": 1.160508,
-        "5": 2.78522,
-        "6": 6.96305
+        "3": 0.120883,
+        "4": 0.302207,
+        "5": 0.725298,
+        "6": 1.813244
       }
     },
     {
@@ -97,10 +97,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%97%BF&color=%237f8c8d",
       "pays": {
-        "3": 0.696305,
-        "4": 1.856813,
-        "5": 4.642033,
-        "6": 11.605083
+        "3": 0.181324,
+        "4": 0.483532,
+        "5": 1.20883,
+        "6": 3.022074
       }
     },
     {
@@ -109,10 +109,10 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%91%91&color=%23f1c40f",
       "pays": {
-        "3": 1.160508,
-        "4": 3.481525,
-        "5": 9.284066,
-        "6": 23.210166
+        "3": 0.302207,
+        "4": 0.906622,
+        "5": 2.417658,
+        "6": 6.044146
       }
     },
     {
@@ -127,6 +127,13 @@
       "name": "Scatter",
       "type": "scatter",
       "image": "/gen/symbol.svg?label=%E2%98%85&color=%23e67e22",
+      "pays": {}
+    },
+    {
+      "id": "orb",
+      "name": "Multiplicador",
+      "type": "multiplier",
+      "image": "/gen/symbol.svg?label=%C3%97&color=%239b59b6",
       "pays": {}
     }
   ],
@@ -151,7 +158,7 @@
       "crown",
       "ten",
       "ten",
-      "scatter",
+      "orb",
       "jack",
       "king",
       "king",
@@ -212,7 +219,7 @@
       "mask",
       "nine",
       "king",
-      "scatter",
+      "orb",
       "ace",
       "king",
       "jack",
@@ -301,7 +308,7 @@
       "ace",
       "ten",
       "ten",
-      "scatter",
+      "orb",
       "king",
       "nine",
       "ten",
@@ -371,7 +378,7 @@
       "jack",
       "king",
       "king",
-      "scatter",
+      "orb",
       "ace",
       "nine",
       "mask",
@@ -463,7 +470,7 @@
       "ten",
       "ace",
       "ten",
-      "scatter",
+      "orb",
       "nine",
       "idol",
       "nine",
@@ -549,7 +556,7 @@
       "ace",
       "crown",
       "jack",
-      "scatter",
+      "orb",
       "queen",
       "jack",
       "idol",
@@ -585,14 +592,39 @@
         "weight": 5
       }
     ],
-    "scattersToTrigger": 4,
+    "scattersToTrigger": 3,
+    "freeSpinsPerScatter": 10,
     "freeSpins": {
-      "4": 10,
-      "5": 15,
-      "6": 20
+      "3": 30,
+      "4": 40,
+      "5": 50,
+      "6": 60
     },
     "retrigger": 5,
-    "fsMultiplierStep": 1,
+    "fsMultiplierStep": 0.5,
+    "wildMultMin": 2,
+    "multiplierValues": [
+      {
+        "value": 2,
+        "weight": 50
+      },
+      {
+        "value": 3,
+        "weight": 25
+      },
+      {
+        "value": 5,
+        "weight": 15
+      },
+      {
+        "value": 10,
+        "weight": 8
+      },
+      {
+        "value": 25,
+        "weight": 2
+      }
+    ],
     "maxWin": 10000
   },
   "bet": {
@@ -634,14 +666,15 @@
   "rtpTarget": 0.96,
   "id": "megaways",
   "math": {
-    "rtp": 0.9608,
+    "rtp": 0.96,
     "ci": [
-      0.9549,
-      0.9667
+      0.9527,
+      0.9674
     ],
-    "hitFrequency": 0.5281,
-    "featureEvery": 401,
-    "volatility": "media",
-    "buy": null
+    "hitFrequency": 0.5289,
+    "featureEvery": 274,
+    "volatility": "alta",
+    "buy": null,
+    "buyOptions": []
   }
 }

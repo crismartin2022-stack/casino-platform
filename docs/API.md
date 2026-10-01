@@ -57,7 +57,7 @@ Respuesta `201`:
 | POST | `/api/v1/demo/sessions` | `{ "gameId": "reel-rush" }` → sesión demo con créditos ficticios (límite por IP) |
 | GET | `/api/v1/session` | Juego, modo y configuración de la sesión |
 | GET | `/api/v1/balance` | Saldo actual |
-| POST | `/api/v1/spin` | `{ "bet": 100, "mode": "base" \| "buy", "clientRoundId": "único-por-ronda" }` |
+| POST | `/api/v1/spin` | `{ "bet": 100, "mode": "base" \| "buy" \| "buy-…" \| "ante", "clientRoundId": "único-por-ronda" }` |
 | GET | `/api/v1/history?limit=20` | Últimas rondas del jugador |
 
 Respuesta de `/spin`:
@@ -72,7 +72,9 @@ Respuesta de `/spin`:
 
 - `result.totalWin` está en **múltiplos de la apuesta**; `win` ya está en centavos.
 - `clientRoundId` hace la llamada **idempotente**: si se corta la conexión y el cliente reintenta con el mismo id, se devuelve la misma ronda (`"replayed": true`) sin cobrar dos veces.
-- `mode: "buy"` solo existe en motores con compra de bonus (`bonus-buy`); el coste es `bet × rules.buyCost`.
+- `mode: "buy"` solo existe en motores con compra de bonus; el coste es `bet × rules.buyCost`. Bonus Buy tiene además `buy-pick`, `buy-wheel`, `buy-collect`, `buy-path` y `buy-sticky` (coste `bet × rules.bonusMenu.<bono>.cost`).
+- `mode: "ante"` (doble chance, en Tormenta del Olimpo y El Libro del Desierto) cuesta `bet × rules.anteCost` y da más scatters.
+- `GET /api/v1/engines` lista los motores con su ficha (`card`: cuadrícula, pagos, bonus, funciones, volatilidad, frecuencia del bonus, compra) y el esquema editable de sus reglas (`ruleSchema`).
 - Errores: `400` apuesta o modo inválido, `401` sesión inválida/expirada, `402` saldo insuficiente, `429` demasiadas peticiones, `502` billetera del operador no disponible.
 
 ### Formato de `result` por motor

@@ -11,5 +11,6 @@ export const ENGINE_LOADERS = {
   'sticky-wilds': () => import('./engine-sticky-wilds/src/StickyWildsEngine.js').then((m) => m.StickyWildsEngine),
   'megaways-cascade': () => import('./engine-megaways-cascade/src/MegawaysCascadeEngine.js').then((m) => m.MegawaysCascadeEngine),
   'treasure-chests': () => import('./engine-treasure-chests/src/TreasureChestsEngine.js').then((m) => m.TreasureChestsEngine),
+  'cash-collect': () => import('./engine-cash-collect/src/CashCollectEngine.js').then((m) => m.CashCollectEngine),
   craps: () => import('./engine-craps/src/CrapsEngine.js').then((m) => m.CrapsEngine),
 };

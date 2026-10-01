@@ -12,9 +12,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%E2%97%86&color=%233498db",
       "pays": {
-        "8": 0.130406,
-        "10": 0.391218,
-        "12": 1.04325
+        "8": 0.072236,
+        "10": 0.216709,
+        "12": 0.577893
       }
     },
     {
@@ -23,9 +23,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%E2%97%86&color=%2327ae60",
       "pays": {
-        "8": 0.20865,
-        "10": 0.469463,
-        "12": 2.0865
+        "8": 0.115578,
+        "10": 0.260052,
+        "12": 1.155786
       }
     },
     {
@@ -34,9 +34,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%E2%97%86&color=%238e44ad",
       "pays": {
-        "8": 0.260813,
-        "10": 0.521625,
-        "12": 2.608125
+        "8": 0.144473,
+        "10": 0.288947,
+        "12": 1.444732
       }
     },
     {
@@ -45,9 +45,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%E2%97%86&color=%23e74c3c",
       "pays": {
-        "8": 0.4173,
-        "10": 0.62595,
-        "12": 4.173001
+        "8": 0.231158,
+        "10": 0.346736,
+        "12": 2.311571
       }
     },
     {
@@ -56,9 +56,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%8F%86&color=%23f39c12",
       "pays": {
-        "8": 0.521625,
-        "10": 0.782438,
-        "12": 5.21625
+        "8": 0.288947,
+        "10": 0.43342,
+        "12": 2.889465
       }
     },
     {
@@ -67,9 +67,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%92%8D&color=%231abc9c",
       "pays": {
-        "8": 0.782438,
-        "10": 1.04325,
-        "12": 6.259501
+        "8": 0.43342,
+        "10": 0.577893,
+        "12": 3.467357
       }
     },
     {
@@ -78,9 +78,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%E2%8F%B3&color=%23d35400",
       "pays": {
-        "8": 1.04325,
-        "10": 2.608125,
-        "12": 7.824376
+        "8": 0.577893,
+        "10": 1.444732,
+        "12": 4.334196
       }
     },
     {
@@ -89,9 +89,9 @@
       "type": "regular",
       "image": "/gen/symbol.svg?label=%F0%9F%91%91&color=%23f1c40f",
       "pays": {
-        "8": 5.21625,
-        "10": 13.040627,
-        "12": 26.081254
+        "8": 2.889465,
+        "10": 7.22366,
+        "12": 14.447321
       }
     },
     {
@@ -101,9 +101,9 @@
       "image": "/gen/symbol.svg?label=%E2%9A%A1&color=%23e84393",
       "pays": {},
       "scatterPays": {
-        "4": 1.564875,
-        "5": 2.608125,
-        "6": 52.162507
+        "4": 0.866839,
+        "5": 1.444732,
+        "6": 28.894642
       }
     },
     {
@@ -123,6 +123,7 @@
       "hourglass",
       "red",
       "green",
+      "blue",
       "bomb",
       "green",
       "crown",
@@ -131,17 +132,16 @@
       "green",
       "ring",
       "purple",
-      "hourglass",
       "ring",
       "scatter",
       "green",
       "red",
       "blue",
-      "green",
       "purple",
       "red",
       "ring",
       "hourglass",
+      "red",
       "cup",
       "purple",
       "red",
@@ -158,9 +158,9 @@
       "red",
       "blue",
       "blue",
-      "ring",
-      "ring",
       "blue",
+      "ring",
+      "ring",
       "purple",
       "bomb",
       "hourglass",
@@ -171,18 +171,18 @@
       "ring",
       "scatter",
       "blue",
+      "cup",
+      "cup",
       "green",
       "green",
       "red",
-      "blue",
       "red",
-      "ring",
       "hourglass",
       "cup",
       "cup",
       "purple",
       "purple",
-      "cup",
+      "purple",
       "ring",
       "purple",
       "crown"
@@ -191,72 +191,72 @@
       "red",
       "blue",
       "cup",
-      "green",
       "cup",
       "red",
       "green",
       "crown",
-      "purple",
       "blue",
       "purple",
       "blue",
       "red",
       "purple",
       "green",
+      "purple",
+      "red",
       "green",
       "hourglass",
       "scatter",
+      "green",
       "purple",
       "green",
+      "green",
       "blue",
-      "blue",
-      "cup",
       "blue",
       "green",
       "green",
-      "crown",
       "purple",
       "purple",
       "purple",
       "green",
       "red",
+      "blue",
       "hourglass",
       "purple"
     ],
     [
       "green",
-      "cup",
       "red",
       "cup",
-      "red",
       "purple",
       "ring",
-      "hourglass",
       "purple",
       "purple",
       "cup",
       "ring",
       "red",
+      "green",
       "blue",
       "green",
       "red",
+      "ring",
       "purple",
-      "scatter",
       "cup",
+      "scatter",
       "ring",
       "hourglass",
       "purple",
-      "ring",
       "red",
+      "cup",
       "purple",
-      "hourglass",
       "green",
       "blue",
       "bomb",
       "blue",
       "green",
       "red",
+      "red",
       "green",
+      "purple",
       "crown"
     ],
     [
@@ -266,33 +266,33 @@
       "hourglass",
       "red",
       "purple",
+      "blue",
       "green",
       "purple",
       "cup",
       "red",
-      "purple",
       "ring",
+      "cup",
       "red",
       "ring",
-      "crown",
       "blue",
       "cup",
       "scatter",
       "green",
       "blue",
       "purple",
-      "blue",
-      "red",
       "red",
       "purple",
       "purple",
       "blue",
       "blue",
+      "green",
       "cup",
-      "blue",
       "bomb",
       "crown",
       "green",
+      "blue",
+      "red",
       "red"
     ],
     [
@@ -304,30 +304,30 @@
       "blue",
       "purple",
       "purple",
-      "purple",
       "blue",
       "ring",
-      "red",
-      "red",
       "ring",
+      "red",
+      "red",
+      "red",
+      "red",
       "cup",
-      "green",
       "purple",
       "scatter",
       "ring",
       "bomb",
-      "ring",
       "hourglass",
       "purple",
       "hourglass",
       "red",
-      "ring",
       "red",
+      "purple",
       "purple",
       "green",
       "blue",
       "blue",
       "hourglass",
+      "red",
       "cup",
       "crown"
     ]
@@ -771,8 +771,13 @@
     "freeSpins": 15,
     "retriggerScatters": 3,
     "retrigger": 5,
-    "buyCost": 49,
+    "buyCost": 27.2,
     "maxWin": 5000,
+    "zeusChance": 0.03,
+    "zeusOrbsMin": 1,
+    "zeusOrbsMax": 3,
+    "anteCost": 1.22,
+    "anteScatterChance": 0.0065,
     "multiplierValues": [
       {
         "value": 2,
@@ -858,32 +863,41 @@
   "rtpTarget": 0.96,
   "id": "scatter-pays",
   "math": {
-    "rtp": 0.9606,
+    "rtp": 0.96,
     "ci": [
-      0.9509,
-      0.9704
+      0.9543,
+      0.9657
     ],
-    "hitFrequency": 0.3018,
-    "featureEvery": 184,
+    "hitFrequency": 0.422,
+    "featureEvery": 181,
     "volatility": "media",
+    "buy": {
+      "buyCost": 27.2,
+      "rtp": 0.9592,
+      "ci": [
+        0.9496,
+        0.9688
+      ]
+    },
     "buyOptions": [
       {
         "mode": "buy",
-        "cost": 49,
-        "rtp": 0.9728,
+        "cost": 27.2,
+        "rtp": 0.9592,
         "ci": [
-          0.9638,
-          0.9817
+          0.9496,
+          0.9688
+        ]
+      },
+      {
+        "mode": "ante",
+        "cost": 1.22,
+        "rtp": 0.9596,
+        "ci": [
+          0.9472,
+          0.9721
         ]
       }
-    ],
-    "buy": {
-      "buyCost": 49,
-      "rtp": 0.9728,
-      "ci": [
-        0.9638,
-        0.9817
-      ]
-    }
+    ]
   }
 }
