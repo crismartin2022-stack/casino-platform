@@ -73,7 +73,7 @@ export class ColossalEngine extends BaseEngine {
       gsap.to(spr.skew, { x: 0, y: 0, duration: 0.45, ease: 'power3.in' }).then(),
     ]);
     gsap.to(shadow, { alpha: 0.45, duration: 0.2 });
-    await this.shake(col.size === 3 ? 14 : 8);
+    await this.shake(col.size >= 4 ? 22 : col.size === 3 ? 14 : 8);
     if (this.game.theme?.render3d !== false) {
       gsap.to(spr.scale, { x: k * 1.04, y: k * 0.98, duration: 1.2, yoyo: true, repeat: -1, ease: 'sine.inOut' });
     }

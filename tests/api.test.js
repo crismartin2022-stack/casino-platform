@@ -60,9 +60,9 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 12 juegos publicados', async () => {
+test('lista los 13 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win',
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'cluster-pays', 'colossal-reels', 'craps', 'expanding-symbol', 'hold-win',
     'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
@@ -88,7 +88,7 @@ test('bonus buy: menú de compra (ruleta) cobra su precio', async () => {
   const cost = sess.game.rules.bonusMenu.wheel.cost;
   const r = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${s.token}` }, body: { bet: 20, mode: 'buy-wheel' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  assert.equal(r.body.cost, 20 * cost);
+  assert.equal(r.body.cost, Math.round(20 * cost));
   assert.equal(r.body.result.bonus.type, 'wheel');
 });
 
@@ -466,7 +466,7 @@ test('forzar bonus: solo en la vista previa del borrador', async () => {
   const no = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${demo.token}` }, body: { bet: 100, force: true } });
   assert.equal(no.status, 403);
   // Un juego sin bonus avisa
-  const { body: pv2 } = await req('/api/admin/games/cluster-pays/preview-session', { method: 'POST', headers: ADMIN });
+  const { body: pv2 } = await req('/api/admin/games/reel-rush/preview-session', { method: 'POST', headers: ADMIN });
   const nb = await req('/api/v1/spin', { method: 'POST', headers: { authorization: `Bearer ${pv2.token}` }, body: { bet: 100, force: true } });
   assert.equal(nb.status, 409);
 });
@@ -594,7 +594,8 @@ test('cambiar motor: copia con otro motor conservando el diseño y los símbolos
   assert.equal(img(g.draft, 'scatter'), img(src.draft, 'scatter'));
   const top = (cfg) => cfg.symbols.filter((x) => !x.type || x.type === 'regular').sort((a, b) => Math.max(...Object.values(b.pays)) - Math.max(...Object.values(a.pays)))[0];
   assert.equal(top(g.draft).image, top(src.draft).image);
-  assert.equal(r.body.missing.length, 0);
+  // (el símbolo multiplicador de Megaways no tiene equivalente en Forajidos: queda el de la plantilla)
+  assert.equal(r.body.missing.filter((m) => m.type !== 'multiplier').length, 0);
   // el original sigue con su motor
   assert.equal((await req('/api/admin/games/sticky-wilds', { headers: ADMIN })).body.engine, 'sticky-wilds');
   assert.equal((await req('/api/admin/games/sticky-wilds/convert', { method: 'POST', headers: ADMIN, body: { engine: 'sticky-wilds' } })).status, 400);
@@ -614,10 +615,27 @@ test('cofres: premios por fila, elección de cofre con multiplicador y compra de
   assert.equal(r.chest.others.length, 2);
   assert.ok(r.freeSpins.spins.length >= r.freeSpins.awarded);
   for (const s of r.freeSpins.spins) for (const w of s.wins) assert.ok(w.count >= 3 && w.positions.every(([, row]) => row === w.row));
-  const buy = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, mode: 'buy' } });
-  assert.equal(buy.status, 200, JSON.stringify(buy.body));
-  assert.ok(buy.body.cost >= 500 && buy.body.result.chest);
+  // Como el diseño original, sin compra de bonus por defecto
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, mode: 'buy' } })).status, 400);
   // las probabilidades de los cofres no se exponen
   const { body: g } = await req('/api/v1/games/treasure-chests');
   assert.ok(g.rules.chestPrizes.every((x) => typeof x === 'number'));
+});
+
+test('cash collect: el recolector cobra todas las monedas; niveles en giros gratis', async () => {
+  const { body: pv } = await req('/api/admin/games/cash-collect/preview-session', { method: 'POST', headers: ADMIN });
+  const auth = { authorization: `Bearer ${pv.token}` };
+  const f = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, force: true } });
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  const fs = f.body.result.freeSpins;
+  assert.ok(fs.spins.length >= fs.awarded);
+  for (const s of fs.spins) {
+    const sum = s.coins.reduce((a, k) => a + k.value, 0);
+    const expect = s.collectors.length && s.coins.length ? sum * s.collectors.length * s.mult : 0;
+    assert.ok(Math.abs(s.collectWin - expect) < 1e-5, 'cobro = monedas × recolectores × multiplicador');
+  }
+  const buy = await req('/api/v1/spin', { method: 'POST', headers: auth, body: { bet: 100, mode: 'buy' } });
+  assert.equal(buy.status, 200, JSON.stringify(buy.body));
+  const { body: g } = await req('/api/v1/games/cash-collect');
+  assert.ok(g.rules.coinValues.every((x) => typeof x === 'number'), 'sin probabilidades expuestas');
 });

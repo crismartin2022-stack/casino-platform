@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { ENGINES, validateConfig, simulate, buyModesOf } from '../backend/math/index.js';
+import { ENGINES, validateConfig, simulate, buyModesOf, costMultiplier } from '../backend/math/index.js';
 import { seededRng, recordingRng, replayRng } from '../backend/math/rng.js';
 
 const seeds = Object.fromEntries(readdirSync(new URL('../backend/games/seed/', import.meta.url))
@@ -181,6 +181,40 @@ test('bonus-buy: cada opción del menú cobra su precio y paga su bono', () => {
   assert.equal(pick.totalWin, pick.values.reduce((a, v) => a + v, 0));
 });
 
+test('bonus-buy: diseño original — sorpresa, wilds fijos al azar, giros extra, colecciona y camino', () => {
+  const e = ENGINES['bonus-buy'];
+  const c = seeds['bonus-buy'];
+  const R = c.rules;
+  const rng = seededRng(31);
+  let surprises = 0, extra = 0, stickyOk = 0;
+  for (let i = 0; i < 4000; i++) {
+    const r = e.play(c, rng);
+    if (r.surprise) { surprises++; assert.ok(r.bonus || r.freeSpins); }
+    const fs = r.freeSpins;
+    if (!fs) continue;
+    if (R.fsStickyRandom > 0) {
+      assert.ok(fs.sticky);
+      const first = fs.spins[0].held;
+      assert.equal(first.length, R.fsStickyRandom);
+      for (const s of fs.spins) { assert.deepEqual(s.held, first); stickyOk++; }
+    }
+    for (const s of fs.spins) if (s.extra) extra++;
+  }
+  assert.ok(surprises > 0, 'sin bonus sorpresa');
+  assert.ok(stickyOk > 0 && extra > 0, 'sin wilds fijos o giros extra');
+  const col = e.play(c, rng, { mode: 'buy-collect' }).bonus;
+  assert.equal(col.type, 'collect');
+  assert.equal(col.items.length, R.bonusMenu.collect.items);
+  for (const it of col.items) assert.ok(Math.abs(it.win - it.value * it.mult) < 1e-6);
+  const path = e.play(c, rng, { mode: 'buy-path' }).bonus;
+  assert.equal(path.type, 'path');
+  assert.equal(path.moves.at(-1).position, R.bonusMenu.path.length - 1);
+  path.moves.forEach((m, i) => assert.ok(Math.abs(m.multiplier - (1 + i * R.bonusMenu.path.multStep)) < 1e-6));
+  const wheel = e.play(c, rng, { mode: 'buy-wheel' }).bonus;
+  assert.equal(wheel.segmentsInfo.length, R.bonusMenu.wheel.segmentsCount);
+  for (const s of wheel.spins) assert.equal(s.value, wheel.segmentsInfo[s.segment].value);
+});
+
 test('expanding-symbol: la expansión paga según rodillos con el símbolo especial', () => {
   const e = ENGINES['expanding-symbol'];
   const c = seeds['expanding-symbol'];
@@ -189,10 +223,11 @@ test('expanding-symbol: la expansión paga según rodillos con el símbolo espec
   for (let i = 0; i < 5000 && seen < 20; i++) {
     const r = e.play(c, rng);
     for (const s of r.freeSpins?.spins || []) {
-      if (!s.expanded.length) continue;
+      if (!s.expanded.length || s.expansions) continue;
       seen++;
       const sp = c.symbols.find((x) => x.id === r.freeSpins.special);
-      assert.ok(Math.abs(s.expandWin - (sp.pays[String(s.expanded.length)] || 0)) < 1e-6);
+      const frame = s.frame && s.expanded.includes(s.frame.reel) ? s.frame.mult : 1;
+      assert.ok(Math.abs(s.expandWin - (sp.pays[String(s.expanded.length)] || 0) * frame) < 1e-6);
       for (const col of s.expanded) assert.ok(s.grid[col].includes(r.freeSpins.special));
     }
   }
@@ -210,7 +245,7 @@ test('craps: configuración inicial válida y RTP exacto de las apuestas clásic
   assert.equal(a.dontPass, 0.9864);
   assert.equal(a.odds, 1);
   assert.equal(a.place['6'], 0.9848);  // 7:6
-  assert.equal(a.field, 0.9722);       // 2 doble, 12 triple
+  assert.equal(a.field, 0.9444);       // 2 y 12 pagan 2 a 1 (diseño original)
 });
 
 const fixed = (a, b) => { const d = [a - 1, b - 1]; let i = 0; return { int: () => d[i++] }; };
@@ -232,12 +267,12 @@ test('craps: Pass Line gana con 7 en la salida, fija punto y gana/pierde despué
   assert.equal(r.state.phase, 'comeOut');
 });
 
-test("craps: Don't Pass empata con 12 en la salida y Field paga triple el 12", () => {
+test("craps: Don't Pass empata con 12 en la salida y Field paga 2 a 1 el 12", () => {
   const c = seeds.craps;
   let s = craps.addBet(c, craps.newTableState(), { type: 'dontPass', amount: 1000 });
   s = craps.addBet(c, s, { type: 'field', amount: 1000 });
   const r = craps.roll(c, s, fixed(6, 6));
-  assert.equal(r.payout, 1000 * 4); // field 3:1 → 4000; don't pass queda en la mesa (bar)
+  assert.equal(r.payout, 1000 * 3); // field 2:1 → 3000; don't pass queda en la mesa (bar)
   assert.equal(r.state.bets.length, 1);
   assert.equal(r.state.bets[0].type, 'dontPass');
 });
@@ -274,4 +309,88 @@ test('craps: rechaza pagos que dejan el RTP fuera de 85 %–110 %', () => {
   assert.deepEqual(validateConfig(c), []);
   c.rules.bets.any7 = true; // Any 7 a 4:1 = 83,3 %
   assert.ok(validateConfig(c).some((e) => e.includes('Any 7')));
+});
+
+test('cada motor tiene ficha y formulario de funciones que coincide con sus reglas', async () => {
+  const { RULE_SCHEMAS, ENGINE_CARDS } = await import('../backend/math/rule-schemas.js');
+  const get = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+  for (const e of Object.values(ENGINES)) {
+    assert.ok(ENGINE_CARDS[e.id]?.features?.length, `${e.id}: falta la ficha`);
+    if (e.kind === 'table') continue;
+    const schema = RULE_SCHEMAS[e.id];
+    assert.ok(schema?.length, `${e.id}: falta el formulario de funciones`);
+    const R = e.defaults().rules;
+    for (const f of schema) {
+      if (f.nullable) continue;
+      if (f.when && !Object.entries(f.when).every(([k, v]) => get(R, k) === v)) continue;
+      assert.notEqual(get(R, f.k), undefined, `${e.id}: el campo ${f.k} no existe en las reglas`);
+    }
+  }
+});
+
+test('hold-win ELIGE Y FIJA: rondas, especiales, crecimiento y jackpots por fijas', () => {
+  const e = ENGINES['hold-win'];
+  const c = seeds['hold-win'];
+  const R = c.rules;
+  const rng = seededRng(12);
+  let bonuses = 0, resets = 0, extras = 0;
+  for (let i = 0; i < 30000; i++) {
+    const r = e.play(c, rng);
+    const hw = r.holdAndWin;
+    if (!hw) continue;
+    bonuses++;
+    assert.equal(hw.mode, 'pick');
+    assert.equal(hw.held, r.coins.length + hw.rounds.length);
+    let left = R.rounds;
+    for (const rd of hw.rounds) {
+      left--;
+      if (rd.pick.kind === 'reset') { left = R.rounds; resets++; }
+      if (rd.pick.kind === 'extra_round') { left++; extras++; }
+      assert.equal(rd.roundsLeft, left);
+      assert.ok(rd.candidates >= 1);
+    }
+    const tier = [...R.jackpotCounts].reverse().find((t) => hw.held >= t.count);
+    if (!hw.full) assert.equal(hw.tierJackpot?.jackpot ?? null, tier?.jackpot ?? null);
+    const expect = (hw.coinsWin + hw.bonusWin) * hw.multiplier + hw.jackpotWin + (hw.tierJackpot?.value || 0);
+    assert.ok(Math.abs(hw.win - expect) < 1e-4, `${hw.win} vs ${expect}`);
+  }
+  assert.ok(bonuses > 50 && resets > 0 && extras > 0);
+});
+
+test('cluster-pays: casillas doradas multiplican y giros gratis las conservan', () => {
+  const e = ENGINES['cluster-pays'];
+  const c = seeds['cluster-pays'];
+  const rng = seededRng(4);
+  let spotWins = 0, fs = 0;
+  for (let i = 0; i < 20000 && (spotWins < 5 || !fs); i++) {
+    const r = e.play(c, rng);
+    for (const st of r.steps) for (const w of st.wins) if (w.spotMult) { spotWins++; assert.ok(w.spotMult >= c.rules.spotStart); }
+    if (r.freeSpins) {
+      fs++;
+      // Las casillas del segundo giro empiezan como terminaron las del primero
+      const [a, b] = r.freeSpins.spins;
+      if (a && b) {
+        const lastA = a.steps.at(-1).spots;
+        assert.deepEqual(b.steps[0].spots, lastA);
+      }
+    }
+  }
+  assert.ok(spotWins >= 5 && fs > 0);
+  const buy = e.play(c, rng, { mode: 'buy' });
+  assert.ok(buy.freeSpins && buy.cost === c.rules.buyCost);
+});
+
+test('scatter-pays: rayo de Zeus y doble chance', () => {
+  const e = ENGINES['scatter-pays'];
+  const c = seeds['scatter-pays'];
+  const rng = seededRng(6);
+  let zeus = 0, ante = 0;
+  for (let i = 0; i < 5000; i++) {
+    const r = e.play(c, rng);
+    if (r.base.zeusOrbs) { zeus++; assert.ok(r.base.zeusOrbs.length >= c.rules.zeusOrbsMin && r.base.zeusOrbs.length <= c.rules.zeusOrbsMax); }
+    const a = e.play(c, rng, { mode: 'ante' });
+    if (a.base.anteHits) ante++;
+  }
+  assert.ok(zeus > 50 && ante > 100);
+  assert.equal(costMultiplier(e, c, 'ante'), c.rules.anteCost);
 });

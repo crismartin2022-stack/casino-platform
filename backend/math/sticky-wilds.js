@@ -10,7 +10,7 @@ import {
 
 export const id = 'sticky-wilds';
 export const name = 'Sticky / Walking Wilds';
-export const description = 'Comodines que quedan fijos durante los giros gratis o que caminan un rodillo por giro dando re-giros.';
+export const description = 'Giros gratis ×2 con 3 comodines fijos al azar y +5 giros; comodines fijos o caminantes que dan re-giros.';
 export const paysBy = 'lines';
 
 function spinWith(config, rng, syms, strips, overlay) {
@@ -57,8 +57,15 @@ export function play(config, rng) {
   let freeSpins = null;
   if (allScatters >= R.scattersToTrigger) {
     freeSpins = { awarded: R.freeSpins, mode, multiplier: R.fsMultiplier, spins: [] };
-    let left = R.freeSpins;
+    let left = R.freeSpins, extras = 0;
     let held = new Set();
+    // Diseño original: al empezar, rules.fsStickyRandom comodines aparecen en posiciones al azar
+    if (R.fsStickyRandom > 0) {
+      const cells = [];
+      for (let c = 0; c < config.grid.reels; c++) for (let r = 0; r < config.grid.rows; r++) cells.push(`${c},${r}`);
+      for (let i = 0; i < Math.min(R.fsStickyRandom, cells.length); i++) held.add(cells.splice(rng.int(cells.length), 1)[0]);
+      freeSpins.startWilds = [...held];
+    }
     const strips = config.freeSpinReels || config.reels;
     while (left > 0 && freeSpins.spins.length < R.maxFreeSpins) {
       left--;
@@ -67,7 +74,11 @@ export function play(config, rng) {
       if (mode === 'sticky') held = new Set([...held, ...s.landed]);
       else held = walk(new Set([...held, ...s.landed]));
       if (s.scatters.length >= R.scattersToTrigger) left += R.retrigger;
-      freeSpins.spins.push({ ...s, win, held: [...held] });
+      const spin = { ...s, win, held: [...held] };
+      // Cada giro gratis puede dar giros extra (rules.fsExtraChance)
+      // Giros extra al azar, como mucho rules.fsExtraMax veces por bonus (0 = sin límite)
+      if (R.fsExtraChance > 0 && !(R.fsExtraMax > 0 && extras >= R.fsExtraMax) && rng.int(1_000_000) < R.fsExtraChance * 1_000_000) { extras++; left += R.fsExtraSpins || 5; spin.extra = R.fsExtraSpins || 5; }
+      freeSpins.spins.push(spin);
     }
     freeSpins.totalWin = round6(freeSpins.spins.reduce((a, s) => a + s.win, 0));
     total += freeSpins.totalWin;
@@ -86,6 +97,11 @@ export function validate(config) {
   if (!config.symbols?.some((s) => s.type === 'wild')) errors.push('Se necesita un símbolo comodín');
   if (!config.symbols?.some((s) => s.type === 'scatter')) errors.push('Se necesita un símbolo scatter');
   if (!(R.fsMultiplier >= 1)) errors.push('rules.fsMultiplier debe ser >= 1');
+  if (R.fsStickyRandom != null && !(Number.isInteger(R.fsStickyRandom) && R.fsStickyRandom >= 0 && R.fsStickyRandom <= 8)) errors.push('rules.fsStickyRandom (comodines al azar al empezar) debe ser un entero entre 0 y 8');
+  if (R.fsExtraChance != null && !(R.fsExtraChance >= 0 && R.fsExtraChance <= 0.5)) errors.push('rules.fsExtraChance debe estar entre 0 y 0.5');
+  if (R.fsExtraMax != null && !(Number.isInteger(R.fsExtraMax) && R.fsExtraMax >= 0 && R.fsExtraMax <= 20)) errors.push('rules.fsExtraMax (veces que se pueden ganar giros extra) debe ser un entero entre 0 (sin límite) y 20');
+  if (R.fsExtraChance > 0 && !(R.fsExtraMax > 0) && R.fsExtraChance * (R.fsExtraSpins || 5) >= 1) errors.push('Con giros extra sin límite (fsExtraMax 0), fsExtraChance × fsExtraSpins debe ser menor que 1: si no, el bonus no termina nunca');
+  if (R.fsExtraChance > 0 && !(Number.isInteger(R.fsExtraSpins) && R.fsExtraSpins >= 1 && R.fsExtraSpins <= 20)) errors.push('rules.fsExtraSpins debe estar entre 1 y 20');
   return errors;
 }
 
@@ -99,7 +115,8 @@ export function scalePays(config, k) {
 const ph = (label, color) => `/gen/symbol.svg?label=${encodeURIComponent(label)}&color=${encodeURIComponent(color)}`;
 
 export function defaults() {
-  const w = { ten: 10, jack: 10, queen: 9, king: 9, ace: 8, boots: 6, hat: 5, pistol: 4, badge: 3, wild: 2, scatter: 2 };
+  const w = { ten: 20, jack: 20, queen: 18, king: 18, ace: 16, boots: 12, hat: 10, pistol: 8, badge: 6, wild: 4, scatter: 3 };
+  const fsW = { ten: 20, jack: 20, queen: 18, king: 18, ace: 16, boots: 12, hat: 10, pistol: 8, badge: 4, scatter: 2 };
   return {
     engine: id,
     name: 'Forajidos del Oeste',
@@ -118,7 +135,10 @@ export function defaults() {
       { id: 'scatter', name: 'Cartel de "Se busca"', type: 'scatter', image: ph('$', '#f39c12'), pays: {}, scatterPays: { 3: 2, 4: 10, 5: 50 } },
     ],
     reels: [1, 2, 3, 4, 5].map((i) => buildStrip(w, 9000 + i)),
-    rules: { lines: 9, wildMode: 'sticky', scattersToTrigger: 3, freeSpins: 12, retrigger: 5, maxFreeSpins: 60, fsMultiplier: 2, maxWin: 5000 },
+    // Tiras de los giros gratis sin comodines: los únicos comodines son los fijos que aparecen al azar al empezar
+    freeSpinReels: [1, 2, 3, 4, 5].map((i) => buildStrip(fsW, 9100 + i)),
+    // Diseño original: 10 giros gratis ×2, 3 comodines fijos al azar al empezar y 20 % de probabilidad de +5 giros en cada giro (hasta 2 veces)
+    rules: { lines: 9, wildMode: 'sticky', scattersToTrigger: 3, freeSpins: 10, retrigger: 5, maxFreeSpins: 60, fsMultiplier: 2, fsStickyRandom: 3, fsExtraChance: 0.2, fsExtraSpins: 5, fsExtraMax: 2, maxWin: 5000 },
     bet: { levels: [9, 18, 45, 90, 180, 450, 900, 1800], default: 90, currency: 'USD' },
     theme: {
       title: 'Forajidos del Oeste', background: null, backgroundColor: '#2b1b0e',

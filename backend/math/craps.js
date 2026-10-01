@@ -287,7 +287,7 @@ export function defaults() {
       oddsMax: { 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3 },
       pays: {
         place: { 4: [9, 5], 5: [7, 5], 6: [7, 6], 8: [7, 6], 9: [7, 5], 10: [9, 5] },
-        field: { 2: 2, 12: 3 },
+        field: { 2: 2, 12: 2 }, // diseño original: 2 y 12 pagan 2 a 1
         hard: { 4: 7, 6: 9, 8: 9, 10: 7 },
         anyCraps: 7,
         any7: 4,

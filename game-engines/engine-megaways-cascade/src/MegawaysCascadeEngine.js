@@ -4,7 +4,7 @@ import { BaseEngine, wait } from '../../shared/BaseEngine.js';
 export class MegawaysCascadeEngine extends BaseEngine {
   rulesText() {
     const R = this.game.rules, n = this.game.grid.reels, max = this.game.grid.rowsMax || 7;
-    return `${n} rodillos que muestran de 2 a ${max} símbolos: hasta ${(max ** n).toLocaleString('es')} formas de ganar. Los símbolos ganadores caen y el multiplicador sube +${R.cascadeStep} con cada cascada. Los símbolos MISTERIO se revelan todos como el mismo símbolo. ${R.scattersToTrigger} o más scatters dan ${R.freeSpins} giros gratis (+${R.extraSpinsPerScatter} por cada scatter extra)${R.fsKeepMultiplier ? ' donde el multiplicador no se reinicia entre giros' : ''}.`;
+    return `${n} rodillos que muestran de 2 a ${max} símbolos: hasta ${(max ** n).toLocaleString('es')} formas de ganar. Los símbolos ganadores caen y el multiplicador sube +${R.cascadeStep} con cada cascada. Los símbolos MISTERIO se revelan todos como el mismo símbolo. ${R.wildMultMin > 0 ? `Con ${R.wildMultMin} o más comodines, cada comodín suma +1 al multiplicador de esa caída. ` : ''}${R.scattersToTrigger} o más scatters dan ${R.freeSpins} giros gratis (+${R.extraSpinsPerScatter} por cada scatter extra)${R.fsKeepMultiplier ? ' donde el multiplicador no se reinicia entre giros' : ''}.`;
   }
 
   gridRows() { return Array(this.game.grid.reels).fill(4); }
@@ -27,6 +27,7 @@ export class MegawaysCascadeEngine extends BaseEngine {
       this.hud.setStatus(`${label}${st.ways.toLocaleString('es')} FORMAS · ×${st.multiplier}`);
       await this.reveal(st);
       if (!st.wins.length) break;
+      if (st.wildMult) await this.hud.showBanner(`<small>${st.wildMult} COMODINES</small><b>×${st.multiplier} + ${st.wildMult}</b>`, { kind: 'feature', ms: this.hud.turbo ? 600 : 1100 });
       await this.presentWins(st.wins, st.win);
       this.sound.play('tumble');
       await this.grid.explode(st.removed);
