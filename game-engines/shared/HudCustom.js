@@ -103,7 +103,8 @@ export function buildCustom(hud, { stat, lobbyUrl, preview }) {
   hud.citems = {};
   for (const [key, node] of Object.entries(nodes)) {
     if (!node) continue;
-    const box = C.statStyle === 'box' && ['balance', 'bet', 'win'].includes(key) ? ' box' : '';
+    // «Sin recuadro» en los marcadores manda sobre el recuadro de la plantilla: solo queda el texto
+    const box = C.statStyle === 'box' && t.hud?.meters?.box !== 'none' && ['balance', 'bet', 'win'].includes(key) ? ' box' : '';
     const wrap = h('div', { class: `citem ${['balance', 'bet', 'win'].includes(key) ? 'cstat' : ''}${box}`, 'data-key': key }, node);
     hud.citems[key] = wrap;
   }

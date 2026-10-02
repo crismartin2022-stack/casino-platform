@@ -568,8 +568,11 @@
     #hud[data-layout="custom"][data-meters] .cstat .stat b { font-size: calc(var(--sz) * .4 * var(--m-vs, 1)); }
     #hud[data-meters~="box"] .stat { background: var(--m-img, none) center / 100% 100% no-repeat, var(--m-bg, transparent); border: 2px solid var(--m-border, transparent); border-radius: var(--m-radius, 10px); }
     #hud[data-meters~="box"]:not([data-layout="custom"]) .stat { padding: 3px 12px; }
+    /* En Diseño libre con recuadros, los colores propios de los marcadores mandan sobre el recuadro de la plantilla */
+    #hud[data-layout="custom"][data-meters~="box"] .cstat.box .stat { background: var(--m-img, none) center / 100% 100% no-repeat, var(--m-bg, transparent);
+      border: 2px solid var(--m-border, transparent); border-radius: var(--m-radius, calc(var(--sz) * .16)); box-shadow: none; }
     /* Sin recuadro: se ve el tablero o la imagen de fondo de la botonera */
-    #hud[data-meters~="nobox"] .stat, #hud[data-meters~="nobox"] .cstat.box .stat, #hud[data-meters~="nobox"] .stat b {
+    #hud[data-meters~="nobox"] .stat, #hud[data-meters~="nobox"] .cstat.box .stat, #hud[data-layout="custom"][data-meters~="nobox"] .cstat.box .stat, #hud[data-meters~="nobox"] .stat b {
       background: none !important; border-color: transparent !important; border-width: 0 !important; box-shadow: none !important; }
     #hud[data-meters~="lfont"] .stat small, #hud[data-meters~="lfont"] .sk-lbl { font-family: var(--m-lfont) !important; }
     #hud[data-meters~="vfont"] .stat b { font-family: var(--m-vfont) !important; }
