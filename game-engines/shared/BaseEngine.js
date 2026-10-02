@@ -470,7 +470,7 @@ export class BaseEngine {
     if (tier) {
       this.sound.play(tier.sound ? `winTier${tier.i}` : 'bigWin');
       // Con video/GIF, el importe se muestra encima del propio video; sin él, en el cartel
-      if (tier.media) { await this.playOverlay(tier.media, tier.seconds ?? 3, { amount: this.hud.fmt(cents), text: tier.text || this.msg('bigWin') }); return; }
+      if (tier.media) { await this.playOverlay(tier.media, tier.seconds ?? 3, { amount: this.hud.fmt(cents), text: tier.text || this.msg('bigWin'), cap: tier }); return; }
       const kind = x >= (Number(this.game.theme?.messages?.thresholds?.big) || 15) ? 'big' : 'win';
       await this.hud.showBanner(`<small>${escHtml(tier.text || this.msg(kind === 'big' ? 'bigWin' : 'win'))}</small><b>${this.hud.fmt(cents)}</b>`, { kind, ms: tier.bannerMs || (kind === 'big' ? 2600 : 1400) });
       return;
@@ -509,8 +509,8 @@ export class BaseEngine {
   // { intro, outro: imagen/GIF/video a pantalla completa; background, backgroundMobile, reelsBackground: fondos durante el bonus }
 
   /** Muestra una imagen, GIF o video a pantalla completa (se salta tocando). Espera a que termine o a `seconds`. */
-  async playOverlay(url, seconds = 3, { amount = null, text = null } = {}) {
-    await playMediaOverlay(url, seconds, { amount, text, turbo: this.hud?.turbo });
+  async playOverlay(url, seconds = 3, { amount = null, text = null, cap = null } = {}) {
+    await playMediaOverlay(url, seconds, { amount, text, cap, turbo: this.hud?.turbo });
   }
 
   async enterBonus() {
