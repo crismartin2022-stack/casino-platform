@@ -215,6 +215,8 @@ export class BaseEngine {
         frameLayer: t.frameLayer, frameScale: t.frameScale, frameCut: t.frameCut,
         // Subir/bajar el marco (px de diseño; negativo = arriba). En celular puede tener su propio valor.
         frameOffsetY: this.offsetY('frame'),
+        // Ancho y alto del marco por separado (estirar o achicar) y moverlo a izquierda/derecha; en celular puede tener los suyos.
+        frameScaleX: this.themeFor('frameScaleX'), frameScaleY: this.themeFor('frameScaleY'), frameOffsetX: this.themeFor('frameOffsetX'),
       },
     });
     this.grid.position.set(a.x, a.y);
@@ -437,6 +439,13 @@ export class BaseEngine {
 
   /** Texto de un cartel: el que puso el diseñador o el de fábrica. */
   /** Desplazamiento vertical (px de diseño) del logo o del marco: theme.<k>OffsetY en PC y theme.<k>OffsetYMobile en celular. */
+  /** Valor del tema según la orientación: en celular usa «<clave>Mobile» si existe, si no el de PC. */
+  themeFor(k) {
+    const t = this.game.theme || {};
+    const v = this.orientation === 'portrait' ? (t[`${k}Mobile`] ?? t[k]) : t[k];
+    return v == null || v === '' ? null : Number(v);
+  }
+
   offsetY(k) {
     const t = this.game.theme || {};
     const v = this.orientation === 'portrait' ? (t[`${k}OffsetYMobile`] ?? t[`${k}OffsetY`]) : t[`${k}OffsetY`];

@@ -44,10 +44,14 @@ export class GridView extends Container {
     let frameSprite = null;
     if (look.frameTexture) {
       const f = new Sprite(look.frameTexture);
-      const k = look.frameScale != null ? Math.min(1.6, Math.max(0.9, Number(look.frameScale))) : null;
-      const padX = k != null ? (width * (k - 1)) / 2 : Math.max(width, height) * 0.06;
-      const padY = k != null ? (height * (k - 1)) / 2 : Math.max(width, height) * 0.06;
-      f.position.set(-padX, -padY + (Number(look.frameOffsetY) || 0));
+      // theme.frameScaleX / frameScaleY: ancho y alto por separado (0,5-2,5); theme.frameOffsetX: mover a izquierda/derecha.
+      const clamp = (v, a, b) => Math.min(b, Math.max(a, Number(v)));
+      const k = look.frameScale != null ? clamp(look.frameScale, 0.9, 1.6) : null;
+      const kx = look.frameScaleX != null && Number.isFinite(Number(look.frameScaleX)) ? clamp(look.frameScaleX, 0.5, 2.5) : k;
+      const ky = look.frameScaleY != null && Number.isFinite(Number(look.frameScaleY)) ? clamp(look.frameScaleY, 0.5, 2.5) : k;
+      const padX = kx != null ? (width * (kx - 1)) / 2 : Math.max(width, height) * 0.06;
+      const padY = ky != null ? (height * (ky - 1)) / 2 : Math.max(width, height) * 0.06;
+      f.position.set(-padX + (clamp(look.frameOffsetX || 0, -400, 400) || 0), -padY + (Number(look.frameOffsetY) || 0));
       f.width = width + padX * 2;
       f.height = height + padY * 2;
       frameSprite = f;

@@ -59,7 +59,7 @@ export const AGENTS = {
     system: `${COMMON}
 Eres el DIRECTOR. Entiendes lo que pide el usuario, lees el juego y delegas en especialistas con instrucciones completas
 (el especialista NO ve esta conversación: incluye estilo, paleta, lista de símbolos con sus ids, etc.).
-- designer: nombre, tema, paleta de colores, tipografía, nombres de símbolos y estilo de los BOTONES (forma, estilo, tamaño, colores, iconos y textos).
+- designer: nombre, tema, paleta de colores, tipografía, nombres de símbolos, estilo de los BOTONES (forma, estilo, tamaño, colores, iconos y textos) y TAMAÑO Y POSICIÓN del logo y del MARCO (ancho, alto, subir/bajar, izquierda/derecha, PC y celular por separado).
   Botones del juego: spin (girar), auto, turbo, sound, minus/plus (apuesta), info, buy (comprar bonus; solo Bonus Buy).
 - artist: generar/editar imágenes de símbolos, fondos de PC y de celular, fondo de rodillos, celdas, marco, logo y BOTONES (Venice). Cada símbolo y cada botón es una imagen distinta.
 - sound: efectos de sonido y música (ElevenLabs).
@@ -112,6 +112,10 @@ RODILLOS: theme.symbolScale (0.6-1, cuánto de la celda ocupa el símbolo; 0.92 
   theme.cellColor, theme.cellAlpha (0-1), theme.cellRadius, theme.cellBorder (color o "none"), theme.frameColor,
   theme.frameLayer ("back" | "front": marco de imagen detrás o delante de los rodillos; front solo si el marco tiene el centro transparente), theme.frameScale (0.9-1.6, tamaño del marco),
   theme.frameOffsetY / theme.frameOffsetYMobile (subir o bajar el marco en px, negativo = arriba, -150 a 150),
+  theme.frameScaleX / theme.frameScaleY (ANCHO y ALTO del marco por separado, 0.5-2.5 veces los rodillos; 1 = justo; estiran o achican la imagen;
+  null = usar frameScale), theme.frameScaleXMobile / theme.frameScaleYMobile (los mismos en celular; null = como en PC),
+  theme.frameOffsetX / theme.frameOffsetXMobile (mover el marco a la izquierda (negativo) o a la derecha en px, -400 a 400).
+  Ej.: «el marco más ancho y más bajo» → frameScaleX 1.3, frameScaleY 1.05. Al cambiar el marco usa siempre update_config.",
   theme.logoScale (0.4-1.8, tamaño del logo), theme.logoOffsetY / theme.logoOffsetYMobile (subir o bajar el logo en px, -200 a 200),
   theme.tagline (frase corta bajo los rodillos en celular). Imágenes que pone el Artista: theme.background (PC), theme.backgroundMobile
   (celular), theme.reelsBackground (detrás de los rodillos), theme.cellImage (fondo de cada celda), theme.frame (marco), theme.logo.

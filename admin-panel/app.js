@@ -217,8 +217,8 @@ $('#tabs').addEventListener('click', (e) => {
 
 function renderTab() {
   if ($(`#tabs button[data-tab="${S.tab}"]`)?.hidden) { S.tab = 'design'; $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab)); }
-  const v = $('#view');
   const fn = { agents: tabAgents, design: tabDesign, symbols: tabSymbols, sounds: tabSounds, math: tabMath, assets: tabAssets, json: tabJson, versions: tabVersions }[S.tab];
+  const v = $('#view');
   v.innerHTML = '';
   guard(async (el) => { await fn(el); if (S.tab === 'math' && !isOp()) { featureCard(el); currencyCard(el); } })(v);
 }
@@ -725,6 +725,132 @@ async function uploadFile(file, kind) {
   });
 }
 
+// ------------------------------------------------------------------ ✂ Quitar fondo de una imagen (en el navegador)
+// Borra el fondo liso (o el "cuadriculado" falso de transparencia) que toca los bordes de la imagen: toma los colores
+// del borde y borra todo lo conectado a él que se les parezca. Recorta los bordes vacíos y sube un PNG nuevo.
+async function loadImageData(url) {
+  const blob = await (await fetch(url, { credentials: 'same-origin' })).blob();
+  const bmp = await createImageBitmap(blob);
+  const k = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c;
+}
+
+function removeBackground(src, { tolerance = 40, holes = false, trim = true } = {}) {
+  const W = src.width, H = src.height;
+  const ctx = src.getContext('2d');
+  const id = ctx.getImageData(0, 0, W, H);
+  const d = id.data;
+  // Colores del borde (agrupados) → los del fondo
+  const buckets = new Map();
+  let borderN = 0;
+  const sample = (x, y) => {
+    const i = (y * W + x) * 4;
+    if (d[i + 3] < 16) return;
+    borderN++;
+    const key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+    const b = buckets.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+    b.n++; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2];
+    buckets.set(key, b);
+  };
+  for (let x = 0; x < W; x++) { sample(x, 0); sample(x, H - 1); }
+  for (let y = 1; y < H - 1; y++) { sample(0, y); sample(W - 1, y); }
+  const seeds = [];
+  let acc = 0;
+  for (const b of [...buckets.values()].sort((a, c) => c.n - a.n)) {
+    if (seeds.length >= 4 || acc >= borderN * 0.85 || b.n < borderN * 0.03) break;
+    seeds.push([b.r / b.n, b.g / b.n, b.b / b.n]); acc += b.n;
+  }
+  const dist = (i) => {
+    let m = Infinity;
+    for (const [r, g, b] of seeds) m = Math.min(m, Math.max(Math.abs(d[i] - r), Math.abs(d[i + 1] - g), Math.abs(d[i + 2] - b)));
+    return m;
+  };
+  const bg = new Uint8Array(W * H);
+  if (seeds.length) {
+    const near = (p) => d[p * 4 + 3] < 16 || dist(p * 4) <= tolerance;
+    if (holes) { for (let p = 0; p < W * H; p++) if (near(p)) bg[p] = 1; }
+    else {
+      const q = new Int32Array(W * H);
+      let qh = 0, qt = 0;
+      const push = (p) => { if (!bg[p] && near(p)) { bg[p] = 1; q[qt++] = p; } };
+      for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
+      for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
+      while (qh < qt) {
+        const p = q[qh++], x = p % W, y = (p / W) | 0;
+        if (x > 0) push(p - 1); if (x < W - 1) push(p + 1); if (y > 0) push(p - W); if (y < H - 1) push(p + W);
+      }
+    }
+    for (let p = 0; p < W * H; p++) {
+      if (bg[p]) { d[p * 4 + 3] = 0; continue; }
+      // Borde suave: los píxeles pegados al fondo que se le parecen quedan semitransparentes
+      const x = p % W, y = (p / W) | 0;
+      if ((x > 0 && bg[p - 1]) || (x < W - 1 && bg[p + 1]) || (y > 0 && bg[p - W]) || (y < H - 1 && bg[p + W])) {
+        const e = dist(p * 4);
+        if (e < tolerance * 2) d[p * 4 + 3] = Math.round(d[p * 4 + 3] * Math.max(0.15, (e - tolerance) / tolerance));
+      }
+    }
+  }
+  // Recortar lo vacío
+  let x0 = 0, y0 = 0, x1 = W - 1, y1 = H - 1;
+  if (trim) {
+    x0 = W; y0 = H; x1 = -1; y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) { x0 = 0; y0 = 0; x1 = W - 1; y1 = H - 1; }
+    x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2); x1 = Math.min(W - 1, x1 + 2); y1 = Math.min(H - 1, y1 + 2);
+  }
+  const out = document.createElement('canvas');
+  out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  tmp.getContext('2d').putImageData(id, 0, 0);
+  out.getContext('2d').drawImage(tmp, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return { canvas: out, seeds: seeds.length, removed: bg.reduce((a, v) => a + v, 0) / (W * H) };
+}
+
+async function uploadCanvasPng(canvas, srcUrl) {
+  const blob = await new Promise((res, rej) => { try { canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear el PNG'))), 'image/png'); } catch (e) { rej(e); } });
+  const base = String(srcUrl).split('/').pop().split('?')[0].replace(/\.\w+$/, '').slice(0, 40) || 'imagen';
+  const a = await uploadFile(new File([blob], `${base}-sin-fondo.png`, { type: 'image/png' }), 'image');
+  return a.url;
+}
+
+/** Ventana «Quitar fondo» con vista previa y ajuste; devuelve la URL del PNG nuevo (o null). */
+function openBgRemover(url) {
+  return new Promise((resolve) => {
+    openPicker('✂ Quitar fondo', `<p class="muted" style="margin-top:0">Borra el fondo que toca los bordes (color liso o el cuadriculado falso de transparencia) y recorta lo vacío. Se guarda como imagen nueva: la original no se toca.</p>
+      <div class="bgr"><figure><img id="bgrA" src="${esc(url)}" /><figcaption>Antes</figcaption></figure><figure><canvas id="bgrB"></canvas><figcaption>Después</figcaption></figure></div>
+      <div class="grid2"><div><label>Tolerancia (<span id="bgrTv">40</span>)</label><input id="bgrT" type="range" min="5" max="120" step="1" value="40" />
+        <small class="muted">Más alto: borra colores más parecidos al fondo. Si se come parte del botón, bájala.</small></div>
+        <div class="stack"><label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="bgrH" style="width:auto" /> Borrar también los huecos interiores del mismo color</label>
+        <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="bgrC" style="width:auto" checked /> Recortar los bordes vacíos</label></div></div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="bgrOk">Aplicar</button><button class="ghost" data-close>Cancelar</button><span class="muted" id="bgrInfo"></span></div>`, async (root, close) => {
+      let src = null, last = null;
+      const draw = () => {
+        if (!src) return;
+        const tol = Number($('#bgrT', root).value);
+        $('#bgrTv', root).textContent = tol;
+        const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+        c.getContext('2d').drawImage(src, 0, 0);
+        last = removeBackground(c, { tolerance: tol, holes: $('#bgrH', root).checked, trim: $('#bgrC', root).checked });
+        const b = $('#bgrB', root);
+        b.width = last.canvas.width; b.height = last.canvas.height;
+        b.getContext('2d').drawImage(last.canvas, 0, 0);
+        $('#bgrInfo', root).textContent = last.seeds ? `Fondo borrado: ${Math.round(last.removed * 100)} % de la imagen` : 'La imagen ya no tiene fondo en los bordes';
+      };
+      try { src = await loadImageData(url); draw(); } catch { $('#bgrInfo', root).textContent = 'No se pudo abrir la imagen (¿está en otro servidor? Descárgala y súbela).'; }
+      for (const id of ['#bgrT', '#bgrH', '#bgrC']) $(id, root).addEventListener('input', draw);
+      root.addEventListener('click', (e) => { if (e.target === root || e.target.closest('[data-close]')) resolve(null); });
+      $('#bgrOk', root).addEventListener('click', guard(async () => {
+        if (!last) return;
+        const u = await uploadCanvasPng(last.canvas, url);
+        close(); resolve(u);
+      }));
+    });
+  });
+}
+
 function assetTile(a, selectable = false) {
   const media = a.kind === 'image' ? `<img src="${esc(a.url)}" loading="lazy" alt="" />`
     : a.kind === 'video' ? `<video src="${esc(a.url)}" muted loop autoplay playsinline style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px"></video>`
@@ -1036,14 +1162,20 @@ async function tabDesign(v) {
       ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}
     </div></div>
     <div class="card stack"><h3 style="margin:0">Logo y marco: tamaño y posición</h3>
-      <p class="muted" style="margin:0">Mueve el logo${isTableGame ? '' : ' y el marco decorativo'} hacia arriba (negativo) o hacia abajo (positivo). PC y celular se ajustan por separado; mira el cambio en ▶ Vista previa.</p>
+      <p class="muted" style="margin:0">Mueve el logo${isTableGame ? '' : ' y el marco decorativo'} hacia arriba (negativo) o hacia abajo (positivo)${isTableGame ? '' : '; el marco además se estira o achica a lo ANCHO y a lo ALTO por separado (100 % = justo a los rodillos)'}. PC y celular se ajustan por separado; mira el cambio en ▶ Vista previa. También se lo puedes pedir al agente: «el marco más ancho y un poco más bajo».</p>
       <div class="grid2">
         ${slider('pLogoScale', 'Tamaño del logo', t.logoScale ?? 1, 0.4, 1.8, 0.05, '%')}
         <div></div>
         ${slider('pLogoY', 'Logo — subir / bajar en PC', t.logoOffsetY ?? 0, -200, 200, 2, 'px')}
         ${slider('pLogoYM', 'Logo — subir / bajar en celular', t.logoOffsetYMobile ?? t.logoOffsetY ?? 0, -200, 200, 2, 'px')}
         ${isTableGame ? '' : `${slider('pFrameY', 'Marco — subir / bajar en PC', t.frameOffsetY ?? 0, -150, 150, 2, 'px')}
-        ${slider('pFrameYM', 'Marco — subir / bajar en celular', t.frameOffsetYMobile ?? t.frameOffsetY ?? 0, -150, 150, 2, 'px')}`}
+        ${slider('pFrameYM', 'Marco — subir / bajar en celular', t.frameOffsetYMobile ?? t.frameOffsetY ?? 0, -150, 150, 2, 'px')}
+        ${slider('pFrameW', 'Marco — ANCHO en PC', t.frameScaleX ?? t.frameScale ?? 1.12, 0.5, 2.5, 0.01, '%')}
+        ${slider('pFrameWM', 'Marco — ANCHO en celular', t.frameScaleXMobile ?? t.frameScaleX ?? t.frameScale ?? 1.12, 0.5, 2.5, 0.01, '%')}
+        ${slider('pFrameH', 'Marco — ALTO en PC', t.frameScaleY ?? t.frameScale ?? 1.12, 0.5, 2.5, 0.01, '%')}
+        ${slider('pFrameHM', 'Marco — ALTO en celular', t.frameScaleYMobile ?? t.frameScaleY ?? t.frameScale ?? 1.12, 0.5, 2.5, 0.01, '%')}
+        ${slider('pFrameX', 'Marco — izquierda / derecha en PC', t.frameOffsetX ?? 0, -400, 400, 2, 'px')}
+        ${slider('pFrameXM', 'Marco — izquierda / derecha en celular', t.frameOffsetXMobile ?? t.frameOffsetX ?? 0, -400, 400, 2, 'px')}`}
       </div>
       <div class="row"><button class="small" id="pReset">Volver a la posición original</button></div></div>
     ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) + croupierCard(S.game.draft) : ''}
@@ -1085,9 +1217,10 @@ async function tabDesign(v) {
     return `<tr data-btn="${k}"><td>${l}</td>
           <td>${img ? `<img src="${esc(img)}" style="height:40px;max-width:110px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">—</span>'}</td>
           <td><input data-icon value="${esc(s.icon || '')}" placeholder="${esc(def)}" style="max-width:140px" /></td>
-          <td class="row"><button class="small" data-bimg>Imagen…</button>${img ? '<button class="small danger" data-bclear>Quitar imagen</button>' : ''}</td></tr>`;
+          <td class="row"><button class="small" data-bimg>Imagen…</button>${img ? '<button class="small" data-bcut title="Borra el fondo cuadrado de la imagen">✂ Quitar fondo</button><button class="small danger" data-bclear>Quitar imagen</button>' : ''}</td></tr>`;
   }).join('')}
       </tbody></table>
+      <div class="row"><button class="small" id="bCutAll">✂ Quitar el fondo cuadrado a todos los botones con imagen</button><span class="muted">Si un botón se ve con un cuadrado atrás, es que su imagen trae ese fondo pintado.</span></div>
       <p class="muted">Con imagen, el botón muestra la imagen tal cual. Sin imagen, usa la forma, el estilo, los colores y el icono. Pídele al agente 🖌 Artista “crea botones dorados estilo egipcio para todo el juego”.</p>
     </div>
     <div class="row"><button class="primary" id="dSave">Guardar diseño</button><span class="muted">Consejo: en 🤖 Agentes puedes pedir “cambia el fondo por una selva de noche” y lo genera el Artista.</span></div>
@@ -1107,6 +1240,29 @@ async function tabDesign(v) {
     const url = await pickAsset('image');
     if (url) { await patchDraft([{ op: 'set', path: `theme.buttons.${b.closest('tr').dataset.btn}.image`, value: url }]); renderTab(); }
   })));
+  const btnImg = (k) => S.game.draft.theme?.buttons?.[k]?.image || (k === 'spin' ? S.game.draft.theme?.spinButton : null);
+  $$('[data-bcut]', v).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.closest('tr').dataset.btn;
+    const url = await openBgRemover(btnImg(k));
+    if (url) { await patchDraft([{ op: 'set', path: `theme.buttons.${k}.image`, value: url }], 'Fondo quitado. Mira el botón en ▶ Vista previa'); renderTab(); }
+  })));
+  $('#bCutAll', v)?.addEventListener('click', guard(async () => {
+    const keys = $$('tr[data-btn]', v).map((tr) => tr.dataset.btn).filter((k) => btnImg(k));
+    if (!keys.length) { toast('Ningún botón tiene imagen'); return; }
+    const ops = [];
+    const done = new Map(); // la misma imagen en varios botones se procesa una vez
+    for (const k of keys) {
+      const src = btnImg(k);
+      if (!done.has(src)) {
+        try { const r = removeBackground(await loadImageData(src), { tolerance: 40 }); done.set(src, r.seeds ? await uploadCanvasPng(r.canvas, src) : null); }
+        catch { done.set(src, null); }
+      }
+      if (done.get(src)) ops.push({ op: 'set', path: `theme.buttons.${k}.image`, value: done.get(src) });
+    }
+    if (!ops.length) { toast('Las imágenes ya no tienen fondo en los bordes'); return; }
+    await patchDraft(ops, `Fondo quitado a ${ops.length} botón(es). Si alguno quedó mal, usa ✂ en ese botón y ajusta la tolerancia`);
+    renderTab();
+  }));
   $$('[data-bclear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const k = b.closest('tr').dataset.btn;
     const ops = [{ op: 'set', path: `theme.buttons.${k}.image`, value: null }];
@@ -1120,9 +1276,10 @@ async function tabDesign(v) {
   $$('[data-clear]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     await patchDraft([{ op: 'set', path: `theme.${b.dataset.clear}`, value: null }]); renderTab();
   })));
+  $$('#pFrameWM, #pFrameHM, #pFrameXM', v).forEach((i) => i.addEventListener('input', () => { i.dataset.touched = '1'; }));
   $$('input[type=range][data-unit]', v).forEach((i) => i.addEventListener('input', () => { $(`#${i.id}V`, v).textContent = i.dataset.unit === '%' ? Math.round(i.value * 100) : i.value; }));
   $('#pReset', v).addEventListener('click', guard(async () => {
-    await patchDraft(['logoScale', 'logoOffsetY', 'logoOffsetYMobile', 'frameOffsetY', 'frameOffsetYMobile'].map((k) => ({ op: 'set', path: `theme.${k}`, value: null })), 'Logo y marco en su posición original');
+    await patchDraft(['logoScale', 'logoOffsetY', 'logoOffsetYMobile', 'frameOffsetY', 'frameOffsetYMobile', 'frameScaleX', 'frameScaleY', 'frameScaleXMobile', 'frameScaleYMobile', 'frameOffsetX', 'frameOffsetXMobile'].map((k) => ({ op: 'set', path: `theme.${k}`, value: null })), 'Logo y marco en su posición original');
     renderTab();
   }));
   $$('[data-fkup]', v).forEach((b) => b.addEventListener('click', guard(async () => {
@@ -1183,6 +1340,22 @@ async function tabDesign(v) {
       { op: 'set', path: 'theme.logoOffsetY', value: Number($('#pLogoY').value) || null },
       { op: 'set', path: 'theme.logoOffsetYMobile', value: Number($('#pLogoYM').value) || null },
       ...($('#pFrameY') ? [{ op: 'set', path: 'theme.frameOffsetY', value: Number($('#pFrameY').value) || null }, { op: 'set', path: 'theme.frameOffsetYMobile', value: Number($('#pFrameYM').value) || null }] : []),
+      ...($('#pFrameW') ? (() => {
+        // Ancho/alto: se guardan solo si difieren del «Tamaño del marco» (PC) o del valor de PC (celular); así ese control sigue mandando
+        const base = Number($('#lFrameScale').value), num = (id) => Number($(id).value);
+        // Los de celular que no se tocaron siguen al de PC (si ya tenían valor propio, se conserva)
+        const mob = (id, key) => ($(id).dataset.touched || t[key] != null ? num(id) : null);
+        const own = (val, ref) => (Math.abs(val - ref) < 0.005 ? null : val);
+        const w = own(num('#pFrameW'), base), hh = own(num('#pFrameH'), base);
+        const x = num('#pFrameX') || null;
+        return [
+          { op: 'set', path: 'theme.frameScaleX', value: w }, { op: 'set', path: 'theme.frameScaleY', value: hh },
+          { op: 'set', path: 'theme.frameScaleXMobile', value: mob('#pFrameWM', 'frameScaleXMobile') == null ? null : own(num('#pFrameWM'), w ?? base) },
+          { op: 'set', path: 'theme.frameScaleYMobile', value: mob('#pFrameHM', 'frameScaleYMobile') == null ? null : own(num('#pFrameHM'), hh ?? base) },
+          { op: 'set', path: 'theme.frameOffsetX', value: x },
+          { op: 'set', path: 'theme.frameOffsetXMobile', value: mob('#pFrameXM', 'frameOffsetXMobile') == null || num('#pFrameXM') === (x || 0) ? null : num('#pFrameXM') },
+        ];
+      })() : []),
       ...($('#mCard') ? [{ op: 'set', path: 'theme.hud.meters', value: readMeters(v, t.hud?.meters || {}) }] : []),
       { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
@@ -1230,7 +1403,7 @@ function metersCard(M, p) {
       <div class="mcustom"><label>Imagen del recuadro <span class="muted">(opcional)</span></label><div class="row">${M.bgImage ? `<img src="${esc(M.bgImage)}" style="height:40px;border-radius:6px;background:#0006" />` : '<span class="muted">Sin imagen</span>'}
         <button class="small" id="mImg">Elegir…</button>${M.bgImage ? '<button class="small danger" id="mImgX">Quitar</button>' : ''}</div></div>
     </div>
-    <div class="row"><button class="small" id="mReset">Volver al estilo de la interfaz</button><span class="muted">Se guarda con «Guardar diseño».</span></div></div>`;
+    <div class="row"><button class="small primary" id="mTextOnly" title="Sin recuadro, sin fondo y sin borde: solo los títulos y los números">✨ Solo texto (sin recuadro ni fondo)</button><button class="small" id="mReset">Volver al estilo de la interfaz</button><span class="muted">Se guarda con «Guardar diseño».</span></div></div>`;
 }
 
 function readMeters(v, cur) {
@@ -1262,7 +1435,8 @@ function bindMetersCard(v) {
       $('small', el).style.color = m.labelColor || '';
       $('b', el).style.color = (k === 'win' ? m.winColor : null) || m.valueColor || '';
       $('b', el).style.fontSize = `${16 * (m.valueScale || 1)}px`;
-      const themeBox = !m.box && !m.bg && !m.border;
+      const H = S.game.draft.theme?.hud || {};
+      const themeBox = !m.box && !m.bg && !m.border && !(H.layout === 'custom' && H.custom?.statStyle !== 'box');
       el.style.background = m.bg ? `${m.bgImage ? `url("${m.bgImage}") center / 100% 100% no-repeat, ` : ''}${m.bg}` : themeBox ? 'rgba(0,0,0,.72)' : 'transparent';
       el.style.border = `2px solid ${m.border || (themeBox ? 'var(--accent)' : 'transparent')}`;
       $('small', el).style.fontFamily = m.labelFont ? `'${m.labelFont}', system-ui` : '';
@@ -1312,6 +1486,13 @@ function bindMetersCard(v) {
     renderTab();
   }));
   $('#mImgX', v)?.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hud.meters.bgImage', value: null }]); renderTab(); }));
+  $('#mTextOnly', v).addEventListener('click', guard(async () => {
+    const cur = S.game.draft.theme?.hud?.meters || {};
+    const ops = [{ op: 'set', path: 'theme.hud.meters', value: { ...readMeters(v, cur), box: 'none', bg: null, border: null, radius: null, bgImage: null } }];
+    if (S.game.draft.theme?.hud?.custom?.statStyle === 'box') ops.push({ op: 'set', path: 'theme.hud.custom.statStyle', value: 'plain' });
+    await patchDraft(ops, 'Saldo, apuesta y premio: solo el texto. Mira la ▶ Vista previa');
+    renderTab();
+  }));
   $('#mReset', v).addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hud.meters', value: null }], 'Marcadores con el estilo de la interfaz'); renderTab(); }));
 }
 
