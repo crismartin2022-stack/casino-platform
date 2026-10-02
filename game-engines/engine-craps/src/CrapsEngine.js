@@ -948,7 +948,7 @@ export class CrapsEngine {
   /** Premio por monto: su sonido y su video/GIF (con el importe encima) o su cartel. */
   async presentTier(tier, cents) {
     this.sound.play(tier.sound ? `winTier${tier.i}` : 'bigWin');
-    if (tier.media) await playMediaOverlay(tier.media, tier.seconds ?? 3, { amount: this.fmt(cents), text: tier.text || '¡GRAN PREMIO!' });
+    if (tier.media) await playMediaOverlay(tier.media, tier.seconds ?? 3, { amount: this.fmt(cents), text: tier.text || '¡GRAN PREMIO!', cap: tier });
     else await this.banner(tier.text || '¡GRAN PREMIO!', this.fmt(cents), { silent: true });
   }
 

@@ -100,7 +100,7 @@ BOTONERA E INTERFAZ (theme.hud): { layout: "pill" (píldora centrada bajo los ro
     x,y = centro; s = alto en px de diseño (el ancho sale de la proporción del logo, nunca se deforma). Jerarquía recomendada: spin 100 %,
     minus/plus/auto/turbo ≈58 %, max (ovalado) a la altura de los chicos junto al plus, info/sound ≈45 % en los extremos, separación pareja.
   Elige la que mejor encaje con la temática (p. ej. egipcio/lujo → real, cyberpunk → neon, volcán/dragón → brasa, fantasía → cristal, retro → arcade).
-PREMIOS POR MONTO (theme.winTiers): lista de niveles [{ from (desde N× la apuesta), text (texto del cartel), sound (URL de un sonido), media (imagen, GIF o video a pantalla completa), seconds }]; se usa el nivel más alto alcanzado.
+PREMIOS POR MONTO (theme.winTiers): lista de niveles [{ from (desde N× la apuesta), text (texto del cartel), sound (URL de un sonido), media (imagen, GIF o video a pantalla completa), seconds, amountX / amountY (dónde va el IMPORTE sobre el video: centro en % del ancho y del alto, 0-100; sin valor = abajo al centro; «subir el monto» = bajar amountY), amountScale (0.4-3, tamaño del importe), amountColor y textColor (colores hex del importe y del texto) }]; se usa el nivel más alto alcanzado.
 TIPOGRAFÍAS EXTRA: theme.infoFont (pantalla de información: reglas, tabla de premios, menú), theme.tableFont (textos de la mesa en juegos de mesa como Craps).
 CARTELES (theme.messages): font (tipografía de Google Fonts para TODOS los carteles), styles.{win|big|feature|status}: { image (fondo del cartel; la pone el Artista), bg, border ("none" sin borde), title, value (colores),
   font, scale (0.6-2), anim ("pop"|"zoom"|"slide"|"flip"|"fade"|"shake"|"none"), position ("center"|"top"|"bottom"), duration (s),

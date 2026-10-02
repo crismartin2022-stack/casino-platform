@@ -598,9 +598,21 @@ function winTiersCard(t) {
       <div><label>Sonido</label><div class="row">${x.sound ? `<audio src="${esc(x.sound)}" controls style="height:32px;max-width:190px"></audio>` : '<span class="muted">El de gran premio</span>'}<button class="small" data-tsound="${x.i}">Elegir…</button>${x.sound ? `<button class="small danger" data-tsoundx="${x.i}">Quitar</button>` : ''}</div></div>
       <div><label>Video, GIF o imagen a pantalla completa</label><div class="row">${media(x.media)}<button class="small" data-tmedia="${x.i}">Elegir…</button>${x.media ? `<button class="small danger" data-tmediax="${x.i}">Quitar</button>` : ''}</div></div>
       <div><label>Duración máx. del video (s)</label><input data-tf="seconds" type="number" min="1" max="15" step="0.5" value="${esc(x.seconds ?? 3)}" style="width:90px" /></div>
-    </div></div>`;
+    </div>
+    <div class="tier-pos">
+      <div class="tier-prev" title="Arrastra el importe adonde quieras sobre el video">${x.media ? (/\.(mp4|webm)(\?|$)/i.test(x.media) ? `<video src="${esc(x.media)}" muted loop autoplay playsinline></video>` : `<img src="${esc(x.media)}" alt="" />`) : '<span class="muted">Elige un video, GIF o imagen para ubicar el importe</span>'}
+        <div class="tp-cap" style="left:${x.amountX ?? 50}%;top:${x.amountY ?? 80}%;--k:${x.amountScale ?? 1}"><small style="color:${esc(x.textColor || 'var(--accent)')}">${esc(x.text || '¡GRAN PREMIO!')}</small><b style="color:${esc(x.amountColor || '#ffffff')}">$ 1.250,00</b></div></div>
+      <div class="stack" style="gap:8px">
+        <p class="muted" style="margin:0">✥ <b>Arrastra el importe</b> sobre la imagen para subirlo, bajarlo o moverlo de lado.</p>
+        <div><label>Altura del importe (<span data-tv="y">${Math.round(x.amountY ?? 80)}</span> % — menos = más arriba)</label><input data-tf="amountY" type="range" min="0" max="100" step="1" value="${x.amountY ?? 80}" /></div>
+        <div><label>Izquierda / derecha (<span data-tv="x">${Math.round(x.amountX ?? 50)}</span> %)</label><input data-tf="amountX" type="range" min="0" max="100" step="1" value="${x.amountX ?? 50}" /></div>
+        <div><label>Tamaño del importe (<span data-tv="k">${Math.round((x.amountScale ?? 1) * 100)}</span> %)</label><input data-tf="amountScale" type="range" min="0.4" max="3" step="0.05" value="${x.amountScale ?? 1}" /></div>
+        <div class="row"><label style="margin:0">Color del importe</label><input data-tf="amountColor" type="color" value="${esc(x.amountColor || '#ffffff')}" style="width:56px" />
+          <label style="margin:0">Color del texto</label><input data-tf="textColor" type="color" value="${esc(x.textColor || '#ffd460')}" style="width:56px" /></div>
+        <button class="small" data-tposx="${x.i}" style="justify-self:start">↺ Posición original (abajo al centro)</button>
+      </div></div></div>`;
   return `<div class="card stack" id="tiersCard"><h3 style="margin:0">🏆 Premios por monto</h3>
-    <p class="muted" style="margin:0">Cuando un giro (o una tirada, en juegos de mesa) paga desde cierto monto (en veces la apuesta), el juego reproduce el sonido, el video o GIF y el texto de ese nivel; si alcanza varios, usa el más alto. El importe ganado se muestra encima del video. Sin niveles, se usan «Gran premio» y «Mega premio» de los carteles.</p>
+    <p class="muted" style="margin:0">Cuando un giro (o una tirada, en juegos de mesa) paga desde cierto monto (en veces la apuesta), el juego reproduce el sonido, el video o GIF y el texto de ese nivel; si alcanza varios, usa el más alto. El importe ganado se muestra encima del video: arrástralo para ubicarlo y cambia su tamaño y colores; luego «Guardar niveles». Sin niveles, se usan «Gran premio» y «Mega premio» de los carteles.</p>
     ${tiers.map(row).join('') || '<p class="muted">Todavía no hay niveles.</p>'}
     <div class="row"><button id="tAdd">＋ Agregar nivel</button><button class="primary" id="tSave">Guardar niveles</button></div></div>`;
 }
@@ -614,7 +626,12 @@ function bindWinTiersCard(v) {
     for (const box of $$('.tier-row', v)) {
       const i = Number(box.dataset.ti);
       const f = (k) => $(`[data-tf="${k}"]`, box).value;
-      list[i] = { ...list[i], from: Number(f('from')) || 10, text: f('text').trim() || null, seconds: Number(f('seconds')) || 3 };
+      const pos = box.dataset.moved ? { amountX: Number(f('amountX')), amountY: Number(f('amountY')) } : {};
+      const k = Number(f('amountScale'));
+      list[i] = { ...list[i], from: Number(f('from')) || 10, text: f('text').trim() || null, seconds: Number(f('seconds')) || 3, ...pos,
+        amountScale: k === 1 ? null : k,
+        ...(box.dataset.colors ? { amountColor: f('amountColor'), textColor: f('textColor') } : {}) };
+      if (box.dataset.reset) { list[i].amountX = null; list[i].amountY = null; }
     }
     return list;
   };
@@ -626,6 +643,49 @@ function bindWinTiersCard(v) {
     await save(list, 'Nivel agregado: elige su sonido y su video o GIF');
   }));
   $('#tSave', v).addEventListener('click', guard(() => save(read())));
+  // Ubicar el importe: arrastrándolo sobre la imagen o con los controles (se ve al instante)
+  for (const box of $$('.tier-row', v)) {
+    const cap = $('.tp-cap', box), prevBox = $('.tier-prev', box);
+    const inp = (k) => $(`[data-tf="${k}"]`, box);
+    // Rectángulo donde se ve la imagen/video dentro de la vista previa (object-fit: contain), igual que en el juego
+    const rect = () => {
+      const m = $('img, video', prevBox), bw = prevBox.clientWidth, bh = prevBox.clientHeight;
+      const nw = m?.videoWidth || m?.naturalWidth, nh = m?.videoHeight || m?.naturalHeight;
+      if (!nw || !nh) return { x: 0, y: 0, w: bw, h: bh };
+      const k = Math.min(bw / nw, bh / nh);
+      return { x: (bw - nw * k) / 2, y: (bh - nh * k) / 2, w: nw * k, h: nh * k };
+    };
+    const paint = () => {
+      const r = rect();
+      cap.style.left = `${r.x + (r.w * inp('amountX').value) / 100}px`; cap.style.top = `${r.y + (r.h * inp('amountY').value) / 100}px`;
+      $('b', cap).style.fontSize = `${Math.max(10, r.h * 0.12)}px`; $('small', cap).style.fontSize = `${Math.max(7, r.h * 0.045)}px`;
+      cap.style.setProperty('--k', inp('amountScale').value);
+      $('[data-tv="x"]', box).textContent = Math.round(inp('amountX').value);
+      $('[data-tv="y"]', box).textContent = Math.round(inp('amountY').value);
+      $('[data-tv="k"]', box).textContent = Math.round(inp('amountScale').value * 100);
+      $('b', cap).style.color = inp('amountColor').value; $('small', cap).style.color = inp('textColor').value;
+      $('small', cap).textContent = inp('text').value.trim() || '¡GRAN PREMIO!';
+    };
+    ['amountX', 'amountY'].forEach((k) => inp(k).addEventListener('input', () => { box.dataset.moved = '1'; delete box.dataset.reset; paint(); }));
+    inp('amountScale').addEventListener('input', paint);
+    inp('text').addEventListener('input', paint);
+    ['amountColor', 'textColor'].forEach((k) => inp(k).addEventListener('input', () => { box.dataset.colors = '1'; paint(); }));
+    cap.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      cap.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const b = prevBox.getBoundingClientRect(), r = rect();
+        inp('amountX').value = Math.round(Math.min(100, Math.max(0, ((ev.clientX - b.left - r.x) / r.w) * 100)));
+        inp('amountY').value = Math.round(Math.min(100, Math.max(0, ((ev.clientY - b.top - r.y) / r.h) * 100)));
+        box.dataset.moved = '1'; delete box.dataset.reset; paint();
+      };
+      const up = () => { cap.removeEventListener('pointermove', move); cap.removeEventListener('pointerup', up); };
+      cap.addEventListener('pointermove', move); cap.addEventListener('pointerup', up);
+    });
+    $('img, video', prevBox)?.addEventListener($('video', prevBox) ? 'loadedmetadata' : 'load', paint);
+    requestAnimationFrame(paint);
+    $('[data-tposx]', box).addEventListener('click', () => { inp('amountX').value = 50; inp('amountY').value = 80; box.dataset.reset = '1'; delete box.dataset.moved; paint(); });
+  }
   $$('[data-tdel]', v).forEach((b) => b.addEventListener('click', guard(async () => { const list = read(); list.splice(Number(b.dataset.tdel), 1); await save(list, 'Nivel quitado'); })));
   $$('[data-tsound]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const url = await pickAsset('sound');

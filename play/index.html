@@ -167,11 +167,13 @@
     .choose { display: flex; flex-direction: column; gap: 10px; }
     .choose .option { display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: none; width: 100%; font-size: 15px; padding: 14px 18px; }
     /* Premios por monto: importe sobre el video/GIF */
-    .bonus-intro .tier-cap { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); text-align: center; pointer-events: none; font-family: var(--bn-font, var(--font));
-      animation: tierIn .6s cubic-bezier(.2,1.4,.4,1) both .2s; }
-    .bonus-intro .tier-cap small { display: block; color: var(--accent); font-size: clamp(18px, 3vw, 30px); letter-spacing: .08em; text-shadow: 0 3px 12px #000; }
-    .bonus-intro .tier-cap b { display: block; color: #fff; font-size: clamp(40px, 8vw, 96px); text-shadow: 0 0 24px var(--accent), 0 4px 16px #000; }
-    @keyframes tierIn { from { opacity: 0; transform: translateX(-50%) scale(.4); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+    /* Posición propia (theme.winTiers[i].amountX / amountY en % de la pantalla, amountScale, amountColor, textColor) */
+    .bonus-intro .tier-cap { position: absolute; left: 50%; bottom: 14%; transform: translate(-50%, var(--cap-ty, 0)) scale(var(--cap-k, 1)); text-align: center; pointer-events: none; font-family: var(--bn-font, var(--font));
+      animation: tierIn .6s cubic-bezier(.2,1.4,.4,1) both .2s; white-space: nowrap; }
+    .bonus-intro .tier-cap.placed { bottom: auto; --cap-ty: -50%; }
+    .bonus-intro .tier-cap small { position: static; display: block; opacity: 1; font: inherit; color: var(--cap-text, var(--accent)); font-size: clamp(18px, 3vw, 30px); letter-spacing: .08em; text-shadow: 0 3px 12px #000; }
+    .bonus-intro .tier-cap b { display: block; color: var(--cap-amount, #fff); font-size: clamp(40px, 8vw, 96px); text-shadow: 0 0 24px var(--accent), 0 4px 16px #000; }
+    @keyframes tierIn { from { opacity: 0; transform: translate(-50%, var(--cap-ty, 0)) scale(calc(var(--cap-k, 1) * .4)); } to { opacity: 1; transform: translate(-50%, var(--cap-ty, 0)) scale(var(--cap-k, 1)); } }
     /* Elección de cofre */
     .chests { display: flex; gap: clamp(10px, 3vw, 26px); justify-content: center; margin: 18px 0 6px; flex-wrap: wrap; }
     .chest { position: relative; width: clamp(82px, 18vw, 130px); aspect-ratio: 1; border-radius: 18px; border: 2px solid var(--accent); cursor: pointer;
@@ -639,7 +641,7 @@
     /* Presentación del bonus a pantalla completa (imagen, GIF o video) */
     .bonus-intro { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: #000c; animation: bnfade .35s; cursor: pointer; }
     .bonus-intro img, .bonus-intro video { position: static !important; max-width: 100vw; max-height: 100vh; width: 100%; height: 100%; object-fit: contain; }
-    .bonus-intro small { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font: 600 12px system-ui; opacity: .7; }
+    .bonus-intro > small { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font: 600 12px system-ui; opacity: .7; }
 
     /* ---- Pantalla de carga con la marca del juego (logo, fondo, color y estilo) ---- */
     #loader { position: fixed; inset: 0; display: grid; place-items: center; z-index: 30; background: var(--ld-bg, #05060c); background-size: cover; background-position: center;

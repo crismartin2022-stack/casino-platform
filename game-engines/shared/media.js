@@ -66,7 +66,7 @@ export async function loadAnyFont(family, url) {
  * Muestra una imagen, GIF o video a pantalla completa (entrada del bonus, premios por monto…).
  * Se cierra al tocar, al terminar el video o al pasar `seconds`. Con `amount`, el importe se ve encima.
  */
-export async function playMediaOverlay(url, seconds = 3, { amount = null, text = null, turbo = false } = {}) {
+export async function playMediaOverlay(url, seconds = 3, { amount = null, text = null, turbo = false, cap: C = null } = {}) {
   if (!url || typeof document === 'undefined') return;
   const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const box = document.createElement('div');
@@ -79,6 +79,24 @@ export async function playMediaOverlay(url, seconds = 3, { amount = null, text =
     const cap = document.createElement('div');
     cap.className = 'tier-cap';
     cap.innerHTML = `${text ? `<small>${esc(text)}</small>` : ''}<b>${esc(amount)}</b>`;
+    capStyle(cap, C);
+    // El importe se ubica sobre la IMAGEN del video (no sobre la pantalla): así queda igual en PC y en celular
+    if (C && (C.amountX != null || C.amountY != null || C.amountScale != null)) {
+      const place = () => {
+        const r = mediaRect(el, box);
+        const x = Number(C.amountX ?? 50), y = Number(C.amountY ?? 80);
+        cap.style.left = `${r.x + (r.w * x) / 100}px`; cap.style.top = `${r.y + (r.h * y) / 100}px`;
+        // Tamaño proporcional a la imagen (igual que en la vista previa del panel); amountScale lo agranda o achica
+        const b = cap.querySelector('b'), sm = cap.querySelector('small');
+        if (b) b.style.fontSize = `${Math.max(18, r.h * 0.12)}px`;
+        if (sm) sm.style.fontSize = `${Math.max(10, r.h * 0.045)}px`;
+        cap.classList.add('placed');
+      };
+      place();
+      el.addEventListener(isVideo(url) ? 'loadedmetadata' : 'load', place);
+      window.addEventListener('resize', place);
+      box.addEventListener('remove-cap', () => window.removeEventListener('resize', place));
+    }
     box.append(cap);
   }
   document.body.appendChild(box);
@@ -89,7 +107,34 @@ export async function playMediaOverlay(url, seconds = 3, { amount = null, text =
     box.addEventListener('click', done, { once: true });
     if (isVideo(url)) el.addEventListener('ended', done, { once: true });
   });
+  box.dispatchEvent(new Event('remove-cap'));
   box.remove();
+}
+
+/** Rectángulo (en px, dentro de `box`) donde se ve la imagen o el video con object-fit: contain. */
+export function mediaRect(el, box) {
+  const bw = box.clientWidth || window.innerWidth, bh = box.clientHeight || window.innerHeight;
+  const nw = el.videoWidth || el.naturalWidth, nh = el.videoHeight || el.naturalHeight;
+  if (!nw || !nh) return { x: 0, y: 0, w: bw, h: bh };
+  const k = Math.min(bw / nw, bh / nh);
+  const w = nw * k, h = nh * k;
+  return { x: (bw - w) / 2, y: (bh - h) / 2, w, h };
+}
+
+/**
+ * Posición, tamaño y colores del importe sobre el video de un premio por monto (theme.winTiers[i]):
+ * amountX / amountY (centro, en % del ancho y del alto de la pantalla), amountScale (0,4-3), amountColor, textColor.
+ */
+export function capStyle(cap, C) {
+  if (!C) return;
+  const num = (v, a, b) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.min(b, Math.max(a, Number(v))));
+  const x = num(C.amountX, 0, 100), y = num(C.amountY, 0, 100), k = num(C.amountScale, 0.4, 3);
+  if (y != null) { cap.classList.add('placed'); cap.style.top = `${y}%`; }
+  if (x != null) cap.style.left = `${x}%`;
+  if (k != null) cap.style.setProperty('--cap-k', String(k));
+  const color = (v) => (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : null);
+  if (color(C.amountColor)) cap.style.setProperty('--cap-amount', C.amountColor);
+  if (color(C.textColor)) cap.style.setProperty('--cap-text', C.textColor);
 }
 
 /** Nivel de premio por monto alcanzado (theme.winTiers): el más alto con «desde» ≤ x veces la apuesta. */
