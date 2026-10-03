@@ -15,4 +15,5 @@ export const ENGINE_LOADERS = {
   'level-up': () => import('./engine-level-up/src/LevelUpEngine.js').then((m) => m.LevelUpEngine),
   'classic-reels': () => import('./engine-classic-reels/src/ClassicReelsEngine.js').then((m) => m.ClassicReelsEngine),
   craps: () => import('./engine-craps/src/CrapsEngine.js').then((m) => m.CrapsEngine),
+  crash: () => import('./engine-crash/src/CrashEngine.js').then((m) => m.CrashEngine),
 };

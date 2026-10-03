@@ -254,6 +254,7 @@ export async function runTool(name, input, ctx, agent) {
 
     case 'simulate_rtp': {
       const c = getDraft(ctx.gameId);
+      if (ENGINES[c.engine].kind === 'crash') return { exacto: true, rtp: c.rules.rtp, nota: 'En Crash el RTP es exacto para cualquier forma de jugar: es rules.rtp (85 %–99 %). Retirarse en x gana con probabilidad rtp/x.' };
       if (ENGINES[c.engine].kind === 'table') return { exacto: true, rtpPorApuesta: ENGINES[c.engine].analyze(c).perBet, nota: 'En la mesa el RTP es exacto; para cambiarlo edita rules.pays de cada apuesta.' };
       const errs = validateConfig(c);
       if (errs.length) return { error: 'Configuración inválida', details: errs };

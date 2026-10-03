@@ -60,9 +60,9 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 16 juegos publicados', async () => {
+test('lista los 17 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
-  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'craps', 'expanding-symbol', 'hold-win', 'level-up',
+  assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'craps', 'crash', 'expanding-symbol', 'hold-win', 'level-up',
     'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
@@ -700,4 +700,97 @@ test('dados en vivo: mesa compartida con cuenta regresiva, no va más y la misma
   assert.equal(v.body.match, true);
   const lr = await req(`/api/admin/live-rolls/${rolled.roll.id}`, { headers: ADMIN });
   assert.deepEqual(lr.body.dice, rolled.roll.dice);
+});
+
+test('crash: ronda compartida, cancelar, retirarse, retiro automático, explosión verificable y billetera seamless', async () => {
+  // Tiempos cortos para la prueba
+  // (curva rápida: el tope ×1000 llega en ~7 s, así ninguna ronda dura mucho)
+  const ops = [{ op: 'set', path: 'rules.bettingSeconds', value: 3 }, { op: 'set', path: 'rules.pauseSeconds', value: 1 },
+    { op: 'set', path: 'rules.curve', value: { rate: 1, slowAt: 10, slowFactor: 1, rampSeconds: 0 } }];
+  assert.equal((await req('/api/admin/games/crash/draft', { method: 'PATCH', headers: ADMIN, body: { ops } })).status, 200);
+  const pub = await req('/api/admin/games/crash/publish', { method: 'POST', headers: ADMIN, body: { note: 'prueba crash' } });
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  assert.equal(pub.body.math?.rtp ?? 0.97, 0.97);
+  const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'crash' } });
+  const a = { authorization: `Bearer ${s.token}` };
+  // Un juego Crash no se juega con /spin
+  assert.equal((await req('/api/v1/spin', { method: 'POST', headers: a, body: { bet: 100 } })).status, 400);
+  const get = async (h = a) => (await req('/api/v1/crash', { headers: h })).body;
+  const until = async (fn, ms = 60000, h = a) => { const end = Date.now() + ms; while (Date.now() < end) { const d = await get(h); if (fn(d.table)) return d; await new Promise((r) => setTimeout(r, 100)); } throw new Error('la mesa no avanzó'); };
+  let d = await until((t) => t.phase === 'betting' && t.endsAt - t.serverNow > 1500);
+  assert.equal(d.table.seed, null, 'la semilla no se ve antes de explotar');
+  assert.match(d.table.hash, /^[0-9a-f]{64}$/);
+  const bal0 = d.balance;
+  // Montos inválidos
+  assert.equal((await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 5 } })).status, 400);
+  assert.equal((await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 100, auto: 1.001 } })).status, 400);
+  // Apostar y cancelar devuelve el importe
+  let r = await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 100, panel: 0 } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.balance, bal0 - 100);
+  const id0 = r.body.table.mine[0].id;
+  r = await req(`/api/v1/crash/bets/${id0}`, { method: 'DELETE', headers: a });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.balance, bal0);
+  // Dos apuestas: una manual y otra con retiro automático en ×1,01 (gana siempre que no explote en ×1,00)
+  assert.equal((await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 200, panel: 0 } })).status, 200);
+  r = await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 300, panel: 1, auto: 1.01 } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.table.mine.length, 2);
+  assert.equal((await req('/api/v1/crash/bets', { method: 'POST', headers: a, body: { amount: 100, panel: 1 } })).status, 409, 'un panel, una apuesta');
+  const roundNo = r.body.table.roundNo;
+  // Retirarse apenas empieza el vuelo (si no explotó en ×1,00)
+  d = await until((t) => t.roundNo === roundNo && t.phase !== 'betting');
+  const manual = d.table.mine.find((b) => b.panel === 0);
+  const co = await req(`/api/v1/crash/bets/${manual.id}/cashout`, { method: 'POST', headers: a });
+  d = await until((t) => t.roundNo === roundNo && t.phase === 'crashed');
+  const crash = d.table.crash;
+  const mine = d.table.mine;
+  if (co.status === 200) {
+    assert.ok(co.body.cashout >= 1 && co.body.cashout <= crash);
+    assert.equal(co.body.win, Math.floor(200 * co.body.cashout));
+  } else assert.equal(co.status, 409);
+  const auto = mine.find((b) => b.panel === 1);
+  if (crash >= 1.01) assert.deepEqual([auto.status, auto.cashout, auto.win], ['cashed', 1.01, 303]);
+  else assert.equal(auto.status, 'lost');
+  // Saldo coherente con lo apostado y lo cobrado
+  const won = mine.reduce((x, b) => x + (b.win || 0), 0);
+  assert.equal(d.balance, bal0 - 500 + won);
+  // Verificable: la semilla revelada da el hash publicado y el mismo punto
+  assert.match(d.table.seed, /^[0-9a-f]{64}$/);
+  const { createHash, createHmac: hm } = await import('node:crypto');
+  assert.equal(createHash('sha256').update(d.table.seed).digest('hex'), d.table.hash);
+  const u = parseInt(hm('sha256', d.table.seed).update('crash').digest('hex').slice(0, 13), 16) / 2 ** 52;
+  assert.equal(Math.min(Math.max(1, Math.floor((0.97 / (1 - u)) * 100 + 1e-9) / 100), 1000), crash);
+  const vr = await req(`/api/v1/crash/rounds/${roundNo}`, { headers: a });
+  assert.equal(vr.body.crash, crash);
+  // Cada apuesta es una ronda auditada que se reproduce
+  for (const b of mine) {
+    const v = await req(`/api/admin/rounds/${b.id}/replay`, { headers: ADMIN });
+    assert.equal(v.status, 200, JSON.stringify(v.body));
+    assert.equal(v.body.match, true, JSON.stringify(v.body));
+  }
+  const cr = await req('/api/admin/crash-rounds/crash', { headers: ADMIN });
+  assert.ok(cr.body.some((x) => x.round_no === roundNo && x.bets === 2));
+  // Ya explotó: no se puede retirar (si ya estaba cobrada, repetir el pedido no paga dos veces)
+  const again = await req(`/api/v1/crash/bets/${auto.id}/cashout`, { method: 'POST', headers: a });
+  if (auto.status === 'cashed') { assert.equal(again.status, 200); assert.equal(again.body.balance, d.balance); } else assert.equal(again.status, 409);
+
+  // Billetera seamless: el operador cobra al apostar y acredita al retirarse
+  const op = await req('/api/admin/operators', { method: 'POST', headers: ADMIN, body: { name: 'Casino Crash', walletMode: 'seamless', walletUrl: `http://127.0.0.1:${walletPort}/wallet` } });
+  walletSecret = op.body.walletSecret;
+  const sx = (await req('/api/v1/operator/sessions', { method: 'POST', headers: { 'x-api-key': op.body.apiKey }, body: { playerId: 'cx-1', gameId: 'crash' } })).body;
+  const b2 = { authorization: `Bearer ${sx.token}` };
+  walletState.failCredits = 0;
+  const w0 = walletState.balance;
+  d = await until((t) => t.phase === 'betting' && t.endsAt - t.serverNow > 1200, 60000, b2);
+  r = await req('/api/v1/crash/bets', { method: 'POST', headers: b2, body: { amount: 1000, auto: 1.01 } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(walletState.balance, w0 - 1000);
+  const rn = r.body.table.roundNo;
+  d = await until((t) => t.roundNo === rn && t.phase === 'crashed', 60000, b2);
+  await new Promise((x) => setTimeout(x, 300));
+  const mb = d.table.mine[0];
+  assert.equal(walletState.balance, w0 - 1000 + (mb.win || 0));
+  if (d.table.crash >= 1.01) assert.equal(mb.win, 1010);
 });

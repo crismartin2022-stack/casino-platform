@@ -17,6 +17,7 @@ import * as treasureChests from './treasure-chests.js';
 import * as cashCollect from './cash-collect.js';
 import * as classicReels from './classic-reels.js';
 import * as levelUp from './level-up.js';
+import * as crash from './crash.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -39,6 +40,7 @@ export const ENGINES = {
   [classicReels.id]: classicReels,
   [levelUp.id]: levelUp,
   [craps.id]: craps,
+  [crash.id]: crash,
 };
 
 /** Modos de compra de un motor, con acceso a su precio. */
@@ -59,6 +61,9 @@ export function engineGridLimits(engineId) {
   if (engineId === 'megaways' || engineId === 'colossal-reels') return { reels: [4, 8], rows: GRID_LIMITS.rows };
   return GRID_LIMITS;
 }
+
+/** ¿Es una tragamonedas (rodillos, simulación y ajuste de RTP)? Mesa (craps) y Crash no lo son. */
+export const isSlot = (e) => !e?.kind || e.kind === 'slot';
 
 export function getEngine(id) {
   const e = ENGINES[id];
@@ -83,7 +88,7 @@ export const engineList = () => Object.values(ENGINES).map((e) => {
   return {
     id: e.id, name: e.name, description: e.description, modes: e.modes || ['base'],
     kind: e.kind || 'slot',
-    paysBy: e.kind === 'table' ? 'table' : e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
+    paysBy: !isSlot(e) ? e.kind : e.paysBy || (LINE_ENGINES.includes(e.id) ? 'lines' : 'ways'), gridLimits: engineGridLimits(e.id),
     variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
     card: {
       ...(ENGINE_CARDS[e.id] || {}),
@@ -103,7 +108,7 @@ export function validateConfig(config) {
   const e = ENGINES[config.engine];
   if (!e) return [`Motor desconocido: ${config.engine}`];
   const errs = [...e.validate(config), ...validateBets(config)];
-  if (e.kind === 'table') { if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme'); return errs; }
+  if (!isSlot(e)) { if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme'); return errs; }
   if (!(config.rtpTarget >= RTP_RANGE[0] && config.rtpTarget <= RTP_RANGE[1])) errs.push(`rtpTarget debe estar entre ${RTP_RANGE[0]} y ${RTP_RANGE[1]} (85 % a 110 %)`);
   if (!config.theme || typeof config.theme !== 'object') errs.push('Falta theme');
   return errs;
@@ -115,7 +120,7 @@ export function validateConfig(config) {
  */
 export function simulate(config, { spins = 200_000, mode = 'base', seed = 12345, timeBudgetMs = 20_000, freshState = false } = {}) {
   const engine = getEngine(config.engine);
-  if (engine.kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP se calcula exacto: mira la tabla de apuestas'), { status: 400 });
+  if (!isSlot(engine)) throw Object.assign(new Error(engine.kind === 'crash' ? 'En Crash el RTP es exacto: se fija en Matemática (rules.rtp)' : 'En los juegos de mesa el RTP se calcula exacto: mira la tabla de apuestas'), { status: 400 });
   const rng = seededRng(seed);
   const cost = costMultiplier(engine, config, mode);
   let sum = 0, sumSq = 0, hits = 0, features = 0, maxWin = 0, n = 0, capped = 0;
@@ -219,7 +224,7 @@ const refineBudget = () => Number(process.env.TUNE_REFINE_MS || 45_000);
  * y ajusta reglas dependientes. El RTP queda desajustado: después hay que llamar a tuneRtp.
  */
 export function resizeGrid(config, { reels, rows, lines } = {}) {
-  if (getEngine(config.engine).kind === 'table') throw Object.assign(new Error('Los juegos de mesa no tienen rodillos'), { status: 400 });
+  if (!isSlot(getEngine(config.engine))) throw Object.assign(new Error('Este juego no tiene rodillos'), { status: 400 });
   const c = structuredClone(config);
   const g = c.grid;
   const R = c.rules || {};
@@ -286,7 +291,7 @@ export function resizeGrid(config, { reels, rows, lines } = {}) {
  */
 export function tuneFeature(config, { every, spins = 200_000, seed = 4242 } = {}) {
   const engine = getEngine(config.engine);
-  if (engine.kind === 'table') throw Object.assign(new Error('Los juegos de mesa no tienen bonus de rodillos'), { status: 400 });
+  if (!isSlot(engine)) throw Object.assign(new Error('Este juego no tiene bonus de rodillos'), { status: 400 });
   every = Number(every);
   if (!(every >= 20 && every <= 5000)) throw Object.assign(new Error('La frecuencia debe estar entre 20 y 5000 giros'), { status: 400 });
   const triggers = new Set((config.symbols || []).filter((s) => ['scatter', 'wildscatter', 'coin'].includes(s.type)).map((s) => s.id));
@@ -337,7 +342,7 @@ export function tuneFeature(config, { every, spins = 200_000, seed = 4242 } = {}
 }
 
 export function tuneRtp(config, opts = {}) {
-  if (getEngine(config.engine).kind === 'table') throw Object.assign(new Error('En los juegos de mesa el RTP depende de los pagos de cada apuesta: edítalos en las reglas'), { status: 400 });
+  if (!isSlot(getEngine(config.engine))) throw Object.assign(new Error(getEngine(config.engine).kind === 'crash' ? 'En Crash el RTP es exacto: cámbialo en rules.rtp' : 'En los juegos de mesa el RTP depende de los pagos de cada apuesta: edítalos en las reglas'), { status: 400 });
   return tuneRtpSlot(config, opts);
 }
 

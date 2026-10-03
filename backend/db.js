@@ -163,6 +163,23 @@ CREATE TABLE IF NOT EXISTS live_rolls (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_live_rolls_game ON live_rolls(game_id, created_at);
+-- Crash: una fila por ronda de la mesa compartida (semilla secreta hasta que explota; su hash se publica antes)
+CREATE TABLE IF NOT EXISTS crash_rounds (
+  id TEXT PRIMARY KEY,
+  table_id TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  round_no INTEGER NOT NULL,
+  version INTEGER,
+  hash TEXT NOT NULL,
+  seed TEXT NOT NULL,
+  crash REAL NOT NULL,
+  bets INTEGER NOT NULL DEFAULT 0,
+  wagered INTEGER NOT NULL DEFAULT 0,
+  paid INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  crashed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_crash_rounds_game ON crash_rounds(game_id, created_at);
 CREATE TABLE IF NOT EXISTS operator_users (
   id TEXT PRIMARY KEY,
   operator_id TEXT NOT NULL REFERENCES operators(id),

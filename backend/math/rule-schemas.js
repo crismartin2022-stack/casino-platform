@@ -218,6 +218,19 @@ export const RULE_SCHEMAS = {
     MULTS('multReel.values', 'Valores del rodillo multiplicador', 'Rodillo multiplicador'),
     MAXWIN,
   ],
+  crash: [
+    { k: 'rtp', l: 'RTP (0,85 a 0,99)', t: 'num', min: 0.85, max: 0.99, step: 0.005, g: 'Matemática', help: 'Exacto para cualquier forma de jugar. 0,97 = 97 %: el 3 % de las rondas explota en ×1,00.' },
+    { k: 'maxMultiplier', l: 'Tope del multiplicador ×', t: 'num', min: 2, max: 100000, step: 1, g: 'Matemática', help: 'Al llegar se retira solo a todos. No cambia el RTP.' },
+    { k: 'bettingSeconds', l: 'Cuenta regresiva para apostar (s)', t: 'num', min: 3, max: 60, step: 0.5, g: 'Ritmo' },
+    { k: 'pauseSeconds', l: 'Pausa después de la explosión (s)', t: 'num', min: 1, max: 30, step: 0.5, g: 'Ritmo' },
+    { k: 'curve.rate', l: 'Velocidad de subida', t: 'num', min: 0.02, max: 1, step: 0.002, g: 'Curva', help: '0,082 ≈ ×2 a los 8,5 s. Más alto = sube más rápido.' },
+    { k: 'curve.slowAt', l: 'Frena desde ×', t: 'num', min: 1, max: 1000, step: 0.5, g: 'Curva', help: 'Desde este multiplicador la subida se hace más lenta para que no se dispare.' },
+    { k: 'curve.slowFactor', l: 'Velocidad después de frenar (0-1)', t: 'num', min: 0.05, max: 1, step: 0.05, g: 'Curva', help: '0,5 = a la mitad de velocidad · 1 = no frena.' },
+    { k: 'curve.rampSeconds', l: 'Transición del frenado (s)', t: 'num', min: 0, max: 10, step: 0.1, g: 'Curva' },
+    { k: 'maxBets', l: 'Apuestas por ronda (1 o 2)', t: 'int', min: 1, max: 2, g: 'Apuestas', help: '2 = dos paneles de apuesta, como en la plantilla.' },
+    { k: 'autoMin', l: 'Retiro automático mínimo ×', t: 'num', min: 1.01, max: 100, step: 0.01, g: 'Apuestas' },
+    { k: 'historySize', l: 'Rondas en el historial', t: 'int', min: 5, max: 100, g: 'Pantalla' },
+  ],
   'cash-collect': [
     WEIGHTED('coinValues', 'Valores de las monedas (× la apuesta)', 'Monedas', [{ k: 'value', l: 'Valor ×', t: 'num', min: 0, step: 0.01 }]),
     { k: 'triggerCount', l: 'Scatters para giros gratis', t: 'int', min: 2, max: 5, g: 'Giros gratis' },
@@ -246,5 +259,6 @@ export const ENGINE_CARDS = {
   'cash-collect': { tagline: 'monedas y recolector', grid: '5x3, 10 líneas', pays: 'Líneas + monedas', bonus: 'Giros gratis con niveles del recolector', features: ['Monedas con premio en dinero', 'El recolector cobra todas las monedas', 'Niveles: más giros y monedas ×2, ×3, ×5'] },
   'level-up': { tagline: 'niveles que desbloquean premios', grid: '5x3, 10 líneas', pays: 'Líneas', bonus: 'Bonus de cofres y niveles con recompensas', features: ['El jugador sube de nivel (se guarda por apuesta)', 'Barra de XP y colección de semillas', 'Recompensas: multiplicador, semillas doradas y jackpot'] },
   'classic-reels': { tagline: 'tragamonedas clásica de frutas', grid: '3x3, 5 líneas', pays: 'Líneas clásicas', bonus: 'Rodillo multiplicador ×1 a ×10', features: ['Frutas, BAR y 7 de toda la vida', 'Cerezas que pagan desde una', 'Comodín ×2 (dos comodines ×4)', 'Cualquier BAR paga'] },
+  crash: { tagline: 'multiplicador en vivo (estilo Aviator)', grid: 'Escenario con curva', pays: 'Apuesta × multiplicador al retirarse', bonus: '—', features: ['Ronda compartida en vivo con cuenta regresiva', 'Dos apuestas por ronda y retiro automático', 'Punto de explosión verificable (hash antes, semilla después)', 'RTP exacto para cualquier estrategia', 'Personaje animado con hojas de sprites'] },
   craps: { tagline: 'mesa de dados', grid: 'Mesa de dados', pays: 'Apuestas de mesa', bonus: '—', features: ['Pass, Come, Odds, Field, Hardways', 'Lanzamiento arrastrando con potencia', 'Mesa en vivo: el crupier tira para todos con cuenta regresiva', 'Crupier grabado: un video por resultado', 'RTP exacto por apuesta'] },
 };

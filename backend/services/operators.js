@@ -4,13 +4,13 @@ import { randomBytes, createHash, scryptSync, timingSafeEqual, createHmac } from
 import { one, all, run, audit } from '../db.js';
 import { HttpError } from '../lib/http.js';
 import { config } from '../config.js';
-import { getEngine } from '../math/index.js';
+import { getEngine, isSlot } from '../math/index.js';
 import { listGames, createOwnedGame, getGame } from './games.js';
 import { configForOperator, operatorCanUse, buildVariant, findVariant, listVariants } from './variants.js';
 import { mathHash, getPublished } from './games.js';
 import { applyCurrency, operatorLimits } from './bets.js';
 import { publicBrand } from './brands.js';
-const isTable = (engine) => getEngine(engine).kind === 'table';
+const isTable = (engine) => !isSlot(getEngine(engine));
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const token = (n = 24) => randomBytes(n).toString('base64url');
@@ -211,7 +211,7 @@ export function setOperatorGame(opId, gameId, { enabled, rtpTarget }, actor) {
   const nextEnabled = enabled == null ? (cur ? cur.enabled : 1) : enabled ? 1 : 0;
   let target = rtpTarget === undefined ? (cur?.rtp_target ?? null) : rtpTarget === null || rtpTarget === '' ? null : Number(rtpTarget);
   if (target != null) {
-    if (getEngine(g.engine).kind === 'table') throw new HttpError(400, 'En los juegos de mesa el RTP sale de los pagos de cada apuesta: no hay variantes');
+    if (!isSlot(getEngine(g.engine))) throw new HttpError(400, 'En los juegos de mesa y Crash el RTP es exacto y propio del juego: no hay variantes');
     buildVariant(gameId, target, actor); // valida el rango y la calcula en segundo plano si falta
   }
   run(`INSERT INTO operator_games (operator_id, game_id, enabled, rtp_target, updated_at) VALUES (?, ?, ?, ?, datetime('now'))

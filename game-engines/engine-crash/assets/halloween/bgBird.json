@@ -1,0 +1,290 @@
+{
+  "frames": [
+    {
+      "filename": "aBat-animation_00",
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_01",
+      "frame": {
+        "x": 4,
+        "y": 58,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_02",
+      "frame": {
+        "x": 4,
+        "y": 112,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_03",
+      "frame": {
+        "x": 4,
+        "y": 166,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_04",
+      "frame": {
+        "x": 4,
+        "y": 220,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_05",
+      "frame": {
+        "x": 4,
+        "y": 274,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_06",
+      "frame": {
+        "x": 4,
+        "y": 328,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_07",
+      "frame": {
+        "x": 4,
+        "y": 382,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_08",
+      "frame": {
+        "x": 4,
+        "y": 436,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_09",
+      "frame": {
+        "x": 4,
+        "y": 490,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "aBat-animation_10",
+      "frame": {
+        "x": 4,
+        "y": 544,
+        "w": 44,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 46
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "meta": {
+    "app": "http://free-tex-packer.com",
+    "version": "0.6.7",
+    "image": "assets/images/bgBird.png",
+    "format": "png",
+    "size": {
+      "w": 52,
+      "h": 594
+    },
+    "scale": 1
+  }
+}

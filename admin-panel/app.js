@@ -742,7 +742,7 @@ function bindUiPicker(root) {
 }
 async function applyUiChoice(root, gameId, engine) {
   const k = $('[data-pick].on', root)?.dataset.pick;
-  if (!k || k === 'pill' || engineInfo(engine).kind === 'table') return;
+  if (!k || k === 'pill' || (engineInfo(engine).kind || 'slot') !== 'slot') return;
   const pal = UIS.find((x) => x[0] === k)[3];
   await api(`/api/admin/games/${encodeURIComponent(gameId)}/draft`, { method: 'PATCH', body: { ops: [{ op: 'merge', path: 'theme.hud', value: { layout: k } }, ...(pal ? [{ op: 'merge', path: 'theme.palette', value: pal }] : [])] } });
 }
@@ -1195,7 +1195,8 @@ async function tabDesign(v) {
     <input id="f-${k}" list="dFontList" value="${esc(t[k] || '')}" placeholder="La del juego" ${t[`${k}Url`] ? 'readonly' : ''} />
     <div class="row" style="margin-top:6px"><button class="small" data-fkup="${k}">Subir tipografía…</button>${t[k] ? `<button class="small danger" data-fkx="${k}">Quitar</button>` : ''}</div></div>`;
   const slider = (id, label, val, min, max, step, unit) => `<div><label>${label} (<span id="${id}V">${unit === '%' ? Math.round(val * 100) : val}</span> ${unit})</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-unit="${unit}" /></div>`;
-  const isTableGame = engineInfo(S.game.engine).kind === 'table';
+  const isCrash = engineInfo(S.game.engine).kind === 'crash';
+  const isTableGame = engineInfo(S.game.engine).kind === 'table' || isCrash;
   v.innerHTML = `<div class="stack">
     ${isTableGame ? '' : `<div class="card stack"><h3 style="margin:0">Interfaz del juego</h3>
       <p class="muted">Elige cómo se ve y se ordena todo alrededor de los rodillos: saldo, fichas de apuesta, botón GIRAR, menú y efectos de premio. Funciona en PC y celular.</p>
@@ -1211,17 +1212,18 @@ async function tabDesign(v) {
           <div class="row" style="margin-top:6px"><button class="small" data-fontup="theme">Subir tipografía…</button>${t.fontUrl ? '<button class="small danger" data-fontclear="theme">Quitar archivo</button>' : ''}</div></div>
         <div><label>Color de fondo</label><input type="color" id="dBg" value="${esc(t.backgroundColor || '#000000')}" /></div>
         ${fontRow('infoFont', 'Tipografía de la pantalla de información (reglas, tabla de premios, menú e historial)')}
-        ${isTableGame ? fontRow('tableFont', 'Tipografía de los textos de la mesa (apuestas, fichas, botones)') : ''}
+        ${isTableGame && !isCrash ? fontRow('tableFont', 'Tipografía de los textos de la mesa (apuestas, fichas, botones)') : ''}
       </div>${fontDatalist('dFontList')}</div>
     <div class="card stack"><h3 style="margin:0">Paleta</h3><div class="grid2">
       ${color('primary', 'Principal (botón girar)')}${color('accent', 'Acento (marcos, premios)')}${color('panel', 'Panel inferior')}${color('text', 'Texto')}${color('reelBg', 'Fondo de rodillos')}
     </div></div>
     <div class="card stack"><h3 style="margin:0">Imágenes</h3><div class="grid2">
-      ${imgField('background', 'Fondo PC (horizontal 16:9)')}${imgField('backgroundMobile', 'Fondo celular (vertical 9:16)')}
+      ${isCrash ? `${imgField('background', 'Fondo de la página (detrás de los paneles)')}${imgField('logo', 'Logo (arriba a la izquierda del escenario)')}` : `${imgField('background', 'Fondo PC (horizontal 16:9)')}${imgField('backgroundMobile', 'Fondo celular (vertical 9:16)')}
       ${imgField('logo', 'Logo')}${imgField('reelsBackground', 'Fondo detrás de los rodillos')}
-      ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}
+      ${engineInfo(S.game.engine).kind === 'table' ? imgField('tableImage', 'Paño de la mesa') : `${imgField('cellImage', 'Fondo de cada celda')}${imgField('frame', 'Marco decorativo')}`}`}
     </div></div>
-    <div class="card stack"><h3 style="margin:0">Logo y marco: tamaño y posición</h3>
+    ${isCrash ? crashStageCard(t) : ''}
+    <div class="card stack" ${isCrash ? 'hidden' : ''}><h3 style="margin:0">Logo y marco: tamaño y posición</h3>
       <p class="muted" style="margin:0">Mueve el logo${isTableGame ? '' : ' y el marco decorativo'} hacia arriba (negativo) o hacia abajo (positivo)${isTableGame ? '' : '; el marco además se estira o achica a lo ANCHO y a lo ALTO por separado (100 % = justo a los rodillos)'}. PC y celular se ajustan por separado; mira el cambio en ▶ Vista previa. También se lo puedes pedir al agente: «el marco más ancho y un poco más bajo».</p>
       <div class="grid2">
         ${slider('pLogoScale', 'Tamaño del logo', t.logoScale ?? 1, 0.4, 1.8, 0.05, '%')}
@@ -1239,7 +1241,7 @@ async function tabDesign(v) {
       </div>
       <div class="row"><button class="small" id="pReset">Volver a la posición original</button></div></div>
     ${engineInfo(S.game.engine).kind === 'table' ? diceCard(t.dice || {}) + croupierCard(S.game.draft) : ''}
-    <div class="card stack" ${engineInfo(S.game.engine).kind === 'table' ? 'hidden' : ''}><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
+    <div class="card stack" ${isTableGame ? 'hidden' : ''}><h3 style="margin:0">Rodillos y símbolos</h3><div class="grid2">
       <div><label>Tamaño de los símbolos (<span id="lScaleV">${Math.round((t.symbolScale ?? 0.92) * 100)}</span> % de la celda)</label><input id="lScale" type="range" min="0.6" max="1" step="0.01" value="${t.symbolScale ?? 0.92}" /></div>
       <div><label>Separación entre celdas (<span id="lGapV">${t.cellGap ?? 6}</span> px)</label><input id="lGap" type="range" min="0" max="16" step="1" value="${t.cellGap ?? 6}" /></div>
       <div><label>Color de las celdas</label><input id="lCell" type="color" value="${esc(t.cellColor || p.reelBg || '#0f3460')}" /></div>
@@ -1251,7 +1253,7 @@ async function tabDesign(v) {
       <div><label>Tamaño del marco (<span id="lFrameScaleV">${Math.round((t.frameScale ?? 1.12) * 100)}</span> %)</label><input id="lFrameScale" type="range" min="0.9" max="1.6" step="0.01" value="${t.frameScale ?? 1.12}" /></div>
       <div><label>Frase bajo los rodillos (celular)</label><input id="lTag" value="${esc(t.tagline || '')}" placeholder="Ej.: ¡El golpe continúa!" /></div>
     </div></div>
-    <div class="card stack"><h3 style="margin:0">Botonera</h3><div class="grid2">
+    <div class="card stack" ${isCrash ? 'hidden' : ''}><h3 style="margin:0">Botonera</h3><div class="grid2">
       <input type="hidden" id="hLayout" value="${esc(t.hud?.layout || 'pill')}" />
       <div><label>Color de la botonera</label><input id="hBar" type="color" value="${esc((t.hud?.barColor || '').startsWith('#') ? t.hud.barColor : '#0a080c')}" /></div>
       <div><label>Borde de la botonera</label><input id="hBorder" type="color" value="${esc(t.hud?.barBorder || p.accent || '#ffd460')}" /></div>
@@ -1262,7 +1264,7 @@ async function tabDesign(v) {
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
     </div></div>
     ${isTableGame ? '' : metersCard(t.hud?.meters || {}, p)}
-    <div class="card stack"><h3 style="margin:0">Botones del juego</h3>
+    <div class="card stack" ${isCrash ? 'hidden' : ''}><h3 style="margin:0">Botones del juego</h3>
       <div class="grid2">
         <div><label>Forma</label><select id="bShape">${[['round', 'Redondos'], ['rounded', 'Esquinas suaves'], ['square', 'Cuadrados'], ['pill', 'Píldora']].map(([v, l]) => `<option value="${v}" ${(B.shape || 'round') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div><label>Estilo</label><select id="bStyle">${[['gradient', 'Degradado'], ['flat', 'Plano'], ['glass', 'Vidrio'], ['outline', 'Solo borde']].map(([v, l]) => `<option value="${v}" ${(B.style || 'gradient') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -1285,6 +1287,7 @@ async function tabDesign(v) {
     </div>
     <div class="row"><button class="primary" id="dSave">Guardar diseño</button><span class="muted">Consejo: en 🤖 Agentes puedes pedir “cambia el fondo por una selva de noche” y lo genera el Artista.</span></div>
   </div>`;
+  bindCrashStageCard(v);
   $$('[data-ui]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const k = b.dataset.ui;
     const pal = UIS.find((x) => x[0] === k)[3];
@@ -1714,6 +1717,10 @@ function bindDiceCard(v) {
 
 // ------------------------------------------------------------------ Pestaña: Símbolos
 async function tabSymbols(v) {
+  if (engineInfo(S.game.engine).kind === 'crash') {
+    v.innerHTML = '<div class="card"><p>Este juego es <b>Crash</b>: no tiene símbolos ni rodillos. El personaje, el fondo en capas y los colores del escenario se cambian en <b>🎨 Diseño → Escenario Crash</b>; el RTP, el tope y la curva en <b>📈 Matemática</b>.</p></div>';
+    return;
+  }
   if (engineInfo(S.game.engine).kind === 'table') {
     v.innerHTML = '<div class="card"><p>Este juego es de mesa: no tiene símbolos ni rodillos. Los pagos se editan en <b>📈 Matemática</b> y el aspecto (paño, colores, fondos) en <b>🎨 Diseño</b>.</p></div>';
     return;
@@ -1809,6 +1816,112 @@ const BUY_NAMES = { buy: 'giros gratis', 'buy-sticky': 'wilds fijos', 'buy-wheel
 // ---- Matemática de juegos de mesa (Craps): pagos editables y RTP exacto por apuesta ----
 const CRAPS_BETS = [['pass', 'Pass Line'], ['dontPass', "Don't Pass"], ['come', 'Come'], ['dontCome', "Don't Come"], ['odds', 'Odds'],
   ['place', 'Números (4-10)'], ['field', 'Field'], ['hard', 'Hardways'], ['anyCraps', 'Any Craps'], ['any7', 'Any 7']];
+
+// ------------------------------------------------------------------ Crash: escenario (Diseño) y matemática
+const CRASH_SHEETS = [['idle', 'Personaje quieto (esperando)'], ['run', 'Personaje volando'], ['explode', 'Explosión'], ['fly', 'Se va volando después de explotar'],
+  ['bg', 'Fondo en capas (3 siluetas)'], ['bats', 'Murciélagos del cielo'], ['details', 'Luna y estrellas']];
+function crashStageCard(t) {
+  const C = t.crash || {};
+  const A = C.atlases || {};
+  const sky = C.sky || ['#27194c', '#3e2968', '#563c7c', '#755799'];
+  return `<div class="card stack" id="crashCard"><h3 style="margin:0">🎃 Escenario Crash</h3>
+    <p class="muted" style="margin:0">El escenario del juego: cielo, curva, multiplicador y el personaje animado. Cada animación es una <b>hoja de sprites</b> (una imagen con todos los cuadros y un .json que dice dónde está cada uno).
+      Puedes reemplazar la imagen por otra con <b>los cuadros en el mismo lugar</b> (mismo tamaño y orden), por ejemplo la misma hoja recoloreada o redibujada.</p>
+    <div class="grid2">
+      ${sky.map((c, i) => `<div><label>Cielo ${['arriba', 'medio alto', 'medio bajo', 'horizonte'][i] || i + 1}</label><input type="color" data-sky="${i}" value="${esc(c)}" /></div>`).join('')}
+      <div><label>Color de la curva</label><input type="color" id="cxCurve" value="${esc(C.curveColor || '#ffffff')}" /></div>
+      <div><label>Color del multiplicador</label><input type="color" id="cxMult" value="${esc(C.multColor || '#ffffff')}" /></div>
+      <div><label>Color al explotar</label><input type="color" id="cxCrash" value="${esc(C.crashColor || '#ef4444')}" /></div>
+      <div><label>Tamaño del personaje (<span id="cxScaleV">${Math.round((C.characterScale || 1) * 100)}</span> %)</label><input type="range" id="cxScale" min="0.5" max="2" step="0.05" value="${C.characterScale || 1}" /></div>
+    </div>
+    <table><thead><tr><th>Animación</th><th>Imagen</th><th></th></tr></thead><tbody>
+      ${CRASH_SHEETS.map(([k, l]) => `<tr data-sheet="${k}"><td>${l}</td><td>${A[`${k}Image`] ? `<img src="${esc(A[`${k}Image`])}" style="height:44px;max-width:160px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">—</span>'}</td>
+        <td class="row"><button class="small" data-sheetimg>Cambiar imagen…</button><button class="small" data-sheetjson>Cambiar .json…</button></td></tr>`).join('')}
+    </tbody></table>
+    <div class="row"><button class="primary" id="cxSave">Guardar escenario</button><button class="small" id="cxReset">Volver al escenario original</button></div></div>`;
+}
+function bindCrashStageCard(v) {
+  const card = $('#crashCard', v);
+  if (!card) return;
+  $('#cxScale', card).addEventListener('input', (e) => { $('#cxScaleV', card).textContent = Math.round(e.target.value * 100); });
+  $('#cxSave', card).addEventListener('click', guard(async () => {
+    const sky = $$('[data-sky]', card).map((i) => i.value);
+    await patchDraft([{ op: 'merge', path: 'theme.crash', value: { sky, curveColor: $('#cxCurve', card).value, multColor: $('#cxMult', card).value, crashColor: $('#cxCrash', card).value, characterScale: Number($('#cxScale', card).value) } }], 'Escenario guardado. Míralo en ▶ Vista previa');
+    renderTab();
+  }));
+  $('#cxReset', card).addEventListener('click', guard(async () => {
+    const def = engineInfo(S.game.engine);
+    void def;
+    await patchDraft([{ op: 'set', path: 'theme.crash', value: CRASH_DEFAULT_STAGE() }], 'Escenario original restaurado');
+    renderTab();
+  }));
+  $$('[data-sheetimg]', card).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (url) { await patchDraft([{ op: 'set', path: `theme.crash.atlases.${b.closest('tr').dataset.sheet}Image`, value: url }], 'Imagen de la animación cambiada'); renderTab(); }
+  })));
+  $$('[data-sheetjson]', card).forEach((b) => b.addEventListener('click', guard(async () => {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+    inp.onchange = guard(async () => {
+      const f = inp.files[0];
+      if (!f) return;
+      const data = JSON.parse(await f.text());
+      if (!data.frames) throw new Error('El .json no tiene «frames»: debe ser una hoja de sprites (formato TexturePacker / PixiJS)');
+      // Se guarda dentro del diseño (solo la lista de cuadros: son pocos datos)
+      const frames = (Array.isArray(data.frames) ? data.frames : Object.entries(data.frames).map(([filename, x]) => ({ filename, ...x })))
+        .map((x) => ({ filename: x.filename, frame: { x: x.frame.x, y: x.frame.y, w: x.frame.w, h: x.frame.h } }));
+      await patchDraft([{ op: 'set', path: `theme.crash.atlases.${b.closest('tr').dataset.sheet}`, value: { frames } }], `Cuadros de la animación cambiados (${frames.length})`);
+      renderTab();
+    });
+    inp.click();
+  })));
+}
+const CRASH_DEFAULT_STAGE = () => {
+  const A = '/game-engines/engine-crash/assets/halloween';
+  return { sky: ['#27194c', '#3e2968', '#563c7c', '#755799'], curveColor: '#ffffff', multColor: '#ffffff', crashColor: '#ef4444', characterScale: 1,
+    atlases: { bg: `${A}/bg.json`, bgImage: `${A}/images/bg.png`, bats: `${A}/bgBird.json`, batsImage: `${A}/images/bgBird.png`, details: `${A}/bgDetails.json`, detailsImage: `${A}/images/bgDetails.png`,
+      idle: `${A}/idle.json`, idleImage: `${A}/images/idle.png`, run: `${A}/runFly.json`, runImage: `${A}/images/runFly.png`, explode: `${A}/explode.json`, explodeImage: `${A}/images/explode.png`,
+      fly: `${A}/explodeFly.json`, flyImage: `${A}/images/explodeFly.png` } };
+};
+
+async function tabMathCrash(v) {
+  const d = S.game.draft;
+  const R = d.rules;
+  const L = R.limits || {};
+  const m = S.game.math;
+  const rounds = await api(`/api/admin/crash-rounds/${encodeURIComponent(S.gameId)}?limit=100`).catch(() => []);
+  const wag = rounds.reduce((a, r) => a + r.wagered, 0), paid = rounds.reduce((a, r) => a + r.paid, 0);
+  const at = (x) => `<tr><td>×${x.toFixed(2)}</td><td>${pct(Math.min(1, R.rtp / x))}</td><td>${pct(R.rtp)}</td></tr>`;
+  v.innerHTML = `<div class="stack">
+    <div class="card stack"><h3 style="margin:0">RTP exacto ${m ? `<span class="badge ok">publicado v${S.game.publishedVersion}: ${pct(m.rtp)}</span>` : ''}</h3>
+      <p class="muted" style="margin:0">En Crash el RTP es el mismo para cualquier forma de jugar: retirarse cuando el multiplicador vale x gana con probabilidad RTP ÷ x. El ${pct(1 - R.rtp)} de las rondas explota en ×1,00 (la ventaja de la casa).
+        El punto de explosión de cada ronda sale de una semilla secreta cuyo hash se publica antes de apostar; al explotar se revela y cualquiera lo verifica.</p>
+      <table><thead><tr><th>Retirarse en</th><th>Probabilidad de llegar</th><th>Retorno</th></tr></thead><tbody>${[1.5, 2, 3, 5, 10, 100].filter((x) => x <= R.maxMultiplier).map(at).join('')}</tbody></table></div>
+    <div class="card stack"><h3 style="margin:0">Límites y fichas</h3><div class="grid2">
+      <div><label>Apuesta mínima</label><input id="cxMin" type="number" step="0.01" min="0.01" value="${L.min / 100}" /></div>
+      <div><label>Apuesta máxima</label><input id="cxMax" type="number" step="0.01" value="${L.max / 100}" /></div>
+      <div><label>Máximo por jugador y ronda</label><input id="cxTable" type="number" step="0.01" value="${L.table / 100}" /></div>
+      <div><label>Premio máximo por apuesta (se retira solo al llegar)</label><input id="cxPay" type="number" step="0.01" value="${L.maxPayout ? L.maxPayout / 100 : ''}" placeholder="Sin tope" /></div>
+      <div><label>Botones rápidos (+), separados por coma — el primero es la apuesta inicial y el paso de − / +</label><input id="cxChips" value="${d.bet.levels.map((x) => x / 100).join(', ')}" /></div>
+    </div><div class="row"><button class="primary" id="cxLimSave">Guardar límites</button><span class="error" id="cxErr"></span></div></div>
+    ${engineFunctionsCard(d)}
+    <div class="card stack"><h3 style="margin:0">Últimas rondas ${rounds.length ? `<span class="badge">${rounds.length} rondas · apostado ${(wag / 100).toFixed(2)} · pagado ${(paid / 100).toFixed(2)}${wag ? ` · retorno real ${pct(paid / wag)}` : ''}</span>` : ''}</h3>
+      ${rounds.length ? `<div style="max-height:360px;overflow:auto"><table><thead><tr><th>Ronda</th><th>Explotó</th><th>Apuestas</th><th>Apostado</th><th>Pagado</th><th>Hash / semilla</th></tr></thead><tbody>
+        ${rounds.map((r) => `<tr><td>#${r.round_no}</td><td><b>×${Number(r.crash).toFixed(2)}</b></td><td>${r.bets}</td><td>${(r.wagered / 100).toFixed(2)}</td><td>${(r.paid / 100).toFixed(2)}</td>
+          <td><code title="hash ${esc(r.hash)}&#10;semilla ${esc(r.seed)}">${esc(r.hash.slice(0, 12))}…</code></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Todavía no hay rondas: abre ▶ Vista previa para que la mesa empiece a jugar.</p>'}
+      <p class="muted" style="margin:0">La mesa corre mientras alguien la está mirando. Cada apuesta es una ronda auditada en Rondas (se verifica con su semilla).</p></div>
+  </div>`;
+  bindEngineFunctions(v, d);
+  $('#cxLimSave', v).addEventListener('click', guard(async () => {
+    $('#cxErr', v).textContent = '';
+    const c = (id) => Math.round(Number($(id, v).value) * 100);
+    const levels = $('#cxChips', v).value.split(/[,;\s]+/).filter(Boolean).map((x) => Math.round(Number(x.replace(',', '.')) * 100)).filter((x) => x > 0);
+    const limits = { min: c('#cxMin'), max: c('#cxMax'), table: c('#cxTable'), ...($('#cxPay', v).value ? { maxPayout: c('#cxPay') } : {}) };
+    try {
+      await patchDraft([{ op: 'set', path: 'rules.limits', value: limits }, { op: 'set', path: 'bet.levels', value: levels }, { op: 'set', path: 'bet.default', value: levels[0] }], 'Límites guardados');
+      renderTab();
+    } catch (e) { $('#cxErr', v).textContent = `${e.message}${e.details ? ': ' + e.details.join(' · ') : ''}`; }
+  }));
+}
 
 async function tabMathTable(v) {
   const d = S.game.draft;
@@ -1952,7 +2065,7 @@ function engineFunctionsCard(d) {
     g.html.push(fnFieldHtml(f, rGet(R, f.k), d, i));
   });
   return `<div class="card stack" id="fnCard"><h3 style="margin:0">⚙ Funciones del motor</h3>
-    <p class="muted" style="margin:0">Todo lo que hace ${esc(engineInfo(d.engine).name || d.engine)}: bonus, multiplicadores, giros gratis, compras y funciones especiales. Después de guardar pulsa «Ajustar RTP al objetivo» para recalibrar los pagos y los precios.</p>
+    ${engineInfo(d.engine).kind === 'crash' ? '<p class="muted" style="margin:0">RTP, tope, ritmo de la ronda y curva del multiplicador. Los cambios se aplican desde la ronda siguiente en la vista previa y al publicar.</p>' : `<p class="muted" style="margin:0">Todo lo que hace ${esc(engineInfo(d.engine).name || d.engine)}: bonus, multiplicadores, giros gratis, compras y funciones especiales. Después de guardar pulsa «Ajustar RTP al objetivo» para recalibrar los pagos y los precios.</p>`}
     ${groups.map((g) => `<details class="fn-group" open><summary>${esc(g.name)}</summary><div class="fn-grid">${g.html.join('')}</div></details>`).join('')}
     <div class="row"><button class="primary" id="fnSave">Guardar funciones</button><span class="error" id="fnErr"></span></div></div>`;
 }
@@ -2035,6 +2148,7 @@ function bindEngineFunctions(root, d) {
 
 async function tabMath(v) {
   if (engineInfo(S.game.engine).kind === 'table') return tabMathTable(v);
+  if (engineInfo(S.game.engine).kind === 'crash') return tabMathCrash(v);
   const d = S.game.draft;
   const m = S.game.math;
   v.innerHTML = `<div class="stack">
@@ -2157,7 +2271,7 @@ async function tabMath(v) {
 // ---- Frecuencia del bonus ----
 function featureCard(v) {
   const d = S.game.draft;
-  if (engineInfo(d.engine).kind === 'table') return;
+  if ((engineInfo(d.engine).kind || 'slot') !== 'slot') return;
   const hasTrigger = (d.symbols || []).some((x) => ['scatter', 'wildscatter', 'coin'].includes(x.type));
   if (!hasTrigger) return;
   const fe = S.game.math?.featureEvery;
@@ -2190,7 +2304,7 @@ const parseUnits = (txt) => String(txt).split(/[;\s·]+/).map((x) => x.trim().re
 function currencyCard(v) {
   const d = S.game.draft;
   const base = d.bet || {};
-  const table = engineInfo(d.engine).kind === 'table';
+  const table = (engineInfo(d.engine).kind || 'slot') !== 'slot';
   const rows = Object.entries(base.byCurrency || {});
   const el = document.createElement('div');
   el.className = 'card stack';
@@ -2442,6 +2556,7 @@ async function viewOperator(v, id, flash = '') {
   const rtpCell = (g) => {
     if (!g.publishedVersion) return '<span class="muted">sin publicar</span>';
     if (g.kind === 'table') return `<span class="muted">Mesa: RTP por pagos (${pct(g.defaultRtp)})</span>`;
+    if (g.kind === 'crash') return `<span class="muted">Crash: RTP exacto del juego (${pct(g.defaultRtp)})</span>`;
     const cur = g.rtpTarget;
     const opts = [`<option value="" ${cur == null ? 'selected' : ''}>Por defecto (${pct(g.defaultRtp)})</option>`,
       ...[...new Set([...RTP_CHOICES, ...(cur != null ? [cur] : [])])].sort().map((t) => `<option value="${t}" ${cur != null && Math.abs(cur - t) < 1e-6 ? 'selected' : ''}>${(t * 100).toFixed(2)} %</option>`),

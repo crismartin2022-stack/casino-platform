@@ -1,0 +1,290 @@
+{
+  "frames": [
+    {
+      "filename": "character-idleRaning_00",
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_01",
+      "frame": {
+        "x": 262,
+        "y": 4,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_02",
+      "frame": {
+        "x": 4,
+        "y": 262,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_03",
+      "frame": {
+        "x": 262,
+        "y": 262,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_04",
+      "frame": {
+        "x": 520,
+        "y": 4,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_05",
+      "frame": {
+        "x": 520,
+        "y": 262,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_06",
+      "frame": {
+        "x": 4,
+        "y": 520,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_07",
+      "frame": {
+        "x": 262,
+        "y": 520,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_08",
+      "frame": {
+        "x": 520,
+        "y": 520,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_09",
+      "frame": {
+        "x": 778,
+        "y": 4,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "character-idleRaning_10",
+      "frame": {
+        "x": 778,
+        "y": 262,
+        "w": 250,
+        "h": 250
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 250,
+        "h": 250
+      },
+      "sourceSize": {
+        "w": 250,
+        "h": 250
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "meta": {
+    "app": "http://free-tex-packer.com",
+    "version": "0.6.7",
+    "image": "assets/images/runFly.png",
+    "format": "png",
+    "size": {
+      "w": 1032,
+      "h": 774
+    },
+    "scale": 1
+  }
+}

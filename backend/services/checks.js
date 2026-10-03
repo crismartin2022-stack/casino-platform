@@ -34,7 +34,8 @@ export function designChecks(config, { gameId, brandId } = {}) {
   const add = (c) => checks.push({ status: 'ok', detail: '', fix: '', agent: null, ...c });
   let engine = null;
   try { engine = getEngine(config.engine); } catch { /* ya lo reporta la prueba de matemática */ }
-  const table = engine?.kind === 'table';
+  const table = engine?.kind === 'table' || engine?.kind === 'crash';
+  const crashGame = engine?.kind === 'crash';
 
   // Cliente del motor
   const client = `${ROOT}/game-engines/engine-${config.engine}/src`;
@@ -77,7 +78,7 @@ export function designChecks(config, { gameId, brandId } = {}) {
   }
 
   // Sonidos básicos
-  const need = table ? ['music', 'roll', 'win', 'click'] : ['music', 'spin', 'reelStop', 'win', 'bigWin', 'click'];
+  const need = crashGame ? ['music', 'start', 'cashout', 'crash', 'click'] : table ? ['music', 'roll', 'win', 'click'] : ['music', 'spin', 'reelStop', 'win', 'bigWin', 'click'];
   if (!table && engine && ((engine.modes || []).length > 1 || /free|bonus|hold|scatter/i.test(JSON.stringify(config.rules || {})))) need.push('feature');
   const noSnd = need.filter((k) => !config.sounds?.[k]);
   add(noSnd.length

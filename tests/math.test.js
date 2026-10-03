@@ -9,7 +9,7 @@ const seeds = Object.fromEntries(readdirSync(new URL('../backend/games/seed/', i
   .map((f) => JSON.parse(readFileSync(new URL(`../backend/games/seed/${f}`, import.meta.url), 'utf8')))
   .map((c) => [c.engine, c]));
 
-for (const [id, engine] of Object.entries(ENGINES).filter(([, e]) => e.kind !== 'table')) {
+for (const [id, engine] of Object.entries(ENGINES).filter(([, e]) => (e.kind || 'slot') === 'slot')) {
   const config = seeds[id];
 
   test(`${id}: la configuración inicial es válida`, () => {
@@ -447,4 +447,26 @@ test('level-up: el estado del jugador pasa de giro en giro, sube de nivel y el j
   const b = e.play(c, replayRng(rec.draws), { state: s0 });
   assert.equal(a.totalWin, b.totalWin);
   assert.deepEqual(a.state, b.state);
+});
+
+test('crash: RTP exacto para cualquier estrategia, curva inversa y punto verificable', async () => {
+  const crash = await import('../backend/math/crash.js');
+  const c = crash.defaults();
+  assert.deepEqual(validateConfig(c), []);
+  // P(explosión ≥ x) = rtp / x  →  retirarse en x devuelve rtp
+  for (const x of [1.01, 1.5, 2, 10]) {
+    const r = crash.simulateTarget(c, seededRng(99 + Math.round(x * 100)), 400_000, x);
+    const se = Math.sqrt(c.rules.rtp * x - c.rules.rtp ** 2) / Math.sqrt(400_000);
+    assert.ok(Math.abs(r - c.rules.rtp) < 4 * se, `x${x}: ${r}`);
+  }
+  for (const m of [1.01, 2, 9.99, 10, 10.3, 11, 100, 1000]) assert.ok(Math.abs(crash.multAt(crash.timeFor(m, c.rules.curve), c.rules.curve) - m) < 1e-6 * m);
+  assert.equal(crash.crashFromUniform(0, 0.97, 1000), 1);
+  assert.equal(crash.crashFromUniform(0.999999999, 0.97, 1000), 1000);
+  const seed = 'f'.repeat(64);
+  assert.equal(crash.crashFromSeed(seed, 0.97, 1000), crash.crashFromSeed(seed, 0.97, 1000));
+  // Premio máximo por apuesta: retira automáticamente antes
+  assert.equal(crash.autoTarget({ rules: { ...c.rules, limits: { ...c.rules.limits, maxPayout: 1000 } } }, 100, 50), 10);
+  // Inválidos
+  assert.ok(validateConfig({ ...c, rules: { ...c.rules, rtp: 1.02 } }).length);
+  assert.ok(validateConfig({ ...c, rules: { ...c.rules, maxBets: 3 } }).length);
 });
