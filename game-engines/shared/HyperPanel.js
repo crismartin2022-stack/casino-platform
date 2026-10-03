@@ -18,6 +18,9 @@ export function hyperStyle(T = {}) {
   if (T.image) v['--hyp-img'] = `url("${String(T.image).replace(/"/g, '%22')}")`;
   if (T.blur != null) v['--hyp-blur'] = `${Math.max(0, Math.min(30, Number(T.blur) || 0))}px`;
   if (T.opacity != null) v['--hyp-op'] = `${Math.round(Math.max(0, Math.min(1, Number(T.opacity))) * 100)}%`;
+  if (T.rowSize != null) v['--hyp-fs'] = String(Math.max(0.7, Math.min(2, Number(T.rowSize) || 1)));
+  if (T.lastSize != null) v['--hyp-last-fs'] = String(Math.max(0.7, Math.min(2.5, Number(T.lastSize) || 1)));
+  if (color(T.last)) v['--hyp-last'] = T.last;
   if (T.font) v['--hyp-font'] = `'${String(T.font).replace(/'/g, '')}', system-ui, sans-serif`;
   return v;
 }
@@ -73,13 +76,24 @@ export class HyperPanel {
     this.totalBetEl = h('b', {}, '0');
     this.totalWinEl = h('b', {}, '0');
     this.nEl = h('span', {}, 'TIRADA 0');
-    this.list = h('div', { class: 'hyp-list' },
-      h('div', { class: 'hyp-row first' }, h('span', {}, 'CRÉDITO INICIAL'), h('span', {}), h('span', {}), h('span', {}, hud.fmt(hud.balance))));
+    // La lista solo tiene las tiradas; el crédito inicial y la última tirada quedan fijos arriba (siempre visibles)
+    this.list = h('div', { class: 'hyp-list' });
+    this.lastN = h('b', { class: 'n' }, '—');
+    this.lastWin = h('b', { class: 'w' }, '');
+    this.lastX = h('b', { class: 'x' }, '');
+    this.lastCredit = h('b', { class: 'c' }, hud.fmt(hud.balance));
+    this.last = h('div', { class: 'hyp-last', hidden: T.showLast === false },
+      h('div', {}, h('small', {}, 'ÚLTIMA TIRADA'), this.lastN),
+      h('div', { class: 'r' }, h('small', {}, 'GANANCIA'), this.lastWin),
+      h('div', { class: 'r' }, h('small', {}, '×'), this.lastX),
+      h('div', { class: 'r' }, h('small', {}, 'CRÉDITO'), this.lastCredit));
+    this.initEl = h('small', { class: 'hyp-init' }, `Crédito inicial ${hud.fmt(hud.balance)}`);
     this.intro = h('div', { class: 'hyp-intro' }, T.logo ? h('img', { src: T.logo, alt: 'HYPER' }) : h('b', {}, T.title || '⚡ HYPER'),
       h('p', {}, 'Juego automático súper rápido, sin rodillos. Cada tirada es un giro normal del juego: mismo RTP y mismas reglas.'),
       h('p', {}, 'Elige la apuesta y cuántas tiradas, y pulsa ▶. Puedes pausar o cambiarlo cuando quieras.'));
     const main = h('section', { class: 'hyp-main' },
       h('div', { class: 'hyp-head' }, h('div', {}, h('small', {}, 'APUESTA TOTAL'), this.totalBetEl), this.statusEl, h('div', { class: 'r' }, h('small', {}, 'PREMIO TOTAL'), this.totalWinEl)),
+      this.last, this.initEl,
       h('div', { class: 'hyp-cols' }, this.nEl, h('span', {}, 'GANANCIA'), h('span', {}, '×'), h('span', {}, 'CRÉDITO')),
       this.list, this.intro);
     this.root = h('div', { class: `hyp ${T.image ? 'img' : ''}` }, h('button', { class: 'hyp-x', 'aria-label': 'Salir', onclick: () => this.close() }, '✕'), this.side, main);
@@ -105,9 +119,19 @@ export class HyperPanel {
     const row = h('div', { class: `hyp-row ${round.win > 0 ? 'win' : ''} ${feature ? 'feat' : ''}` },
       h('span', {}, feature ? `${n} · BONUS` : String(n)), h('span', {}, this.hud.fmt(round.win)),
       h('span', {}, `${Number.isInteger(x) ? x : x.toFixed(2)}x`), h('span', {}, this.hud.fmt(round.balance)));
-    this.list.firstChild.after(row);
+    this.list.prepend(row);
+    this.list.scrollTop = 0;
     this.rows++;
     if (this.rows > 400) this.list.lastChild.remove();
+    // Última tirada, grande y fija arriba
+    const xs = `${Number.isInteger(x) ? x : x.toFixed(2)}x`;
+    this.lastN.textContent = feature ? `${n} · BONUS` : String(n);
+    this.lastWin.textContent = this.hud.fmt(round.win);
+    this.lastX.textContent = xs;
+    this.lastCredit.textContent = this.hud.fmt(round.balance);
+    this.last.classList.toggle('win', round.win > 0);
+    this.last.classList.toggle('feat', !!feature);
+    this.last.classList.remove('pulse'); void this.last.offsetWidth; this.last.classList.add('pulse');
   }
 
   async start() {
@@ -179,7 +203,7 @@ export class HyperPanel {
       this.root.hidden = false;
       this.hud.lock(true);
     } }, '▶ VER LA FUNCIÓN');
-    this.list.firstChild.after(h('div', { class: 'hyp-row seebox' }, see));
+    this.list.prepend(h('div', { class: 'hyp-row seebox' }, see));
   }
 
   close() {

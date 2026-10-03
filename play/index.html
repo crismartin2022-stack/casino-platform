@@ -88,21 +88,41 @@
     .hyp-cols { font-weight: 800; font-size: 13px; letter-spacing: .06em; border-bottom: 2px solid var(--hyp-text, #fff); }
     .hyp-cols span:nth-child(n+2), .hyp-row span:nth-child(n+2) { text-align: right; }
     .hyp-list { flex: 1; overflow: auto; min-height: 0; }
-    .hyp-row { font-size: 14px; border-bottom: 1px solid var(--hyp-line, #ffffff14); opacity: .8; animation: hypin .25s ease-out; }
+    /* Última tirada: grande y siempre visible */
+    .hyp-last { display: grid; grid-template-columns: 1.1fr 1fr .6fr 1.2fr; gap: 8px; align-items: end; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px;
+      background: color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 16%, #0008); border: 2px solid color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 60%, transparent); font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+    .hyp-last small { display: block; font-size: 10px; letter-spacing: .08em; opacity: .75; }
+    .hyp-last b { font-size: calc(clamp(18px, 2.4vw, 26px) * var(--hyp-last-fs, 1)); font-weight: 900; } .hyp-last .r { text-align: right; }
+    .hyp-last.win .w, .hyp-last.win .x { color: var(--hyp-win, #4ade80); }
+    .hyp-last.feat { border-color: var(--hyp-feat, #a78bfa); background: color-mix(in srgb, var(--hyp-feat, #7c3aed) 30%, #0008); }
+    .hyp-last.pulse { animation: hyppulse .35s ease-out; }
+    @keyframes hyppulse { from { transform: scale(1.025); filter: brightness(1.35); } }
+    .hyp-init { display: block; text-align: right; font: 600 12px system-ui, sans-serif; opacity: .75; margin: 0 4px 6px; }
+    .hyp-row { font: 600 calc(15px * var(--hyp-fs, 1)) system-ui, sans-serif; border-bottom: 1px solid var(--hyp-line, #ffffff14); opacity: .92; animation: hypin .25s ease-out; }
     .hyp-row.first { background: color-mix(in srgb, var(--hyp-accent-c) 20%, transparent); opacity: 1; font-weight: 800; }
-    .hyp-row.win { opacity: 1; font-weight: 800; } .hyp-row.win span:nth-child(2) { color: var(--hyp-win, #4ade80); }
+    .hyp-row.win { opacity: 1; font-weight: 900; background: color-mix(in srgb, var(--hyp-win, #4ade80) 10%, transparent); } .hyp-row.win span:nth-child(2) { color: var(--hyp-win, #4ade80); }
     .hyp-row.feat { background: color-mix(in srgb, var(--hyp-feat, #7c3aed) 30%, transparent); opacity: 1; }
     .hyp-row.seebox { display: flex; justify-content: center; } .hyp-see { border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 900; background: #a78bfa; color: #160b33; cursor: pointer; }
     @keyframes hypin { from { opacity: 0; transform: translateY(-6px); } }
     .hyp-intro { text-align: center; margin: auto; max-width: 440px; padding: 20px; } .hyp-intro b { font-size: 34px; font-style: italic; color: var(--hyp-accent-c); } .hyp-intro p { opacity: .9; }
     .auto-hyper { margin-top: 12px; width: 100%; }
-    @media (max-width: 760px) {
-      .hyp { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
-      .hyp-side { border-right: 0; border-bottom: 1px solid #fff2; padding-top: calc(14px + env(safe-area-inset-top)); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      .hyp-brand, .hyp-side input[type=range], .hyp-check.col { grid-column: 1 / -1; }
-      .hyp-play { width: 60px; height: 60px; margin: 0; justify-self: center; }
-      .hyp-main { padding: 10px 10px 10px; }
-      .hyp-cols, .hyp-row { font-size: 12px; padding: 6px; }
+    @media (max-width: 900px) and (orientation: portrait), (max-width: 760px) {
+      .hyp { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+      .hyp-side { border-right: 0; border-bottom: 1px solid #fff2; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; display: grid;
+        grid-template-columns: 1fr 1fr auto; grid-template-areas: "brand brand brand" "bet cnt play" "rng rng play" "chk loss loss"; gap: 6px 10px; align-items: center; overflow: visible; }
+      .hyp-brand { grid-area: brand; display: flex; align-items: baseline; gap: 10px; } .hyp-brand b { font-size: 20px; } .hyp-brand small { font-size: 11px; }
+      .hyp-brand img { max-height: 36px; }
+      .hyp-side > .hyp-field:nth-of-type(2) { grid-area: bet; } .hyp-side > .hyp-field:nth-of-type(3) { grid-area: cnt; }
+      .hyp-side input[type=range] { grid-area: rng; }
+      .hyp-check:not(.col) { grid-area: chk; font-size: 11px; } .hyp-check.col { grid-area: loss; flex-direction: row; align-items: center; font-size: 11px; }
+      .hyp-check.col select { flex: 1; min-width: 0; padding: 4px; }
+      .hyp-field { grid-template-columns: 30px 1fr 30px; gap: 2px; } .hyp-field button { width: 30px; height: 30px; font-size: 18px; }
+      .hyp-field > div b { font-size: 16px; } .hyp-field small { font-size: 9px; }
+      .hyp-play { grid-area: play; width: 58px; height: 58px; font-size: 22px; margin: 0; }
+      .hyp-main { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); min-height: 0; }
+      .hyp-head { padding-bottom: 6px; } .hyp-head b { font-size: 16px; } .hyp-status { padding: 4px 12px; font-size: 12px; }
+      .hyp-cols, .hyp-row { padding: 7px 6px; } .hyp-cols { font-size: 11px; } .hyp-row { font-size: calc(15px * var(--hyp-fs, 1)); }
+      .hyp-x { width: 32px; height: 32px; top: calc(8px + env(safe-area-inset-top)); right: 8px; }
     }
     /* Hyper play: el botón de velocidad lleva la marca HYPER */
     .hyper { position: relative; }

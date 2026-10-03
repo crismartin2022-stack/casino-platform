@@ -1451,16 +1451,20 @@ function hyperCard(t, p) {
       ${col('text', 'Color del texto', '#ffffff')}${col('win', 'Color de las ganancias', '#4ade80')}
       ${col('feature', 'Color de las tiradas con bonus', '#7c3aed')}${col('rowLine', 'Líneas entre tiradas', '#2a3048')}
       <div><label>Tipografía (Google Fonts)</label><input id="hyFont" list="dFontList" value="${esc(H.font || '')}" placeholder="La de la botonera" /></div>
+      <div><label>Tamaño de las tiradas en la lista (<span id="hyFsV">${Math.round((H.rowSize ?? 1) * 100)}</span> %)</label><input id="hyFs" type="range" min="0.7" max="2" step="0.05" value="${H.rowSize ?? 1}" /></div>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hyShowLast" style="width:auto" ${H.showLast !== false ? 'checked' : ''} /> Mostrar la ÚLTIMA TIRADA grande arriba de la lista</label>
+      <div><label>Tamaño de la última tirada (<span id="hyLsV">${Math.round((H.lastSize ?? 1) * 100)}</span> %)</label><input id="hyLs" type="range" min="0.7" max="2.5" step="0.05" value="${H.lastSize ?? 1}" /></div>
+      ${col('last', 'Color del recuadro de la última tirada', p.accent || '#ffd460')}
     </div>
     <div class="row"><button class="primary" id="hySave">Guardar diseño del HYPER</button><button id="hyDemo">▶ Abrir el HYPER en la vista previa</button><button class="small" id="hyReset">Volver al diseño original</button></div></div>`;
 }
 function bindHyperCard(v) {
   const card = $('#hyCard', v);
   if (!card) return;
-  for (const [i, o, f] of [['#hyOp', '#hyOpV', (x) => Math.round(x * 100)], ['#hyBlur', '#hyBlurV', (x) => x]]) $(i, card).addEventListener('input', (e) => { $(o, card).textContent = f(Number(e.target.value)); });
+  for (const [i, o, f] of [['#hyOp', '#hyOpV', (x) => Math.round(x * 100)], ['#hyBlur', '#hyBlurV', (x) => x], ['#hyFs', '#hyFsV', (x) => Math.round(x * 100)], ['#hyLs', '#hyLsV', (x) => Math.round(x * 100)]]) $(i, card).addEventListener('input', (e) => { $(o, card).textContent = f(Number(e.target.value)); });
   const read = () => {
     const cur = S.game.draft.theme?.hyper || {};
-    const out = { ...cur, title: $('#hyTitle', card).value.trim() || null, opacity: Number($('#hyOp', card).value), blur: Number($('#hyBlur', card).value), font: $('#hyFont', card).value.trim() || null };
+    const out = { ...cur, title: $('#hyTitle', card).value.trim() || null, opacity: Number($('#hyOp', card).value), blur: Number($('#hyBlur', card).value), font: $('#hyFont', card).value.trim() || null, rowSize: Number($('#hyFs', card).value), lastSize: Number($('#hyLs', card).value), showLast: $('#hyShowLast', card).checked };
     for (const el of $$('[data-hy]', card)) out[el.dataset.hy] = el.value;
     return out;
   };
