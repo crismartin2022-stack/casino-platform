@@ -2,6 +2,25 @@
 // misma auditoría); solo se salta la animación y se muestra una lista con la ganancia y el crédito de cada una.
 // El jugador elige apuesta, cantidad de tiradas, si se detiene al entrar en una función y un límite de pérdida.
 import { h } from './Hud.js';
+import { loadAnyFont } from './media.js';
+
+/** Diseño editable (theme.hyper): título, colores, imagen de fondo, desenfoque y tipografía. */
+export function hyperStyle(T = {}) {
+  const v = {};
+  const color = (x) => (typeof x === 'string' && /^#[0-9a-f]{3,8}$/i.test(x) ? x : null);
+  if (color(T.bg)) v['--hyp-bg'] = T.bg;
+  if (color(T.side)) v['--hyp-side'] = T.side;
+  if (color(T.accent)) v['--hyp-accent'] = T.accent;
+  if (color(T.text)) v['--hyp-text'] = T.text;
+  if (color(T.win)) v['--hyp-win'] = T.win;
+  if (color(T.feature)) v['--hyp-feat'] = T.feature;
+  if (color(T.rowLine)) v['--hyp-line'] = T.rowLine;
+  if (T.image) v['--hyp-img'] = `url("${String(T.image).replace(/"/g, '%22')}")`;
+  if (T.blur != null) v['--hyp-blur'] = `${Math.max(0, Math.min(30, Number(T.blur) || 0))}px`;
+  if (T.opacity != null) v['--hyp-op'] = `${Math.round(Math.max(0, Math.min(1, Number(T.opacity))) * 100)}%`;
+  if (T.font) v['--hyp-font'] = `'${String(T.font).replace(/'/g, '')}', system-ui, sans-serif`;
+  return v;
+}
 
 const FEATURE = (r) => !!(r?.freeSpins || r?.holdAndWin || r?.bonus || r?.bonuses?.length || r?.respins?.length);
 
@@ -25,6 +44,7 @@ export class HyperPanel {
     const e = this.e;
     const hud = this.hud;
     const title = e.game.theme?.title || e.game.name;
+    const T = e.game.theme?.hyper || {};
     this.betEl = h('b', {}, hud.fmt(hud.bet));
     const betStep = (d) => {
       if (this.running) return;
@@ -42,7 +62,7 @@ export class HyperPanel {
       ...[10, 25, 50, 100, 250].map((k) => h('option', { value: String(k) }, `${k}× la apuesta`)));
     this.playBtn = h('button', { class: 'hyp-play', 'aria-label': 'Jugar', onclick: () => (this.running ? this.pause() : this.start()) }, '▶');
     this.side = h('aside', { class: 'hyp-side' },
-      h('div', { class: 'hyp-brand' }, h('small', {}, title), h('b', {}, '⚡ HYPER')),
+      h('div', { class: 'hyp-brand' }, h('small', {}, title), T.logo ? h('img', { src: T.logo, alt: 'HYPER' }) : h('b', {}, T.title || '⚡ HYPER')),
       h('div', { class: 'hyp-field' }, h('button', { onclick: () => betStep(-1) }, '−'), h('div', {}, this.betEl, h('small', {}, 'APUESTA')), h('button', { onclick: () => betStep(1) }, '+')),
       h('div', { class: 'hyp-field' }, h('button', { onclick: () => cStep(-10) }, '−'), h('div', {}, this.countEl, h('small', {}, 'TIRADAS')), h('button', { onclick: () => cStep(10) }, '+')),
       this.range,
@@ -55,14 +75,16 @@ export class HyperPanel {
     this.nEl = h('span', {}, 'TIRADA 0');
     this.list = h('div', { class: 'hyp-list' },
       h('div', { class: 'hyp-row first' }, h('span', {}, 'CRÉDITO INICIAL'), h('span', {}), h('span', {}), h('span', {}, hud.fmt(hud.balance))));
-    this.intro = h('div', { class: 'hyp-intro' }, h('b', {}, '⚡ HYPER'),
+    this.intro = h('div', { class: 'hyp-intro' }, T.logo ? h('img', { src: T.logo, alt: 'HYPER' }) : h('b', {}, T.title || '⚡ HYPER'),
       h('p', {}, 'Juego automático súper rápido, sin rodillos. Cada tirada es un giro normal del juego: mismo RTP y mismas reglas.'),
       h('p', {}, 'Elige la apuesta y cuántas tiradas, y pulsa ▶. Puedes pausar o cambiarlo cuando quieras.'));
     const main = h('section', { class: 'hyp-main' },
       h('div', { class: 'hyp-head' }, h('div', {}, h('small', {}, 'APUESTA TOTAL'), this.totalBetEl), this.statusEl, h('div', { class: 'r' }, h('small', {}, 'PREMIO TOTAL'), this.totalWinEl)),
       h('div', { class: 'hyp-cols' }, this.nEl, h('span', {}, 'GANANCIA'), h('span', {}, '×'), h('span', {}, 'CRÉDITO')),
       this.list, this.intro);
-    this.root = h('div', { class: 'hyp' }, h('button', { class: 'hyp-x', 'aria-label': 'Salir', onclick: () => this.close() }, '✕'), this.side, main);
+    this.root = h('div', { class: `hyp ${T.image ? 'img' : ''}` }, h('button', { class: 'hyp-x', 'aria-label': 'Salir', onclick: () => this.close() }, '✕'), this.side, main);
+    for (const [k, val] of Object.entries(hyperStyle(T))) this.root.style.setProperty(k, val);
+    if (T.font) loadAnyFont(T.font, T.fontUrl).catch(() => {});
     e.hudRoot.append(this.root);
     hud.lock(true);
     this.renderCount();

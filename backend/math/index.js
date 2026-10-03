@@ -20,6 +20,7 @@ import * as levelUp from './level-up.js';
 import * as crash from './crash.js';
 import * as tumbleDouble from './tumble-double.js';
 import * as tripleSun from './triple-sun.js';
+import * as orbStorm from './orb-storm.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -45,6 +46,7 @@ export const ENGINES = {
   [crash.id]: crash,
   [tumbleDouble.id]: tumbleDouble,
   [tripleSun.id]: tripleSun,
+  [orbStorm.id]: orbStorm,
 };
 
 /** Modos de compra de un motor, con acceso a su precio. */

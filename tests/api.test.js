@@ -63,7 +63,7 @@ after(() => {
 test('lista los 20 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
   assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'craps', 'crash', 'expanding-symbol', 'hold-win', 'level-up',
-    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'scatter-pays', 'sticky-wilds', 'treasure-chests', 'triple-sun', 'tumble-double']);
+    'megaways', 'megaways-cascade', 'orb-storm', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests', 'triple-sun', 'tumble-double']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
 });

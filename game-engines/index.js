@@ -18,4 +18,5 @@ export const ENGINE_LOADERS = {
   crash: () => import('./engine-crash/src/CrashEngine.js').then((m) => m.CrashEngine),
   'tumble-double': () => import('./engine-tumble-double/src/TumbleDoubleEngine.js').then((m) => m.TumbleDoubleEngine),
   'triple-sun': () => import('./engine-triple-sun/src/TripleSunEngine.js').then((m) => m.TripleSunEngine),
+  'orb-storm': () => import('./engine-orb-storm/src/OrbStormEngine.js').then((m) => m.OrbStormEngine),
 };

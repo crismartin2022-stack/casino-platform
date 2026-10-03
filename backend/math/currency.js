@@ -12,6 +12,7 @@ export function validateBets(config) {
   const errs = [];
   const b = config.bet;
   if (!b) return [];
+  if (b.hyperMaxSpins != null && !(Number.isInteger(b.hyperMaxSpins) && b.hyperMaxSpins >= 10 && b.hyperMaxSpins <= 5000)) errs.push('bet.hyperMaxSpins: máximo de tiradas en HYPER, entero entre 10 y 5000');
   if (b.autoSpins != null && !(Array.isArray(b.autoSpins) && b.autoSpins.length && b.autoSpins.length <= 8 && b.autoSpins.every((n) => Number.isInteger(n) && n > 0 && n <= 1000))) {
     errs.push('bet.autoSpins: de 1 a 8 cantidades de giros automáticos (enteros entre 1 y 1000)');
   }

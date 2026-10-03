@@ -243,6 +243,18 @@ export const RULE_SCHEMAS = {
     { k: 'pots.blue.wildsMax', l: 'Comodines extra por giro (hasta)', t: 'int', min: 1, max: 10, g: 'Sol del cielo (azul)' },
     MAXWIN,
   ],
+  'orb-storm': [
+    { k: 'scattersToTrigger', l: 'Rayos para giros gratis', t: 'int', min: 3, max: 8, g: 'Giros gratis' },
+    { k: 'freeSpins', l: 'Giros gratis', t: 'int', min: 1, max: 100, g: 'Giros gratis' },
+    { k: 'retriggerScatters', l: 'Rayos para más giros (en el bonus)', t: 'int', min: 2, max: 8, g: 'Giros gratis' },
+    { k: 'retrigger', l: 'Giros extra', t: 'int', min: 0, max: 50, g: 'Giros gratis' },
+    { k: 'fsStartMult', l: 'Multiplicador global inicial ×', t: 'num', min: 1, max: 1000, step: 1, g: 'Multiplicador global', help: 'Cada orbe que cae en los giros gratis le suma su valor.' },
+    MULTS('multiplierValues', 'Valores de los orbes', 'Orbes'),
+    BUY(),
+    { k: 'superCost', l: 'Precio de los SÚPER giros gratis (× la apuesta)', t: 'num', min: 1, max: 5000, step: 0.1, nullable: true, g: 'Compra', help: 'Vacío = sin súper compra. El precio se recalcula con «Ajustar RTP».' },
+    { k: 'superStartMult', l: 'Los súper giros empiezan con el multiplicador ×', t: 'num', min: 1, max: 1000, step: 1, g: 'Compra' },
+    MAXWIN,
+  ],
   crash: [
     { k: 'rtp', l: 'RTP (0,85 a 0,99)', t: 'num', min: 0.85, max: 0.99, step: 0.005, g: 'Matemática', help: 'Exacto para cualquier forma de jugar. 0,97 = 97 %: el 3 % de las rondas explota en ×1,00.' },
     { k: 'maxMultiplier', l: 'Tope del multiplicador ×', t: 'num', min: 2, max: 100000, step: 1, g: 'Matemática', help: 'Al llegar se retira solo a todos. No cambia el RTP.' },
@@ -286,6 +298,7 @@ export const ENGINE_CARDS = {
   'classic-reels': { tagline: 'tragamonedas clásica de frutas', grid: '3x3, 5 líneas', pays: 'Líneas clásicas', bonus: 'Rodillo multiplicador ×1 a ×10', features: ['Frutas, BAR y 7 de toda la vida', 'Cerezas que pagan desde una', 'Comodín ×2 (dos comodines ×4)', 'Cualquier BAR paga'] },
   'tumble-double': { tagline: 'cascadas que duplican el multiplicador', grid: '5x4, 1024 formas', pays: 'Formas de ganar', bonus: 'Giros gratis con multiplicador que no se reinicia', features: ['Cada cascada ganadora duplica el multiplicador (×1, ×2, ×4, ×8…)', 'En giros gratis el multiplicador sigue de giro en giro', 'Más giros con 3 scatters', 'Compra del bonus'] },
   'triple-sun': { tagline: 'tres barras de soles que se guardan', grid: '5x3, 20 líneas', pays: 'Líneas', bonus: 'Tres bonus distintos (uno por color)', features: ['Soles rojos, dorados y azules llenan su barra', 'Las barras se guardan por jugador y apuesta', 'Rojo: premios ×5 · Dorado: multiplicador al azar · Azul: comodines extra', 'Varias barras llenas a la vez = varios bonus'] },
+  'orb-storm': { tagline: 'paga en cualquier lugar + multiplicador global', grid: '6x5', pays: '8+ iguales en cualquier lugar', bonus: 'Giros gratis con multiplicador global que crece con cada orbe', features: ['Orbes ×2 a ×500 que se suman en el juego base', 'Multiplicador global que nunca baja en los giros gratis', 'Compra en dos niveles: normal y SÚPER (empieza en ×20)', 'Premio máximo 2500×'] },
   crash: { tagline: 'multiplicador en vivo (estilo Aviator)', grid: 'Escenario con curva', pays: 'Apuesta × multiplicador al retirarse', bonus: '—', features: ['Ronda compartida en vivo con cuenta regresiva', 'Dos apuestas por ronda y retiro automático', 'Punto de explosión verificable (hash antes, semilla después)', 'RTP exacto para cualquier estrategia', 'Personaje animado con hojas de sprites'] },
   craps: { tagline: 'mesa de dados', grid: 'Mesa de dados', pays: 'Apuestas de mesa', bonus: '—', features: ['Pass, Come, Odds, Field, Hardways', 'Lanzamiento arrastrando con potencia', 'Mesa en vivo: el crupier tira para todos con cuenta regresiva', 'Crupier grabado: un video por resultado', 'RTP exacto por apuesta'] },
 };
