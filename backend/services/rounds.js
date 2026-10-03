@@ -67,10 +67,10 @@ export function playerProgress(token, bet) {
   const session = getSession(token);
   const { config } = loadConfigFor(session);
   const engine = getEngine(config.engine);
-  if (!engine.stateful) throw new HttpError(400, 'Este juego no tiene niveles');
+  if (!engine.stateful) throw new HttpError(400, 'Este juego no guarda progreso');
   if (!config.bet.levels.includes(bet)) throw new HttpError(400, `Apuesta no permitida. Niveles: ${config.bet.levels.join(', ')}`);
   const state = loadProgress(session.player_id, session.game_id, bet, engine, config);
-  return { bet, state, xpNeed: engine.xpNeeded(config.rules, state.level) };
+  return { bet, state, ...(engine.xpNeeded ? { xpNeed: engine.xpNeeded(config.rules, state.level) } : {}), ...(engine.progressInfo ? { info: engine.progressInfo(config.rules, state) } : {}) };
 }
 
 export async function playRound(token, { bet, mode = 'base', clientRoundId = null, force = false }) {
@@ -91,7 +91,9 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   let rng = recordingRng(cryptoRng());
   // Juegos con nivel del jugador: el estado se lee y se guarda en el mismo paso (sin esperas en el medio)
   const produce = () => {
-    const state = engine.stateful ? loadProgress(session.player_id, session.game_id, bet, engine, config) : undefined;
+    let state = engine.stateful ? loadProgress(session.player_id, session.game_id, bet, engine, config) : undefined;
+    // Vista previa con «forzar bonus» en juegos con progreso: se parte de un estado a punto de dar el bonus
+    if (force && engine.forceState) state = engine.forceState(config, state);
     for (let i = 0; i < (force ? 60_000 : 1); i++) {
       if (i) rng = recordingRng(cryptoRng());
       const res = engine.play(config, rng, engine.stateful ? { mode, state } : { mode });

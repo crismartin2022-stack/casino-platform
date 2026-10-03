@@ -60,10 +60,10 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('lista los 17 juegos publicados', async () => {
+test('lista los 20 juegos publicados', async () => {
   const { body } = await req('/api/v1/games');
   assert.deepEqual(body.map((g) => g.engine).sort(), ['bonus-buy', 'cash-collect', 'classic-reels', 'cluster-pays', 'colossal-reels', 'craps', 'craps', 'crash', 'expanding-symbol', 'hold-win', 'level-up',
-    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'sticky-wilds', 'treasure-chests']);
+    'megaways', 'megaways-cascade', 'reel-rush', 'scatter-pays', 'scatter-pays', 'sticky-wilds', 'treasure-chests', 'triple-sun', 'tumble-double']);
   const { body: g } = await req('/api/v1/games/megaways');
   assert.equal(g.reels, undefined, 'las tiras de rodillos no se exponen al navegador');
 });
@@ -793,4 +793,23 @@ test('crash: ronda compartida, cancelar, retirarse, retiro automático, explosi�
   const mb = d.table.mine[0];
   assert.equal(walletState.balance, w0 - 1000 + (mb.win || 0));
   if (d.table.crash >= 1.01) assert.equal(mb.win, 1010);
+});
+
+test('tres soles: las barras se guardan por jugador y apuesta y cada ronda se reproduce', async () => {
+  const { body: s } = await req('/api/v1/demo/sessions', { method: 'POST', body: { gameId: 'triple-sun' } });
+  const a = { authorization: `Bearer ${s.token}` };
+  const p0 = await req('/api/v1/progress?bet=100', { headers: a });
+  assert.equal(p0.status, 200);
+  assert.deepEqual(p0.body.state, { red: 0, gold: 0, blue: 0 });
+  assert.equal(p0.body.info.red.target, 15);
+  let last = null;
+  for (let i = 0; i < 40; i++) {
+    const r = await req('/api/v1/spin', { method: 'POST', headers: a, body: { bet: 100 } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    if (last) assert.deepEqual(r.body.result.stateBefore, last, 'cada giro arranca donde terminó el anterior');
+    last = r.body.result.state;
+  }
+  assert.deepEqual((await req('/api/v1/progress?bet=100', { headers: a })).body.state, last);
+  // Otra apuesta empieza de cero
+  assert.deepEqual((await req('/api/v1/progress?bet=200', { headers: a })).body.state, { red: 0, gold: 0, blue: 0 });
 });

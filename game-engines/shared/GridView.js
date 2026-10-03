@@ -176,6 +176,18 @@ export class GridView extends Container {
     });
   }
 
+  /** Hyper play: frena todo y deja la cuadrícula final al instante. */
+  snap(grid) {
+    for (const col of this.columns) {
+      if (!col.spin) continue;
+      this.ticker.remove(col.spin.tick);
+      col.spin.layer.destroy({ children: true });
+      col.spin = null;
+    }
+    this.undim?.();
+    this.setGrid(grid);
+  }
+
   getSprite(c, r) { return this.columns[c]?.sprites[r] || null; }
 
   // ---------------------------------------------------------------- Giro

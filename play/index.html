@@ -59,6 +59,9 @@
     .chip { width: 38px; height: 38px; border-radius: 50%; background: var(--btn); color: var(--btn-text); font-size: 17px; display: grid; place-items: center; text-decoration: none; flex: none; transition: transform .1s; }
     .chip:active { transform: scale(.9); }
     .chip.on { background: var(--accent); color: #000; }
+    /* Hyper play: el botón de velocidad lleva la marca HYPER */
+    .hyper { position: relative; }
+    .hyper::after { content: 'HYPER'; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); font: 900 8px system-ui; letter-spacing: .06em; padding: 1px 4px; border-radius: 4px; background: #ff3d6e; color: #fff; pointer-events: none; white-space: nowrap; }
     .autos .chip { width: auto; min-width: 38px; padding: 0 12px; border-radius: 999px; font: 700 12px system-ui; border: 1px solid var(--bar-border); background: rgba(0,0,0,.35); }
     .betbox { display: flex; align-items: center; gap: 8px; }
     .betbtns { display: flex; gap: 6px; }
@@ -285,6 +288,16 @@
     #hud[data-orient="portrait"] .lu-next { flex-basis: 100%; text-align: center; }
     #hud[data-orient="portrait"] .lu-card { flex: 1; flex-wrap: nowrap; }
     #hud[data-orient="portrait"] .lu-card .lu-bars { flex-basis: auto; }
+    /* Tres Soles: tres barras de color */
+    .ts-title { font-size: 12px; letter-spacing: .12em; color: var(--accent); text-align: center; }
+    .ts-pot { display: grid; grid-template-columns: 22px 1fr 40px; align-items: center; gap: 6px; }
+    .ts-pot.pop { animation: mgpop .5s ease-out; }
+    .ts-ic { font-size: 20px; text-shadow: 0 0 8px currentColor; }
+    .ts-bar { position: relative; height: 12px; border-radius: 99px; background: #333; overflow: hidden; }
+    .ts-fill { position: absolute; inset: 0 auto 0 0; width: 0; transition: width .4s ease; box-shadow: 0 0 10px currentColor; }
+    .ts-n { font: 700 11px system-ui; text-align: right; opacity: .9; }
+    #hud[data-orient="portrait"] .ts-panel { flex-direction: column; flex-wrap: nowrap; align-items: stretch; width: min(80vw, 300px); }
+    #hud[data-orient="portrait"] .ts-pot { grid-template-columns: 18px 1fr 36px; }
     .wheel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
     .wheel div { padding: 14px 6px; border-radius: 12px; background: rgba(255,255,255,.08); font: 800 16px system-ui; text-align: center; transition: background .08s; }
     .wheel div.hot { background: var(--accent); color: #000; }

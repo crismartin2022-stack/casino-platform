@@ -103,6 +103,9 @@ export class LevelUpEngine extends BaseEngine {
     await wait(this.hud.turbo ? 100 : 300);
   }
 
+  /** Hyper play: solo actualizar el nivel. */
+  onHyper(result) { this.progress = { ...result.state, xpNeed: result.xpNeed }; this.renderPanel(true); this.progressBet = this.hud.bet; }
+
   async playResult(result) {
     const R = this.game.rules;
     await this.stopReels(result.grid, { scatterId: this.scatterId() });
