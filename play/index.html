@@ -59,6 +59,48 @@
     .chip { width: 38px; height: 38px; border-radius: 50%; background: var(--btn); color: var(--btn-text); font-size: 17px; display: grid; place-items: center; text-decoration: none; flex: none; transition: transform .1s; }
     .chip:active { transform: scale(.9); }
     .chip.on { background: var(--accent); color: #000; }
+    /* HYPER: panel de juego súper rápido sin rodillos */
+    .hyp { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-columns: minmax(230px, 280px) 1fr; pointer-events: auto; font-family: var(--hud-font, var(--font));
+      background: color-mix(in srgb, var(--panel) 55%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: #fff; }
+    .hyp-x { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid #fff4; background: #0006; color: #fff; font-size: 16px; cursor: pointer; z-index: 2; }
+    .hyp-side { display: flex; flex-direction: column; gap: 14px; padding: calc(18px + env(safe-area-inset-top)) 18px 18px; background: color-mix(in srgb, var(--panel) 92%, #000); border-right: 1px solid #fff2; overflow: auto; }
+    .hyp-brand small { display: block; font-size: 12px; opacity: .75; letter-spacing: .08em; text-transform: uppercase; }
+    .hyp-brand b { font-size: 26px; font-style: italic; letter-spacing: .04em; color: var(--accent); text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent); }
+    .hyp-field { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 6px; text-align: center; }
+    .hyp-field > div b { display: block; font-size: 20px; } .hyp-field small { font-size: 11px; opacity: .7; letter-spacing: .1em; }
+    .hyp-field button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #fff5; background: transparent; color: #fff; font-size: 22px; cursor: pointer; }
+    .hyp-side input[type=range] { width: 100%; accent-color: var(--accent); }
+    .hyp-check { display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .04em; cursor: pointer; }
+    .hyp-check input { width: 20px; height: 20px; accent-color: var(--accent); }
+    .hyp-check.col { flex-direction: column; align-items: stretch; gap: 4px; }
+    .hyp-check select { background: #0008; color: #fff; border: 1px solid #fff3; border-radius: 8px; padding: 6px; }
+    .hyp-play { align-self: center; width: 76px; height: 76px; border-radius: 50%; border: 3px solid #fff; background: var(--accent); color: #000; font-size: 28px; font-weight: 900; cursor: pointer; box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 60%, transparent); margin-top: auto; }
+    .hyp-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: calc(16px + env(safe-area-inset-top)) 60px 12px 18px; }
+    .hyp-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding-bottom: 10px; }
+    .hyp-head small { display: block; font-size: 11px; opacity: .75; letter-spacing: .08em; } .hyp-head b { font-size: 18px; } .hyp-head .r { text-align: right; }
+    .hyp-status { border: 2px solid #fff8; border-radius: 999px; padding: 6px 16px; font-weight: 800; font-size: 13px; letter-spacing: .06em; }
+    .hyp-status.on { border-color: var(--accent); color: var(--accent); } .hyp-status.feat { border-color: #a78bfa; color: #c4b5fd; }
+    .hyp-status.warn { border-color: #f87171; color: #fca5a5; } .hyp-status.done { border-color: #4ade80; color: #86efac; }
+    .hyp-cols, .hyp-row { display: grid; grid-template-columns: 1.1fr 1fr .5fr 1.2fr; gap: 8px; padding: 7px 10px; font-variant-numeric: tabular-nums; }
+    .hyp-cols { font-weight: 800; font-size: 13px; letter-spacing: .06em; border-bottom: 2px solid #fff; }
+    .hyp-cols span:nth-child(n+2), .hyp-row span:nth-child(n+2) { text-align: right; }
+    .hyp-list { flex: 1; overflow: auto; min-height: 0; }
+    .hyp-row { font-size: 14px; border-bottom: 1px solid #ffffff14; opacity: .8; animation: hypin .25s ease-out; }
+    .hyp-row.first { background: color-mix(in srgb, var(--accent) 20%, transparent); opacity: 1; font-weight: 800; }
+    .hyp-row.win { opacity: 1; font-weight: 800; } .hyp-row.win span:nth-child(2) { color: #4ade80; }
+    .hyp-row.feat { background: #7c3aed44; opacity: 1; }
+    .hyp-row.seebox { display: flex; justify-content: center; } .hyp-see { border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 900; background: #a78bfa; color: #160b33; cursor: pointer; }
+    @keyframes hypin { from { opacity: 0; transform: translateY(-6px); } }
+    .hyp-intro { text-align: center; margin: auto; max-width: 440px; padding: 20px; } .hyp-intro b { font-size: 34px; font-style: italic; color: var(--accent); } .hyp-intro p { opacity: .9; }
+    .auto-hyper { margin-top: 12px; width: 100%; }
+    @media (max-width: 760px) {
+      .hyp { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
+      .hyp-side { border-right: 0; border-bottom: 1px solid #fff2; padding-top: calc(14px + env(safe-area-inset-top)); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .hyp-brand, .hyp-side input[type=range], .hyp-check.col { grid-column: 1 / -1; }
+      .hyp-play { width: 60px; height: 60px; margin: 0; justify-self: center; }
+      .hyp-main { padding: 10px 10px 10px; }
+      .hyp-cols, .hyp-row { font-size: 12px; padding: 6px; }
+    }
     /* Hyper play: el botón de velocidad lleva la marca HYPER */
     .hyper { position: relative; }
     .hyper::after { content: 'HYPER'; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); font: 900 8px system-ui; letter-spacing: .06em; padding: 1px 4px; border-radius: 4px; background: #ff3d6e; color: #fff; pointer-events: none; white-space: nowrap; }

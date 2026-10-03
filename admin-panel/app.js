@@ -319,6 +319,7 @@ function engineCardBody(e) {
   const c = e.card || {};
   const buys = (c.buy || []).filter((b) => b.mode !== 'ante');
   const badges = [
+    c.hyper ? '⚡ HYPER' : null,
     c.volatility ? VOL_LABEL[c.volatility] || `Volatilidad ${c.volatility}` : null,
     c.featureEvery ? `Bonus cada ~${c.featureEvery} giros` : null,
     c.hitFrequency ? `Premio en ${Math.round(c.hitFrequency * 100)} % de los giros` : null,
@@ -328,7 +329,7 @@ function engineCardBody(e) {
   return `<b class="eng-name">${esc(e.name)}</b>${c.tagline ? `<span class="eng-tag">${esc(c.tagline)}</span>` : ''}
     <span class="eng-desc">${esc(e.description || '')}</span>
     <dl>${c.grid ? `<dt>Cuadrícula</dt><dd>${esc(c.grid)}</dd>` : ''}${c.pays ? `<dt>Paga por</dt><dd>${esc(c.pays)}</dd>` : ''}${c.bonus ? `<dt>Bonus</dt><dd>${esc(c.bonus)}</dd>` : ''}</dl>
-    ${c.features?.length ? `<ul>${c.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    ${c.features?.length || c.hyper ? `<ul>${(c.features || []).map((f) => `<li>${esc(f)}</li>`).join('')}${c.hyper ? '<li><b>⚡ HYPER:</b> juego automático súper rápido sin rodillos (hasta 1000 tiradas, se detiene en la función si el jugador quiere)</li>' : ''}</ul>` : ''}
     <span class="eng-badges">${badges.map((b) => `<i>${esc(b)}</i>`).join('')}</span>`;
 }
 function enginePicker(engines, inputId, selected = engines[0]?.id) {

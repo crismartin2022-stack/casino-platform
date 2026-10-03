@@ -96,6 +96,8 @@ export const engineList = () => Object.values(ENGINES).map((e) => {
     variableRows: VARIABLE_ROW_ENGINES.includes(e.id),
     card: {
       ...(ENGINE_CARDS[e.id] || {}),
+      // HYPER: juego automático súper rápido sin rodillos (todas las tragamonedas)
+      hyper: isSlot(e),
       ...(m ? { rtp: m.rtp, volatility: m.volatility || null, hitFrequency: m.hitFrequency ?? null, featureEvery: m.featureEvery ?? null,
         buy: (m.buyOptions || []).map((b) => ({ mode: b.mode, cost: b.cost })) } : {}),
     },
