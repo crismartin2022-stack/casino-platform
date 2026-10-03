@@ -7,6 +7,7 @@ import { seededRng, recordingRng, replayRng } from '../backend/math/rng.js';
 
 const seeds = Object.fromEntries(readdirSync(new URL('../backend/games/seed/', import.meta.url))
   .map((f) => JSON.parse(readFileSync(new URL(`../backend/games/seed/${f}`, import.meta.url), 'utf8')))
+  .filter((c) => !c.id || c.id === c.engine) // la semilla del motor (no los juegos extra como Dados en Vivo)
   .map((c) => [c.engine, c]));
 
 for (const [id, engine] of Object.entries(ENGINES).filter(([, e]) => (e.kind || 'slot') === 'slot')) {
@@ -469,4 +470,50 @@ test('crash: RTP exacto para cualquier estrategia, curva inversa y punto verific
   // Inválidos
   assert.ok(validateConfig({ ...c, rules: { ...c.rules, rtp: 1.02 } }).length);
   assert.ok(validateConfig({ ...c, rules: { ...c.rules, maxBets: 3 } }).length);
+});
+
+test('cascada que duplica: el multiplicador se duplica por cascada y sigue en los giros gratis', async () => {
+  const td = await import('../backend/math/tumble-double.js');
+  const c = td.defaults();
+  const rng = seededRng(31);
+  let seenCascade = false, seenFs = false;
+  for (let i = 0; i < 20000 && !(seenCascade && seenFs); i++) {
+    const r = td.play(c, rng);
+    const st = r.base.steps;
+    st.forEach((x, k) => assert.equal(x.multiplier, Math.min(c.rules.multMax, 2 ** k)));
+    if (st.length > 2) seenCascade = true;
+    if (r.freeSpins) {
+      seenFs = true;
+      let m = 1;
+      for (const s of r.freeSpins.spins) {
+        assert.equal(s.steps[0].multiplier, m, 'el giro empieza con el multiplicador del anterior');
+        m = s.multAfter;
+        assert.ok(m <= c.rules.fsMultMax);
+      }
+    }
+  }
+  assert.ok(seenCascade && seenFs);
+});
+
+test('tres soles: cada sol suma a su barra, la barra llena da su bonus y sobra lo que pasa', async () => {
+  const ts = await import('../backend/math/triple-sun.js');
+  const c = ts.defaults();
+  const rng = seededRng(5);
+  let st = ts.initialState();
+  const fills = { red: 0, gold: 0, blue: 0 };
+  for (let i = 0; i < 20000; i++) {
+    const r = ts.play(c, rng, { state: st });
+    assert.deepEqual(r.stateBefore, st);
+    for (const col of ts.COLORS) {
+      const added = r.suns.filter((x) => x.color === col).length;
+      const filled = r.filled.includes(col);
+      assert.equal(r.state[col], st[col] + added - (filled ? c.rules.pots[col].target : 0));
+      assert.ok(r.state[col] >= 0 && r.state[col] < c.rules.pots[col].target);
+      if (filled) { fills[col]++; const b = r.bonuses.find((x) => x.color === col); assert.equal(b.spins.length, c.rules.pots[col].spins); }
+    }
+    st = r.state;
+  }
+  assert.ok(fills.red > 0 && fills.gold > 0 && fills.blue > 0, JSON.stringify(fills));
+  // El estado guardado se sanea si cambió la configuración
+  assert.deepEqual(ts.cleanState(c.rules, { red: 999, gold: -3, blue: 'x' }), { red: 14, gold: 0, blue: 0 });
 });

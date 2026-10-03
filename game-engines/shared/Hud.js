@@ -43,6 +43,10 @@ export class Hud {
     this.betIndex = Math.max(0, this.levels.indexOf(game.bet.default));
     this.autoLeft = 0;
     this.turbo = false;
+    // HYPER PLAY: el resultado se muestra al instante (sin animar). El juego puede desactivarlo (theme.hud.hyper = false),
+    // por ejemplo en mercados que exigen un tiempo mínimo por giro.
+    this.hyper = false;
+    this.hyperAllowed = game.theme?.hud?.hyper !== false;
 
     const t = game.theme || {};
     const p = t.palette || {};
@@ -261,7 +265,7 @@ export class Hud {
         item(this.soundBtn.classList.contains('muted') ? '🔇' : '🔊', 'Sonido', () => this.soundBtn.click()),
         fsOk ? item('⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null,
         isTouch() ? item('⟳', 'Girar pantalla', () => this.rotateScreen()) : null,
-        item('⚡', this.turbo ? 'Turbo: sí' : 'Turbo: no', () => this.toggleTurbo()))));
+        item('⚡', this.hyper ? 'Velocidad: Hyper' : this.turbo ? 'Velocidad: Turbo' : 'Velocidad: normal', () => this.toggleTurbo()))));
   }
 
   async showHistory() {
@@ -402,10 +406,17 @@ export class Hud {
     this.spinBtn.classList.toggle('busy', v);
   }
 
+  /** Velocidad: normal → turbo → hyper (si el juego lo permite) → normal. */
   toggleTurbo() {
-    this.turbo = !this.turbo;
+    if (!this.turbo) { this.turbo = true; this.hyper = false; }
+    else if (!this.hyper && this.hyperAllowed) this.hyper = true;
+    else { this.turbo = false; this.hyper = false; }
     this.turboBtn.classList.toggle('on', this.turbo);
+    this.turboBtn.classList.toggle('hyper', this.hyper);
+    this.turboBtn.title = this.hyper ? 'Hyper: resultado al instante' : this.turbo ? 'Turbo' : 'Velocidad normal';
     this.onTurbo?.(this.turbo);
+    if (this.hyper) this.setStatus?.('HYPER: resultados al instante');
+    else if (this.turbo) this.setStatus?.('');
   }
 
   /** Giros automáticos: el jugador elige cuántos (opciones de bet.autoSpins) y, si quiere, un límite de pérdida. */

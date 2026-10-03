@@ -16,4 +16,6 @@ export const ENGINE_LOADERS = {
   'classic-reels': () => import('./engine-classic-reels/src/ClassicReelsEngine.js').then((m) => m.ClassicReelsEngine),
   craps: () => import('./engine-craps/src/CrapsEngine.js').then((m) => m.CrapsEngine),
   crash: () => import('./engine-crash/src/CrashEngine.js').then((m) => m.CrashEngine),
+  'tumble-double': () => import('./engine-tumble-double/src/TumbleDoubleEngine.js').then((m) => m.TumbleDoubleEngine),
+  'triple-sun': () => import('./engine-triple-sun/src/TripleSunEngine.js').then((m) => m.TripleSunEngine),
 };

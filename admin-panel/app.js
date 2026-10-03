@@ -1262,6 +1262,7 @@ async function tabDesign(v) {
         <div class="row" style="margin-top:6px"><button class="small" data-fontup="hud">Subir tipografía…</button>${t.hud?.fontUrl ? '<button class="small danger" data-fontclear="hud">Quitar archivo</button>' : ''}</div></div>
       <div><label>Tamaño general de la interfaz (<span id="hScaleV">${Math.round((t.hud?.scale || 1) * 100)}</span> %)</label><input id="hScale" type="range" min="0.8" max="1.4" step="0.05" value="${t.hud?.scale || 1}" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)" title="El botón ⚡ pasa por normal → turbo → HYPER. Desactívalo en mercados que exigen un tiempo mínimo por giro."><input type="checkbox" id="hHyper" style="width:auto" ${t.hud?.hyper !== false ? 'checked' : ''} /> Permitir HYPER play (resultado al instante, mismo RTP)</label>
     </div></div>
     ${isTableGame ? '' : metersCard(t.hud?.meters || {}, p)}
     <div class="card stack" ${isCrash ? 'hidden' : ''}><h3 style="margin:0">Botones del juego</h3>
@@ -1420,7 +1421,7 @@ async function tabDesign(v) {
         ];
       })() : []),
       ...($('#mCard') ? [{ op: 'set', path: 'theme.hud.meters', value: readMeters(v, t.hud?.meters || {}) }] : []),
-      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
+      { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, hyper: $('#hHyper').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
       ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
@@ -2155,7 +2156,7 @@ async function tabMath(v) {
     <div class="card stack"><h3 style="margin:0">Versión publicada</h3>
       ${m ? `<div class="kpi"><div><small>RTP</small><b>${pct(m.rtp)}</b></div><div><small>IC 95 %</small><b style="font-size:14px">${pct(m.ci?.[0])} – ${pct(m.ci?.[1])}</b></div>
       <div><small>Frecuencia de premio</small><b>${pct(m.hitFrequency)}</b></div><div><small>Bonus cada</small><b>${m.featureEvery ? `1/${m.featureEvery}` : '—'}</b></div>
-      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${m.rtpLevel1 != null ? `<div><small>RTP en el nivel 1</small><b>${pct(m.rtpLevel1)}</b></div>` : ''}${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
+      <div><small>Volatilidad</small><b>${esc(m.volatility)}</b></div>${m.rtpLevel1 != null ? `<div><small>${S.game.engine === 'level-up' ? 'RTP en el nivel 1' : 'RTP sin progreso guardado'}</small><b>${pct(m.rtpLevel1)}</b></div>` : ''}${(m.buyOptions?.length ? m.buyOptions : m.buy ? [{ mode: 'buy', cost: m.buy.buyCost, rtp: m.buy.rtp }] : [])
       .map((b) => `<div><small>${b.mode === 'ante' ? 'Doble chance' : `Compra ${esc(BUY_NAMES[b.mode] || b.mode)}`}</small><b>${b.cost}× · ${pct(b.rtp)}</b></div>`).join('')}</div>` : '<p class="muted">Sin publicar.</p>'}
     </div>
     <div class="card stack"><h3 style="margin:0">Tamaño de la cuadrícula${d.rules.lines != null ? ' y líneas' : ''}</h3>

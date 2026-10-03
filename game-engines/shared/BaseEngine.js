@@ -355,10 +355,11 @@ export class BaseEngine {
     this.sound.play('spin');
     this.grid.undim();
     this.onSpinStart();
-    this.grid.startSpin();
+    const hyper = this.hud.hyper;
+    if (!hyper) this.grid.startSpin();
     let round;
     try {
-      [round] = await Promise.all([this.api.spin(bet, mode, { force }), wait(this.hud.turbo ? 150 : 380)]);
+      [round] = await Promise.all([this.api.spin(bet, mode, { force }), wait(hyper ? 0 : this.hud.turbo ? 150 : 380)]);
     } catch (e) {
       await this.grid.stop(this.randomGrid());
       this.hud.setBalance(this.hud.balance + cost);
@@ -370,12 +371,16 @@ export class BaseEngine {
     }
     try {
       this.currentBet = bet;
-      await this.playResult(round.result, round);
+      if (hyper) await this.playHyper(round.result, round);
+      else await this.playResult(round.result, round);
     } catch (e) {
       console.error('Error animando la ronda', e); // el dinero ya está resuelto en el servidor
     }
-    if (round.win > 0) this.hud.countWin(round.win, 400); else this.hud.setWin(0);
-    if (round.win > 0) await this.presentTotal(round.win, bet);
+    if (hyper) { this.hud.setWin(round.win); if (round.win > 0) await this.presentHyper(round.win, bet, round.result); }
+    else {
+      if (round.win > 0) this.hud.countWin(round.win, 400); else this.hud.setWin(0);
+      if (round.win > 0) await this.presentTotal(round.win, bet);
+    }
     this.hud.setBalance(round.balance);
     // Aviso al sitio del operador cuando el juego va embebido en un iframe (client-sdk).
     if (window.parent && window.parent !== window) {
@@ -385,11 +390,38 @@ export class BaseEngine {
     this.busy = false;
     if (this.pendingRelayout) { this.pendingRelayout = false; this.relayout(this.detectOrientation()); }
     this.hud.lock(false);
-    if (this.hud.autoLeft > 0 && !(round.result.freeSpins || round.result.holdAndWin)) {
-      if (this.hud.consumeAuto()) setTimeout(() => this.spin('base'), 220);
-    } else if (round.result.freeSpins || round.result.holdAndWin) {
+    const feature = !hyper && (round.result.freeSpins || round.result.holdAndWin);
+    if (this.hud.autoLeft > 0 && !feature) {
+      if (this.hud.consumeAuto()) setTimeout(() => this.spin('base'), hyper ? 250 : 220);
+    } else if (feature) {
       this.hud.stopAuto();
     }
+  }
+
+  // ---------------------------------------------------------------- Hyper play
+  /** Cuadrícula final de una ronda (para mostrarla al instante). */
+  finalGridOf(r) {
+    const last = (steps) => (Array.isArray(steps) && steps.length ? steps.at(-1).grid || steps.at(-1).raw : null);
+    return last(r?.steps) || last(r?.base?.steps) || r?.grid || r?.base?.grid || r?.finalGrid || null;
+  }
+
+  /** Hyper play: el resultado del servidor (el mismo que en modo normal) se muestra sin animar. */
+  async playHyper(result) {
+    const g = this.finalGridOf(result);
+    try { this.grid.snap(g && g.length === this.grid.columns.length ? g : this.randomGrid()); } catch { this.grid.snap(this.randomGrid()); }
+    this.onHyper?.(result);
+  }
+
+  /** Premio en hyper play: un destello corto; si hubo bonus, un cartel breve con el total. */
+  async presentHyper(cents, bet, result) {
+    this.flashWinText(cents);
+    const x = cents / bet;
+    const big = Number(this.game.theme?.messages?.thresholds?.big) || 15;
+    const feature = result?.freeSpins || result?.holdAndWin || result?.bonus || result?.bonuses?.length;
+    if (feature || x >= big) {
+      this.sound.play(x >= big ? 'bigWin' : 'win');
+      await this.hud.showBanner(`<small>${feature ? 'BONUS' : escHtml(this.msg('bigWin'))}</small><b>${this.hud.fmt(cents)}</b>`, { kind: x >= big ? 'big' : 'win', ms: 700 });
+    } else this.sound.play('win');
   }
 
   /** Implementado por cada motor. Debe dejar la cuadrícula en su estado final. */

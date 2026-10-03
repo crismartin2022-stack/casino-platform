@@ -18,6 +18,8 @@ import * as cashCollect from './cash-collect.js';
 import * as classicReels from './classic-reels.js';
 import * as levelUp from './level-up.js';
 import * as crash from './crash.js';
+import * as tumbleDouble from './tumble-double.js';
+import * as tripleSun from './triple-sun.js';
 import { seededRng } from './rng.js';
 import { buildStrip, round6, maxLines, GRID_LIMITS } from './common.js';
 
@@ -41,6 +43,8 @@ export const ENGINES = {
   [levelUp.id]: levelUp,
   [craps.id]: craps,
   [crash.id]: crash,
+  [tumbleDouble.id]: tumbleDouble,
+  [tripleSun.id]: tripleSun,
 };
 
 /** Modos de compra de un motor, con acceso a su precio. */
