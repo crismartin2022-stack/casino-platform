@@ -19,7 +19,8 @@ import { simulateAsync, tuneAsync, resizeAsync, featureAsync } from './math/work
 import { maxLines } from './math/common.js';
 import { all, one } from './db.js';
 
-const spinLimit = rateLimiter({ windowMs: 60_000, max: 240 });
+// 600 por minuto: alcanza para HYPER (hasta ~8 tiradas por segundo) y frena abusos
+const spinLimit = rateLimiter({ windowMs: 60_000, max: 600 });
 const demoLimit = rateLimiter({ windowMs: 60_000, max: 20 });
 
 const bearer = (req) => (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();

@@ -265,7 +265,8 @@ export class Hud {
         item(this.soundBtn.classList.contains('muted') ? '🔇' : '🔊', 'Sonido', () => this.soundBtn.click()),
         fsOk ? item('⛶', 'Pantalla completa', () => this.toggleFullscreen()) : null,
         isTouch() ? item('⟳', 'Girar pantalla', () => this.rotateScreen()) : null,
-        item('⚡', this.hyper ? 'Velocidad: Hyper' : this.turbo ? 'Velocidad: Turbo' : 'Velocidad: normal', () => this.toggleTurbo()))));
+        item('⚡', this.turbo ? 'Turbo: sí' : 'Turbo: no', () => this.toggleTurbo()),
+        this.hyperAllowed && this.onHyperOpen ? item('⏩', 'HYPER', () => this.onHyperOpen()) : null)));
   }
 
   async showHistory() {
@@ -406,17 +407,16 @@ export class Hud {
     this.spinBtn.classList.toggle('busy', v);
   }
 
-  /** Velocidad: normal → turbo → hyper (si el juego lo permite) → normal. */
+  /** Velocidad: normal → turbo → HYPER (abre el panel de juego súper rápido, si el juego lo permite) → normal. */
   toggleTurbo() {
-    if (!this.turbo) { this.turbo = true; this.hyper = false; }
-    else if (!this.hyper && this.hyperAllowed) this.hyper = true;
-    else { this.turbo = false; this.hyper = false; }
+    if (!this.turbo) this.turbo = true;
+    else {
+      this.turbo = false;
+      if (this.hyperAllowed && this.onHyperOpen && !this.locked) { this.turboBtn.classList.remove('on'); this.onTurbo?.(false); this.onHyperOpen(); return; }
+    }
     this.turboBtn.classList.toggle('on', this.turbo);
-    this.turboBtn.classList.toggle('hyper', this.hyper);
-    this.turboBtn.title = this.hyper ? 'Hyper: resultado al instante' : this.turbo ? 'Turbo' : 'Velocidad normal';
+    this.turboBtn.title = this.turbo ? 'Turbo (toca otra vez para HYPER)' : 'Velocidad normal';
     this.onTurbo?.(this.turbo);
-    if (this.hyper) this.setStatus?.('HYPER: resultados al instante');
-    else if (this.turbo) this.setStatus?.('');
   }
 
   /** Giros automáticos: el jugador elige cuántos (opciones de bet.autoSpins) y, si quiere, un límite de pérdida. */
@@ -434,6 +434,7 @@ export class Hud {
         h('p', {}, '¿Cuántos giros?'),
         h('div', { class: 'auto-grid' }, opts.map((n) => h('button', { class: 'buy auto-n', onclick: () => { this.modalResolve = null; this.modal.hidden = true; resolve({ n, loss }); } }, String(n)))),
         h('label', { class: 'auto-lbl' }, 'Detener si pierdo más de', lossSel),
+        this.hyperAllowed && this.onHyperOpen ? h('button', { class: 'buy auto-hyper', onclick: () => { this.modalResolve = null; this.modal.hidden = true; resolve(null); this.onHyperOpen(); } }, '⚡ HYPER · súper rápido sin rodillos') : null,
         h('p', { class: 'fine' }, 'Se detiene solo al entrar en un bonus. Puedes pararlo cuando quieras tocando AUTO.')));
     });
     if (!pick) return;

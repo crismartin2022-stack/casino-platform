@@ -292,6 +292,7 @@ export class BaseEngine {
       onForce: this.session.source === 'draft' ? () => this.spin('base', { force: true }) : null,
     });
     this.hud.onTurbo = (v) => { this.grid.turbo = v; };
+    this.hud.onHyperOpen = () => this.openHyper();
     this.buildAnte();
   }
 
@@ -399,6 +400,14 @@ export class BaseEngine {
   }
 
   // ---------------------------------------------------------------- Hyper play
+  /** Abre el panel HYPER (juego automático súper rápido sin rodillos). */
+  async openHyper() {
+    if (this.busy) return;
+    const { HyperPanel } = await import('./HyperPanel.js');
+    this.hyperPanel = new HyperPanel(this);
+    this.hyperPanel.open();
+  }
+
   /** Cuadrícula final de una ronda (para mostrarla al instante). */
   finalGridOf(r) {
     const last = (steps) => (Array.isArray(steps) && steps.length ? steps.at(-1).grid || steps.at(-1).raw : null);
