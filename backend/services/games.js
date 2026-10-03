@@ -44,7 +44,24 @@ const FACTORY_RECALIBRATED = { 'bonus-buy': 'Actualización de fábrica: bonos d
   'hold-win': 'Actualización de fábrica: diseño original 5x5, ELIGE Y FIJA, especiales y jackpots por fijas', megaways: 'Actualización de fábrica: diseño original (comodines y símbolos multiplicador, 10 giros por scatter)',
   'sticky-wilds': 'Actualización de fábrica: diseño original (3 comodines fijos al azar, +5 giros)', craps: 'Actualización de fábrica: Field paga 2 a 1 con el 12 (diseño original)' };
 
+// Juegos de fábrica retirados: se borran solos SOLO si nadie los tocó y no tienen jugadas con dinero real.
+// trueno-dorado (sobre Scatter Pays) lo reemplaza «Trueno Dorado 2500» con su propio motor (orb-storm).
+const RETIRED = ['trueno-dorado'];
+
+function retireFactoryGames() {
+  for (const id of RETIRED) {
+    const g = one('SELECT * FROM games WHERE id = ?', id);
+    if (!g) continue;
+    const versions = all('SELECT version, config, created_by FROM game_versions WHERE game_id = ?', id);
+    const untouched = versions.length === 1 && versions[0].created_by === 'system' && stableStringify(JSON.parse(g.draft)) === stableStringify(JSON.parse(versions[0].config));
+    const real = one("SELECT COUNT(*) AS n FROM rounds WHERE game_id = ? AND mode = 'real'", id).n;
+    if (!untouched || real) continue;
+    try { deleteGame(id, { confirm: id, actor: 'system' }); console.log(`[seed] juego de fábrica retirado: ${id}`); } catch (e) { console.error('[seed] no se pudo retirar', id, e.message); }
+  }
+}
+
 export function seedGames() {
+  retireFactoryGames();
   const templates = seedTemplates();
   for (const c of Object.values(templates)) {
     const existing = one('SELECT * FROM games WHERE id = ?', c.id);

@@ -1263,9 +1263,11 @@ async function tabDesign(v) {
         <div class="row" style="margin-top:6px"><button class="small" data-fontup="hud">Subir tipografía…</button>${t.hud?.fontUrl ? '<button class="small danger" data-fontclear="hud">Quitar archivo</button>' : ''}</div></div>
       <div><label>Tamaño general de la interfaz (<span id="hScaleV">${Math.round((t.hud?.scale || 1) * 100)}</span> %)</label><input id="hScale" type="range" min="0.8" max="1.4" step="0.05" value="${t.hud?.scale || 1}" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hMax" style="width:auto" ${(t.hud?.maxBet ?? true) ? 'checked' : ''} /> Mostrar botón de apuesta máxima (MÁX)</label>
-      <label class="row" style="gap:8px;margin:0;color:var(--text)" title="El botón ⚡ pasa por normal → turbo → HYPER. Desactívalo en mercados que exigen un tiempo mínimo por giro."><input type="checkbox" id="hHyper" style="width:auto" ${t.hud?.hyper !== false ? 'checked' : ''} /> Permitir HYPER play (resultado al instante, mismo RTP)</label>
+      <label class="row" style="gap:8px;margin:0;color:var(--text)" title="El botón ⚡ pasa por normal → turbo → HYPER. Desactívalo en mercados que exigen un tiempo mínimo por giro."><input type="checkbox" id="hHyper" style="width:auto" ${t.hud?.hyper !== false ? 'checked' : ''} /> Permitir HYPER (juego automático súper rápido sin rodillos, mismo RTP)</label>
+      <div><label>Máximo de tiradas en HYPER</label><input id="hHyperMax" type="number" min="10" max="5000" step="10" value="${esc(S.game.draft.bet?.hyperMaxSpins ?? 1000)}" /></div>
     </div></div>
     ${isTableGame ? '' : metersCard(t.hud?.meters || {}, p)}
+    ${isTableGame ? '' : hyperCard(t, p)}
     <div class="card stack" ${isCrash ? 'hidden' : ''}><h3 style="margin:0">Botones del juego</h3>
       <div class="grid2">
         <div><label>Forma</label><select id="bShape">${[['round', 'Redondos'], ['rounded', 'Esquinas suaves'], ['square', 'Cuadrados'], ['pill', 'Píldora']].map(([v, l]) => `<option value="${v}" ${(B.shape || 'round') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -1290,6 +1292,7 @@ async function tabDesign(v) {
     <div class="row"><button class="primary" id="dSave">Guardar diseño</button><span class="muted">Consejo: en 🤖 Agentes puedes pedir “cambia el fondo por una selva de noche” y lo genera el Artista.</span></div>
   </div>`;
   bindCrashStageCard(v);
+  bindHyperCard(v);
   $$('[data-ui]', v).forEach((b) => b.addEventListener('click', guard(async () => {
     const k = b.dataset.ui;
     const pal = UIS.find((x) => x[0] === k)[3];
@@ -1423,11 +1426,53 @@ async function tabDesign(v) {
       })() : []),
       ...($('#mCard') ? [{ op: 'set', path: 'theme.hud.meters', value: readMeters(v, t.hud?.meters || {}) }] : []),
       { op: 'merge', path: 'theme.hud', value: { layout: $('#hLayout').value, barColor: `${$('#hBar').value}d9`, barBorder: $('#hBorder').value, spinSize: Number($('#hSpin').value), maxBet: $('#hMax').checked, hyper: $('#hHyper').checked, scale: Number($('#hScale').value), ...(t.hud?.fontUrl ? {} : { font: $('#hFont').value.trim() || null }) } },
+      ...($('#hHyperMax') ? [{ op: 'set', path: 'bet.hyperMaxSpins', value: Math.max(10, Math.min(5000, Math.round(Number($('#hHyperMax').value) || 1000))) }] : []),
       { op: 'merge', path: 'theme.buttons', value: { shape: $('#bShape').value, style: $('#bStyle').value, size: Number($('#bSize').value), color: $('#bColor').value, textColor: $('#bText').value } },
       ...$$('tr[data-btn]', v).map((tr) => ({ op: 'set', path: `theme.buttons.${tr.dataset.btn}.icon`, value: $('[data-icon]', tr).value.trim() || null })),
     ]);
     loadGames();
   }));
+}
+
+// ---- HYPER: diseño del panel de juego súper rápido (theme.hyper) ----
+function hyperCard(t, p) {
+  const H = t.hyper || {};
+  const col = (k, label, def) => `<div><label>${label}</label><input type="color" data-hy="${k}" value="${esc(H[k] || def)}" /></div>`;
+  return `<div class="card stack" id="hyCard"><h3 style="margin:0">⚡ Diseño del HYPER</h3>
+    <p class="muted" style="margin:0">El panel de juego automático súper rápido (se abre tocando ⚡ dos veces, desde AUTO o desde el menú). Cambia su título o pon un logo, los colores, la imagen de fondo y la tipografía.</p>
+    <div class="grid2">
+      <div><label>Título</label><input id="hyTitle" value="${esc(H.title || '')}" placeholder="⚡ HYPER" /></div>
+      <div><label>Logo (en lugar del título)</label><div class="row">${H.logo ? `<img src="${esc(H.logo)}" style="height:40px;max-width:150px;object-fit:contain;background:#0006;border-radius:6px" />` : '<span class="muted">Sin logo</span>'}<button class="small" data-hyimg="logo">Elegir…</button>${H.logo ? '<button class="small danger" data-hyclr="logo">Quitar</button>' : ''}</div></div>
+      ${col('bg', 'Color de fondo', p.panel || '#0a0f22')}
+      <div><label>Opacidad del fondo (<span id="hyOpV">${Math.round((H.opacity ?? 0.55) * 100)}</span> %)</label><input id="hyOp" type="range" min="0" max="1" step="0.05" value="${H.opacity ?? 0.55}" /></div>
+      <div><label>Imagen de fondo</label><div class="row">${H.image ? `<img src="${esc(H.image)}" style="height:40px;max-width:150px;object-fit:cover;border-radius:6px" />` : '<span class="muted">Se ve el juego desenfocado</span>'}<button class="small" data-hyimg="image">Elegir…</button>${H.image ? '<button class="small danger" data-hyclr="image">Quitar</button>' : ''}</div></div>
+      <div><label>Desenfoque del juego (<span id="hyBlurV">${H.blur ?? 10}</span> px)</label><input id="hyBlur" type="range" min="0" max="30" step="1" value="${H.blur ?? 10}" /></div>
+      ${col('side', 'Panel de la izquierda', '#0b1020')}${col('accent', 'Color de acento (botón ▶, estado)', p.accent || '#ffd460')}
+      ${col('text', 'Color del texto', '#ffffff')}${col('win', 'Color de las ganancias', '#4ade80')}
+      ${col('feature', 'Color de las tiradas con bonus', '#7c3aed')}${col('rowLine', 'Líneas entre tiradas', '#2a3048')}
+      <div><label>Tipografía (Google Fonts)</label><input id="hyFont" list="dFontList" value="${esc(H.font || '')}" placeholder="La de la botonera" /></div>
+    </div>
+    <div class="row"><button class="primary" id="hySave">Guardar diseño del HYPER</button><button id="hyDemo">▶ Abrir el HYPER en la vista previa</button><button class="small" id="hyReset">Volver al diseño original</button></div></div>`;
+}
+function bindHyperCard(v) {
+  const card = $('#hyCard', v);
+  if (!card) return;
+  for (const [i, o, f] of [['#hyOp', '#hyOpV', (x) => Math.round(x * 100)], ['#hyBlur', '#hyBlurV', (x) => x]]) $(i, card).addEventListener('input', (e) => { $(o, card).textContent = f(Number(e.target.value)); });
+  const read = () => {
+    const cur = S.game.draft.theme?.hyper || {};
+    const out = { ...cur, title: $('#hyTitle', card).value.trim() || null, opacity: Number($('#hyOp', card).value), blur: Number($('#hyBlur', card).value), font: $('#hyFont', card).value.trim() || null };
+    for (const el of $$('[data-hy]', card)) out[el.dataset.hy] = el.value;
+    return out;
+  };
+  const save = (msg = 'Diseño del HYPER guardado') => patchDraft([{ op: 'set', path: 'theme.hyper', value: read() }], msg);
+  $('#hySave', card).addEventListener('click', guard(async () => { await save(); renderTab(); }));
+  $('#hyDemo', card).addEventListener('click', guard(async () => { await save('Guardado: abriendo el HYPER en la vista previa'); await reloadPreview(true); await demoInPreview('hyper'); }));
+  $('#hyReset', card).addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hyper', value: null }], 'HYPER con el diseño original'); renderTab(); }));
+  $$('[data-hyimg]', card).forEach((b) => b.addEventListener('click', guard(async () => {
+    const url = await pickAsset('image');
+    if (url) { await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [b.dataset.hyimg]: url } }], 'Imagen del HYPER aplicada'); renderTab(); }
+  })));
+  $$('[data-hyclr]', card).forEach((b) => b.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [b.dataset.hyclr]: null } }]); renderTab(); })));
 }
 
 // ---- Marcadores de la botonera (SALDO / APUESTA / PREMIO) ----
