@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { db, one, all, run, tx, audit } from '../db.js';
 import { ROOT, config as appConfig } from '../config.js';
-import { validateConfig, getEngine, ENGINES, buyModesOf } from '../math/index.js';
+import { validateConfig, getEngine, ENGINES, buyModesOf, isSlot } from '../math/index.js';
 import { simulateAsync, pooledParallelAsync, tuneAsync } from '../math/worker.js';
 import { runCheck, saveCheck } from './checks.js';
 import { HttpError } from '../lib/http.js';
@@ -245,7 +245,7 @@ export async function publish(id, { actor = 'admin', note = '' } = {}) {
       || one("SELECT math FROM rtp_variants WHERE result_math_hash = ? AND status = 'ready' AND math IS NOT NULL LIMIT 1", hash);
     if (prev?.math) math = JSON.parse(prev.math);
   }
-  if (!math && ENGINES[draft.engine].kind === 'table') {
+  if (!math && !isSlot(ENGINES[draft.engine])) {
     const a = ENGINES[draft.engine].analyze(draft);
     math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, hitFrequency: a.hitFrequency, exact: true };
   }
@@ -333,6 +333,7 @@ export async function convertEngine(fromId, { engine, name, brandId, tune = true
   getEngine(engine);
   if (engine === src.engine) throw new HttpError(400, 'Elige un motor distinto al actual');
   const { math: _m, ...tpl } = structuredClone(seedTemplates()[engine]);
+  if (ENGINES[src.engine].kind === 'crash' || ENGINES[engine].kind === 'crash') throw new HttpError(400, 'Un juego Crash no se convierte a otro motor (ni al revés): crea uno nuevo con el motor Crash');
   const srcTable = ENGINES[src.engine].kind === 'table', dstTable = ENGINES[engine].kind === 'table';
   const title = name || `${src.name} (${ENGINES[engine].name || engine})`;
   const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

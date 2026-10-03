@@ -6,6 +6,7 @@ import { getEngine, validateConfig, costMultiplier, simulate, RTP_RANGE } from '
 import { seededRng, recordingRng, replayRng } from './rng.js';
 import { validateBets, applyCurrency } from './currency.js';
 import * as craps from './craps.js';
+import * as crash from './crash.js';
 
 const pct = (x) => `${(x * 100).toFixed(2)} %`;
 const featureOf = (r) => !!((r.freeSpins && (r.freeSpins.awarded > 0 || r.freeSpins.spins?.length)) || r.holdAndWin || r.respins?.length || r.bonus);
@@ -46,6 +47,7 @@ export function selfTest(config, { plays = 20_000, seed = 777, math = null, rtpS
     : { id: 'bets', area: 'Apuestas', label: 'Niveles de apuesta y monedas', detail: `${config.bet.levels.length} niveles; convierten bien a ${TEST_CURRENCIES.join(', ')}.` });
 
   if (engine.kind === 'table') return { checks: [...checks, ...tableChecks(config, { plays, seed })], ms: Date.now() - t0 };
+  if (engine.kind === 'crash') return { checks: [...checks, ...crashChecks(config, { plays, seed })], ms: Date.now() - t0 };
 
   const cap = config.rules?.maxWin ?? 5000;
   const cost = costMultiplier(engine, config, 'base');
@@ -193,5 +195,43 @@ function tableChecks(config, { plays, seed }) {
   add(replayBad
     ? { id: 'replay', area: 'Auditoría', label: 'Reproducción exacta de tiradas', status: 'fail', detail: `${replayBad} tiradas no se reproducen igual.`, fix: 'Los dados deben depender solo del RNG.', agent: 'math' }
     : { id: 'replay', area: 'Auditoría', label: 'Reproducción exacta de tiradas', detail: 'Las tiradas se reproducen idénticas (auditable).' });
+  return out;
+}
+
+/** Crash: RTP exacto, que la simulación lo confirme para varias formas de jugar y que la curva sea coherente. */
+function crashChecks(config, { plays, seed }) {
+  const out = [];
+  const add = (c) => out.push({ status: 'ok', detail: '', fix: '', agent: null, ...c });
+  const R = config.rules;
+  add(R.rtp >= RTP_RANGE[0] && R.rtp <= 0.99
+    ? { id: 'rtp', area: 'Matemática', label: 'RTP exacto', detail: `${pct(R.rtp)} para cualquier forma de jugar; explota en ×1,00 el ${pct(1 - R.rtp)} de las rondas.` }
+    : { id: 'rtp', area: 'Matemática', label: 'RTP exacto', status: 'fail', detail: `RTP ${pct(R.rtp)} fuera de 85 %–99 %.`, fix: 'Poner rules.rtp entre 0,85 y 0,99.', agent: 'math' });
+  // Simulación: retirarse siempre en 1,5×, 2× y 10× debe devolver el RTP (dentro del error de muestreo)
+  const n = Math.max(200_000, plays * 20);
+  const rows = [1.5, 2, 10].filter((x) => x <= R.maxMultiplier).map((x) => {
+    const r = crash.simulateTarget(config, seededRng(seed + Math.round(x * 100)), n, x);
+    const se = Math.sqrt(R.rtp * x - R.rtp * R.rtp) / Math.sqrt(n);
+    return { x, r, ok: Math.abs(r - R.rtp) <= 4 * se };
+  });
+  const bad = rows.filter((x) => !x.ok);
+  add(bad.length
+    ? { id: 'sim', area: 'Matemática', label: `Simulación (${n.toLocaleString('es')} rondas por estrategia)`, status: 'fail', detail: rows.map((x) => `×${x.x}: ${pct(x.r)}`).join(' · '), fix: 'Revisar el generador del punto de explosión.', agent: 'math' }
+    : { id: 'sim', area: 'Matemática', label: `Simulación (${n.toLocaleString('es')} rondas por estrategia)`, detail: rows.map((x) => `retirarse en ×${x.x}: ${pct(x.r)}`).join(' · ') });
+  // Curva: creciente, inversa exacta y tiempo hasta el tope
+  let curveOk = true, prev = 1;
+  for (let t = 0; t <= 120; t += 0.25) { const m = crash.multAt(t, R.curve); if (!(m >= prev - 1e-12)) curveOk = false; prev = m; }
+  for (const m of [1.01, 2, 9.99, 10, 10.5, 50, R.maxMultiplier]) if (Math.abs(crash.multAt(crash.timeFor(m, R.curve), R.curve) - m) > 1e-6 * m) curveOk = false;
+  const top = crash.timeFor(R.maxMultiplier, R.curve);
+  add(curveOk
+    ? { id: 'curve', area: 'Juego', label: 'Curva del multiplicador', detail: `×2 a los ${crash.timeFor(2, R.curve).toFixed(1)} s, ×10 a los ${crash.timeFor(10, R.curve).toFixed(1)} s, tope ×${R.maxMultiplier} a los ${Math.round(top)} s.` }
+    : { id: 'curve', area: 'Juego', label: 'Curva del multiplicador', status: 'fail', detail: 'La curva no es creciente o su inversa no coincide.', fix: 'Revisar rules.curve.', agent: 'math' });
+  // Verificabilidad: misma semilla → mismo punto
+  const s1 = 'a'.repeat(64);
+  const same = crash.crashFromSeed(s1, R.rtp, R.maxMultiplier) === crash.crashFromSeed(s1, R.rtp, R.maxMultiplier) && crash.hashSeed(s1).length === 64;
+  add(same
+    ? { id: 'fair', area: 'Auditoría', label: 'Ronda verificable', detail: 'El hash de la semilla se publica antes de apostar y la semilla se revela al explotar; el punto se recalcula igual.' }
+    : { id: 'fair', area: 'Auditoría', label: 'Ronda verificable', status: 'fail', detail: 'La misma semilla no da el mismo punto.', agent: 'math' });
+  const L = R.limits;
+  add({ id: 'limits', area: 'Apuestas', label: 'Límites por apuesta', detail: `Mínimo ${L.min}, máximo ${L.max} y ${L.table} por ronda (centavos)${L.maxPayout ? `; premio máximo por apuesta ${L.maxPayout} (retiro automático al llegar)` : ''}; hasta ${R.maxBets} apuestas por ronda.` });
   return out;
 }

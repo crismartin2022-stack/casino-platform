@@ -9,6 +9,15 @@ mkdirSync(out, { recursive: true });
 const only = process.argv.slice(2);
 for (const e of Object.values(ENGINES).filter((x) => !only.length || only.includes(x.id))) {
   const t0 = Date.now();
+  if (e.kind === 'crash') {
+    // Crash: RTP exacto (rules.rtp) para cualquier estrategia
+    const config = { ...e.defaults(), id: e.id };
+    const a = e.analyze(config);
+    config.math = { rtp: a.rtp, perBet: a.perBet, volatility: a.volatility, exact: true };
+    writeFileSync(new URL(`${e.id}.json`, out), JSON.stringify(config, null, 2) + '\n');
+    console.log(e.id, 'RTP exacto', a.rtp);
+    continue;
+  }
   if (e.kind === 'table') {
     // Juegos de mesa: el RTP es exacto, no hace falta simular ni ajustar
     const config = { ...e.defaults(), id: e.id };

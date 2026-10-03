@@ -7,6 +7,7 @@ import * as wallets from './services/wallets.js';
 import * as rounds from './services/rounds.js';
 import * as table from './services/table.js';
 import * as live from './services/live.js';
+import * as crash from './services/crash.js';
 import * as assets from './services/assets.js';
 import * as agents from './agents/runner.js';
 import * as operators from './services/operators.js';
@@ -94,6 +95,21 @@ export function registerRoutes(r) {
 
   // Mesa en vivo con crupier: estado compartido (cuenta regresiva, no va más, tirada y resultado)
   r.get('/api/v1/live', async (req, res) => json(res, await live.getLive(bearer(req))));
+
+  // Crash (mesa compartida): estado, apostar, cancelar, retirarse y verificar una ronda
+  r.get('/api/v1/crash', async (req, res) => json(res, await crash.getCrash(bearer(req))));
+  r.post('/api/v1/crash/bets', async (req, res) => {
+    const token = bearer(req);
+    spinLimit(token || clientIp(req));
+    const b = await readJson(req);
+    json(res, await crash.placeCrashBet(token, { amount: Number(b.amount), auto: b.auto ?? null, panel: Number(b.panel) || 0, clientBetId: b.clientBetId ? String(b.clientBetId).slice(0, 64) : null }));
+  });
+  r.delete('/api/v1/crash/bets/:id', async (req, res, { params }) => json(res, await crash.cancelCrashBet(bearer(req), params.id)));
+  r.post('/api/v1/crash/bets/:id/cashout', async (req, res, { params }) => json(res, await crash.cashoutCrashBet(bearer(req), params.id)));
+  r.get('/api/v1/crash/rounds/:roundNo', (req, res, { params }) => {
+    const s = wallets.getSession(bearer(req));
+    json(res, crash.crashRound(s.game_id, params.roundNo));
+  });
 
   // Juegos de mesa (Craps)
   r.get('/api/v1/table', async (req, res) => json(res, await table.getTable(bearer(req))));
@@ -381,6 +397,7 @@ export function registerRoutes(r) {
 
   // Rondas, auditoría y operadores
   r.get('/api/admin/rounds', A((req, res) => json(res, rounds.listRounds({ gameId: req.query.gameId, status: req.query.status, limit: Number(req.query.limit) || 50 }))));
+  r.get('/api/admin/crash-rounds/:gameId', A((req, res, { params }) => json(res, crash.crashRounds(params.gameId, Number(req.query.limit) || 100))));
   r.get('/api/admin/live-rolls/:id', A((req, res, { params }) => json(res, live.liveRoll(params.id))));
   r.get('/api/admin/rounds/:id/replay', A((req, res, { params }) => json(res, rounds.replayRound(params.id))));
   r.get('/api/admin/stats', A((req, res) => json(res, rounds.stats({ gameId: req.query.gameId, days: Number(req.query.days) || 30 }))));

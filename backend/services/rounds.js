@@ -9,6 +9,7 @@ import { getPublished, getDraft, getVersionConfig } from './games.js';
 import { replayTableRound as replayTable } from './table.js';
 import { configWithVariant, variantById } from './variants.js';
 import { applyCurrency, operatorLimits } from './bets.js';
+import { crashFromSeed, hashSeed } from '../math/crash.js';
 
 export function loadConfigFor(session) {
   if (session.source === 'draft') {
@@ -80,6 +81,7 @@ export async function playRound(token, { bet, mode = 'base', clientRoundId = nul
   const { version, config, variantId } = loadConfigFor(session);
   const engine = getEngine(config.engine);
   if (engine.kind === 'table') throw new HttpError(400, 'Este juego es de mesa: usa /api/v1/table');
+  if (engine.kind === 'crash') throw new HttpError(400, 'Este juego es Crash: usa /api/v1/crash');
   if (!config.bet.levels.includes(bet)) throw new HttpError(400, `Apuesta no permitida. Niveles: ${config.bet.levels.join(', ')}`);
   if (!(engine.modes || ['base']).includes(mode)) throw new HttpError(400, `Modo de juego no disponible: ${mode}`);
   const cost = Math.round(bet * costMultiplier(engine, config, mode));
@@ -175,6 +177,7 @@ function getSessionLoose(t) {
 export function replayRound(roundId) {
   const r = one('SELECT * FROM rounds WHERE id = ?', roundId);
   if (!r) throw new HttpError(404, 'Ronda no encontrada');
+  if (r.play_mode === 'crash') return replayCrash(r);
   if (!r.rng) throw new HttpError(409, 'La ronda no tiene resultado');
   const config = r.version ? configWithVariant(r.game_id, r.version, r.variant_id) : null;
   if (!config) throw new HttpError(409, 'Ronda jugada sobre un borrador: no reproducible');
@@ -207,4 +210,23 @@ export function stats({ gameId, days = 30 } = {}) {
   return all(`SELECT game_id, mode, COUNT(*) AS rounds, SUM(cost) AS wagered, SUM(win) AS won,
       ROUND(1.0 * SUM(win) / NULLIF(SUM(cost), 0), 4) AS rtp, COUNT(DISTINCT player_id) AS players
     FROM rounds WHERE ${where} GROUP BY game_id, mode ORDER BY wagered DESC`, ...p);
+}
+
+/**
+ * Verificación de una apuesta de Crash: la semilla revelada da el hash publicado antes de la ronda y el mismo
+ * punto de explosión; el premio es apuesta × retiro si el retiro fue ≤ explosión (si no, 0).
+ */
+function replayCrash(r) {
+  const doc = r.result ? JSON.parse(r.result) : {};
+  const cr = one('SELECT * FROM crash_rounds WHERE id = ?', doc.crashRound);
+  if (!cr) throw new HttpError(404, 'Ronda de Crash no encontrada');
+  if (!cr.crashed_at) throw new HttpError(409, 'La ronda todavía no terminó');
+  const config = r.version ? getVersionConfig(r.game_id, r.version) : getDraft(r.game_id);
+  const crash = crashFromSeed(cr.seed, config.rules.rtp, config.rules.maxMultiplier);
+  const hashOk = hashSeed(cr.seed) === cr.hash;
+  const expected = ['cancelled', 'void'].includes(r.status) ? r.cost : doc.cashout && doc.cashout <= crash ? Math.floor(r.cost * doc.cashout) : 0;
+  return {
+    roundId: r.id, stored: r.win, recomputed: expected, match: hashOk && crash === cr.crash && expected === r.win,
+    result: { roundNo: cr.round_no, hash: cr.hash, seed: cr.seed, hashOk, crash, cashout: doc.cashout ?? null, auto: doc.auto ?? null, status: r.status },
+  };
 }

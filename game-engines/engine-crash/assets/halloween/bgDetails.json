@@ -1,0 +1,65 @@
+{
+  "frames": [
+    {
+      "filename": "moon",
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 200,
+        "h": 199
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 200,
+        "h": 199
+      },
+      "sourceSize": {
+        "w": 200,
+        "h": 199
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "filename": "star",
+      "frame": {
+        "x": 212,
+        "y": 4,
+        "w": 8,
+        "h": 9
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 9
+      },
+      "sourceSize": {
+        "w": 8,
+        "h": 9
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "meta": {
+    "app": "http://free-tex-packer.com",
+    "version": "0.6.7",
+    "image": "assets/images/bgDetails.png",
+    "format": "png",
+    "size": {
+      "w": 224,
+      "h": 207
+    },
+    "scale": 1
+  }
+}

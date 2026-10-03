@@ -1,0 +1,107 @@
+{
+  "engine": "crash",
+  "kind": "crash",
+  "name": "Halloween Crash",
+  "rules": {
+    "rtp": 0.97,
+    "maxMultiplier": 1000,
+    "bettingSeconds": 7,
+    "pauseSeconds": 4,
+    "maxBets": 2,
+    "autoMin": 1.01,
+    "curve": {
+      "rate": 0.082,
+      "slowAt": 10,
+      "slowFactor": 0.5,
+      "rampSeconds": 1.5
+    },
+    "limits": {
+      "min": 10,
+      "max": 100000,
+      "table": 200000,
+      "maxPayout": 10000000
+    },
+    "historySize": 30
+  },
+  "bet": {
+    "levels": [
+      100,
+      500,
+      2000,
+      10000
+    ],
+    "default": 100,
+    "currency": "USD"
+  },
+  "theme": {
+    "title": "Halloween Crash",
+    "logo": "/game-engines/engine-crash/assets/halloween/images/logo.png",
+    "background": null,
+    "backgroundColor": "#120a24",
+    "palette": {
+      "primary": "#f59e0b",
+      "accent": "#f59e0b",
+      "panel": "#1d1433",
+      "text": "#ffffff",
+      "reelBg": "#2a1d4a"
+    },
+    "font": "Rubik",
+    "crash": {
+      "sky": [
+        "#27194c",
+        "#3e2968",
+        "#563c7c",
+        "#755799"
+      ],
+      "curveColor": "#ffffff",
+      "multColor": "#ffffff",
+      "crashColor": "#ef4444",
+      "atlases": {
+        "bg": "/game-engines/engine-crash/assets/halloween/bg.json",
+        "bgImage": "/game-engines/engine-crash/assets/halloween/images/bg.png",
+        "bats": "/game-engines/engine-crash/assets/halloween/bgBird.json",
+        "batsImage": "/game-engines/engine-crash/assets/halloween/images/bgBird.png",
+        "details": "/game-engines/engine-crash/assets/halloween/bgDetails.json",
+        "detailsImage": "/game-engines/engine-crash/assets/halloween/images/bgDetails.png",
+        "idle": "/game-engines/engine-crash/assets/halloween/idle.json",
+        "idleImage": "/game-engines/engine-crash/assets/halloween/images/idle.png",
+        "run": "/game-engines/engine-crash/assets/halloween/runFly.json",
+        "runImage": "/game-engines/engine-crash/assets/halloween/images/runFly.png",
+        "explode": "/game-engines/engine-crash/assets/halloween/explode.json",
+        "explodeImage": "/game-engines/engine-crash/assets/halloween/images/explode.png",
+        "fly": "/game-engines/engine-crash/assets/halloween/explodeFly.json",
+        "flyImage": "/game-engines/engine-crash/assets/halloween/images/explodeFly.png"
+      },
+      "characterScale": 1
+    }
+  },
+  "sounds": {
+    "music": "/game-engines/engine-crash/assets/halloween/sound/bg.mp3",
+    "start": "/game-engines/engine-crash/assets/halloween/sound/start.mp3",
+    "cashout": "/game-engines/engine-crash/assets/halloween/sound/cashout.mp3",
+    "crash": "/game-engines/engine-crash/assets/halloween/sound/explode.mp3",
+    "timer": "/game-engines/engine-crash/assets/halloween/sound/timer.mp3",
+    "click": "/game-engines/engine-crash/assets/halloween/sound/click.mp3",
+    "ambient": "/game-engines/engine-crash/assets/halloween/sound/random.mp3",
+    "bet": null,
+    "bigWin": null
+  },
+  "soundVolumes": {
+    "music": 0.4,
+    "ambient": 0.45,
+    "click": 0.6,
+    "timer": 0.65,
+    "start": 0.75,
+    "cashout": 0.85,
+    "crash": 0.85
+  },
+  "id": "crash",
+  "math": {
+    "rtp": 0.97,
+    "perBet": {
+      "any": 0.97
+    },
+    "volatility": "la elige el jugador",
+    "exact": true
+  }
+}

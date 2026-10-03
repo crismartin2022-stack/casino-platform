@@ -29,6 +29,8 @@ Sin dependencias de npm: solo Node.js ≥ 22.13 (usa `node:sqlite`, `fetch` y `w
 
 Todos vienen con la tabla de pagos ajustada a **RTP 96 %** (`npm run simulate` para recalcular).
 
+- **Crash (Halloween Crash)** — juego en vivo estilo Aviator: el multiplicador sube y el jugador se retira antes de que explote. Ronda compartida con cuenta regresiva, dos apuestas por ronda, retiro automático y apuesta automática. El punto de explosión lo fija el servidor con una semilla por ronda (su sha256 se publica antes de apostar y la semilla se revela al explotar: verificable desde el juego en «Rondas»). RTP exacto para cualquier estrategia (`rules.rtp`, 85–99 %). Cada apuesta es una ronda auditada (`play_mode = crash`); al reiniciarse el servidor con una ronda en vuelo, las apuestas abiertas se devuelven. Arte y sonidos de la plantilla comprada (hojas de sprites en `game-engines/engine-crash/assets/halloween`), reemplazables en Diseño → 🎃 Escenario Crash.
+
 ## Estructura
 
 ```

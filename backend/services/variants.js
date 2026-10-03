@@ -7,7 +7,7 @@
 import { randomBytes } from 'node:crypto';
 import { one, all, run, audit } from '../db.js';
 import { HttpError } from '../lib/http.js';
-import { getEngine, RTP_RANGE } from '../math/index.js';
+import { getEngine, RTP_RANGE, isSlot } from '../math/index.js';
 import { tuneAsync } from '../math/worker.js';
 import { getPublished, getVersionConfig, mathHash } from './games.js';
 
@@ -62,7 +62,7 @@ export function buildVariant(gameId, target, actor = 'admin') {
   target = Number(target);
   if (!(target >= RTP_RANGE[0] && target <= RTP_RANGE[1])) throw new HttpError(400, `El RTP debe estar entre ${RTP_RANGE[0] * 100} % y ${RTP_RANGE[1] * 100} %`);
   const { config } = getPublished(gameId);
-  if (getEngine(config.engine).kind === 'table') throw new HttpError(400, 'En los juegos de mesa el RTP sale de los pagos de cada apuesta: no hay variantes');
+  if (!isSlot(getEngine(config.engine))) throw new HttpError(400, 'En los juegos de mesa y Crash el RTP es exacto y propio del juego: no hay variantes');
   const baseHash = mathHash(config);
   const existing = all("SELECT * FROM rtp_variants WHERE game_id = ? AND base_math_hash = ? AND status IN ('ready', 'building')", gameId, baseHash)
     .find((r) => same(r.rtp_target, target));
@@ -87,7 +87,7 @@ export function ensureAssignedVariants(gameId, actor = 'system') {
   const g = one('SELECT published_version FROM games WHERE id = ?', gameId);
   if (!g?.published_version) return [];
   const cfg = getVersionConfig(gameId, g.published_version);
-  if (getEngine(cfg.engine).kind === 'table') return [];
+  if (!isSlot(getEngine(cfg.engine))) return [];
   const hash = mathHash(cfg);
   const targets = all('SELECT DISTINCT rtp_target FROM operator_games WHERE game_id = ? AND rtp_target IS NOT NULL', gameId).map((r) => r.rtp_target);
   return targets.filter((t) => !findVariant(gameId, t, hash)).map((t) => buildVariant(gameId, t, actor));
@@ -100,7 +100,7 @@ export function ensureAssignedVariants(gameId, actor = 'system') {
 export function configForOperator(operatorId, gameId) {
   const { version, config } = getPublished(gameId);
   const og = operatorId ? one('SELECT rtp_target FROM operator_games WHERE operator_id = ? AND game_id = ?', operatorId, gameId) : null;
-  if (og?.rtp_target == null || getEngine(config.engine).kind === 'table') return { version, config, variantId: null };
+  if (og?.rtp_target == null || !isSlot(getEngine(config.engine))) return { version, config, variantId: null };
   const v = findVariant(gameId, og.rtp_target, mathHash(config));
   if (!v) {
     buildVariant(gameId, og.rtp_target, 'system');
