@@ -82,6 +82,8 @@ export class Hud {
     this.spinBtn = this.makeButton('spin', 'spin', this.skin ? SKINS[this.skin].spinIcon : '↻', 'Girar', () => onSpin());
     this.autoBtn = this.makeButton('auto', 'chip', 'AUTO', 'Juego automático', () => this.toggleAuto(onSpin));
     this.turboBtn = this.makeButton('turbo', 'chip', '⚡', 'Turbo', () => this.toggleTurbo());
+    // HYPER: botón propio (el turbo sigue como antes)
+    this.hyperBtn = this.hyperAllowed ? this.makeButton('hyper', 'chip hyperbtn', 'HYPER', 'HYPER: juego automático súper rápido', () => { if (!this.locked) this.onHyperOpen?.(); }) : null;
     this.soundBtn = this.makeButton('sound', 'chip', '🔊', 'Sonido', () => {
       const muted = onToggleSound();
       this.soundBtn.classList.toggle('muted', muted);
@@ -170,7 +172,7 @@ export class Hud {
       stat('SALDO', this.balanceEl, 'saldo'),
       h('div', { class: 'betbox' }, stat('APUESTA', this.betEl, 'apuesta'), h('div', { class: 'betbtns' }, this.minus, this.plus, this.maxBtn)),
       this.spinBtn,
-      h('div', { class: 'autos' }, this.autoBtn, this.turboBtn),
+      h('div', { class: 'autos' }, this.autoBtn, this.turboBtn, this.hyperBtn),
       stat('PREMIO', this.winEl, 'premio'),
       this.soundBtn);
 
@@ -218,7 +220,7 @@ export class Hud {
       h('div', { class: 'sk-deco' }),
       h('div', { class: 'sk-bets' }, h('small', { class: 'sk-lbl' }, this.meterLabel('APUESTA', 'apuesta')), h('div', { class: 'sk-betrow' }, this.minus, this.betChips, this.plus, this.maxBtn)),
       h('div', { class: 'sk-spinwrap' }, h('div', { class: 'sk-ring' }), this.spinBtn),
-      h('div', { class: 'sk-right' }, stat('APUESTA', this.betEl, 'apuesta'), stat('PREMIO', this.winEl, 'premio'), h('div', { class: 'autos' }, this.autoBtn, this.turboBtn)));
+      h('div', { class: 'sk-right' }, stat('APUESTA', this.betEl, 'apuesta'), stat('PREMIO', this.winEl, 'premio'), h('div', { class: 'autos' }, this.autoBtn, this.turboBtn, this.hyperBtn)));
     this.fx = h('div', { class: 'fx' });
     this.root.append(...[top, this.sidePanel, this.banner, this.status, this.buyBtn ? h('div', { class: 'buybox' }, this.buyBtn) : null, this.dock, this.fx, this.modal].filter(Boolean));
   }
@@ -407,15 +409,10 @@ export class Hud {
     this.spinBtn.classList.toggle('busy', v);
   }
 
-  /** Velocidad: normal → turbo → HYPER (abre el panel de juego súper rápido, si el juego lo permite) → normal. */
+  /** Turbo: animaciones más rápidas (como antes). El HYPER tiene su propio botón. */
   toggleTurbo() {
-    if (!this.turbo) this.turbo = true;
-    else {
-      this.turbo = false;
-      if (this.hyperAllowed && this.onHyperOpen && !this.locked) { this.turboBtn.classList.remove('on'); this.onTurbo?.(false); this.onHyperOpen(); return; }
-    }
+    this.turbo = !this.turbo;
     this.turboBtn.classList.toggle('on', this.turbo);
-    this.turboBtn.title = this.turbo ? 'Turbo (toca otra vez para HYPER)' : 'Velocidad normal';
     this.onTurbo?.(this.turbo);
   }
 

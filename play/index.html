@@ -90,15 +90,15 @@
     .hyp-list { flex: 1; overflow: auto; min-height: 0; }
     /* Última tirada: grande y siempre visible */
     .hyp-last { display: grid; grid-template-columns: 1.1fr 1fr .6fr 1.2fr; gap: 8px; align-items: end; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px;
-      background: color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 16%, #0008); border: 2px solid color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 60%, transparent); font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+      background: color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 16%, #0008); border: 2px solid color-mix(in srgb, var(--hyp-last, var(--hyp-accent-c)) 60%, transparent); font-family: var(--hyp-num-font, system-ui, sans-serif); font-variant-numeric: tabular-nums; }
     .hyp-last small { display: block; font-size: 10px; letter-spacing: .08em; opacity: .75; }
     .hyp-last b { font-size: calc(clamp(18px, 2.4vw, 26px) * var(--hyp-last-fs, 1)); font-weight: 900; } .hyp-last .r { text-align: right; }
     .hyp-last.win .w, .hyp-last.win .x { color: var(--hyp-win, #4ade80); }
     .hyp-last.feat { border-color: var(--hyp-feat, #a78bfa); background: color-mix(in srgb, var(--hyp-feat, #7c3aed) 30%, #0008); }
     .hyp-last.pulse { animation: hyppulse .35s ease-out; }
     @keyframes hyppulse { from { transform: scale(1.025); filter: brightness(1.35); } }
-    .hyp-init { display: block; text-align: right; font: 600 12px system-ui, sans-serif; opacity: .75; margin: 0 4px 6px; }
-    .hyp-row { font: 600 calc(15px * var(--hyp-fs, 1)) system-ui, sans-serif; border-bottom: 1px solid var(--hyp-line, #ffffff14); opacity: .92; animation: hypin .25s ease-out; }
+    .hyp-init { display: block; text-align: right; font: 600 12px var(--hyp-num-font, system-ui, sans-serif); opacity: .75; margin: 0 4px 6px; }
+    .hyp-row { font: 600 calc(15px * var(--hyp-fs, 1)) var(--hyp-num-font, system-ui, sans-serif); border-bottom: 1px solid var(--hyp-line, #ffffff14); opacity: .92; animation: hypin .25s ease-out; }
     .hyp-row.first { background: color-mix(in srgb, var(--hyp-accent-c) 20%, transparent); opacity: 1; font-weight: 800; }
     .hyp-row.win { opacity: 1; font-weight: 900; background: color-mix(in srgb, var(--hyp-win, #4ade80) 10%, transparent); } .hyp-row.win span:nth-child(2) { color: var(--hyp-win, #4ade80); }
     .hyp-row.feat { background: color-mix(in srgb, var(--hyp-feat, #7c3aed) 30%, transparent); opacity: 1; }
@@ -124,10 +124,14 @@
       .hyp-cols, .hyp-row { padding: 7px 6px; } .hyp-cols { font-size: 11px; } .hyp-row { font-size: calc(15px * var(--hyp-fs, 1)); }
       .hyp-x { width: 32px; height: 32px; top: calc(8px + env(safe-area-inset-top)); right: 8px; }
     }
-    /* Hyper play: el botón de velocidad lleva la marca HYPER */
-    .hyper { position: relative; }
-    .hyper::after { content: 'HYPER'; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); font: 900 8px system-ui; letter-spacing: .06em; padding: 1px 4px; border-radius: 4px; background: #ff3d6e; color: #fff; pointer-events: none; white-space: nowrap; }
+    /* Botón HYPER de la botonera */
     .autos .chip { width: auto; min-width: 38px; padding: 0 12px; border-radius: 999px; font: 700 12px system-ui; border: 1px solid var(--bar-border); background: rgba(0,0,0,.35); }
+    .autos { display: flex; align-items: center; gap: 6px; }
+    /* Con el botón HYPER la botonera necesita un poco más de ancho */
+    #hud:not([data-orient="portrait"]) .bar:has(.hyperbtn) { width: min(96vw, max(740px, calc(var(--gw) + 140px))); gap: 10px; }
+    /* Botón HYPER (juego automático súper rápido) */
+    #hud .hyperbtn:not(.img) { font: 900 11px system-ui, sans-serif; letter-spacing: .04em; width: auto; min-width: 44px; padding: 0 10px; border-radius: 999px;
+      background: linear-gradient(180deg, #ff5b8a, #d6245a); color: #fff; border: 1px solid #fff6; box-shadow: 0 0 10px #ff3d6e66; }
     .betbox { display: flex; align-items: center; gap: 8px; }
     .betbtns { display: flex; gap: 6px; }
     .chip.maxbet:not(.img) { width: auto; min-width: 44px; padding: 0 10px; border-radius: 999px; font: 800 11px system-ui; letter-spacing: .06em; border: 1px solid var(--bar-border); }
