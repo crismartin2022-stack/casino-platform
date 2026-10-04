@@ -21,9 +21,21 @@ export function hyperStyle(T = {}) {
   if (T.rowSize != null) v['--hyp-fs'] = String(Math.max(0.7, Math.min(2, Number(T.rowSize) || 1)));
   if (T.lastSize != null) v['--hyp-last-fs'] = String(Math.max(0.7, Math.min(2.5, Number(T.lastSize) || 1)));
   if (color(T.last)) v['--hyp-last'] = T.last;
+  if (T.numFont) v['--hyp-num-font'] = `'${String(T.numFont).replace(/'/g, '')}', system-ui, sans-serif`;
   if (T.font) v['--hyp-font'] = `'${String(T.font).replace(/'/g, '')}', system-ui, sans-serif`;
   return v;
 }
+
+
+/** Textos del panel (theme.hyper.texts los reemplaza; vacío = el de fábrica). */
+export const HYPER_TEXTS = {
+  bet: 'APUESTA', spins: 'TIRADAS', stop: 'Detenerse en la función', loss: 'Detener si pierdo más de', noLimit: 'Sin límite',
+  totalBet: 'APUESTA TOTAL', totalWin: 'PREMIO TOTAL', last: 'ÚLTIMA TIRADA', spin: 'TIRADA', win: 'GANANCIA', x: '×', credit: 'CRÉDITO',
+  initial: 'Crédito inicial', bonus: 'BONUS', see: '▶ VER LA FUNCIÓN',
+  ready: 'LISTO', playing: 'JUGANDO', paused: 'EN PAUSA', feature: 'FUNCIÓN', done: 'TERMINADO', noFunds: 'SALDO INSUFICIENTE', lossLimit: 'LÍMITE DE PÉRDIDA',
+  intro1: 'Juego automático súper rápido, sin rodillos. Cada tirada es un giro normal del juego: mismo RTP y mismas reglas.',
+  intro2: 'Elige la apuesta y cuántas tiradas, y pulsa ▶. Puedes pausar o cambiarlo cuando quieras.',
+};
 
 const FEATURE = (r) => !!(r?.freeSpins || r?.holdAndWin || r?.bonus || r?.bonuses?.length || r?.respins?.length);
 
@@ -41,6 +53,8 @@ export class HyperPanel {
     this.totalBet = 0;
     this.totalWin = 0;
     this.rows = 0;
+    const tx = engine.game.theme?.hyper?.texts || {};
+    this.L = (k) => (tx[k] != null && String(tx[k]).trim() !== '' ? String(tx[k]) : HYPER_TEXTS[k]);
   }
 
   open() {
@@ -61,21 +75,21 @@ export class HyperPanel {
     const cStep = (d) => { if (this.running) return; this.count = Math.max(10, Math.min(this.max, this.count + d)); this.range.value = String(this.count); this.renderCount(); };
     this.stopBox = h('input', { type: 'checkbox', onchange: (ev) => { this.stopOnFeature = ev.target.checked; } });
     const lossSel = h('select', { onchange: (ev) => { this.loss = Number(ev.target.value); } },
-      h('option', { value: '0' }, 'Sin límite'),
+      h('option', { value: '0' }, this.L('noLimit')),
       ...[10, 25, 50, 100, 250].map((k) => h('option', { value: String(k) }, `${k}× la apuesta`)));
     this.playBtn = h('button', { class: 'hyp-play', 'aria-label': 'Jugar', onclick: () => (this.running ? this.pause() : this.start()) }, '▶');
     this.side = h('aside', { class: 'hyp-side' },
       h('div', { class: 'hyp-brand' }, h('small', {}, title), T.logo ? h('img', { src: T.logo, alt: 'HYPER' }) : h('b', {}, T.title || '⚡ HYPER')),
-      h('div', { class: 'hyp-field' }, h('button', { onclick: () => betStep(-1) }, '−'), h('div', {}, this.betEl, h('small', {}, 'APUESTA')), h('button', { onclick: () => betStep(1) }, '+')),
-      h('div', { class: 'hyp-field' }, h('button', { onclick: () => cStep(-10) }, '−'), h('div', {}, this.countEl, h('small', {}, 'TIRADAS')), h('button', { onclick: () => cStep(10) }, '+')),
+      h('div', { class: 'hyp-field' }, h('button', { onclick: () => betStep(-1) }, '−'), h('div', {}, this.betEl, h('small', {}, this.L('bet'))), h('button', { onclick: () => betStep(1) }, '+')),
+      h('div', { class: 'hyp-field' }, h('button', { onclick: () => cStep(-10) }, '−'), h('div', {}, this.countEl, h('small', {}, this.L('spins'))), h('button', { onclick: () => cStep(10) }, '+')),
       this.range,
-      h('label', { class: 'hyp-check' }, this.stopBox, 'Detenerse en la función'),
-      h('label', { class: 'hyp-check col' }, 'Detener si pierdo más de', lossSel),
+      h('label', { class: 'hyp-check' }, this.stopBox, this.L('stop')),
+      h('label', { class: 'hyp-check col' }, this.L('loss'), lossSel),
       this.playBtn);
-    this.statusEl = h('span', { class: 'hyp-status' }, 'LISTO');
+    this.statusEl = h('span', { class: 'hyp-status' }, this.L('ready'));
     this.totalBetEl = h('b', {}, '0');
     this.totalWinEl = h('b', {}, '0');
-    this.nEl = h('span', {}, 'TIRADA 0');
+    this.nEl = h('span', {}, `${this.L('spin')} 0`);
     // La lista solo tiene las tiradas; el crédito inicial y la última tirada quedan fijos arriba (siempre visibles)
     this.list = h('div', { class: 'hyp-list' });
     this.lastN = h('b', { class: 'n' }, '—');
@@ -83,22 +97,23 @@ export class HyperPanel {
     this.lastX = h('b', { class: 'x' }, '');
     this.lastCredit = h('b', { class: 'c' }, hud.fmt(hud.balance));
     this.last = h('div', { class: 'hyp-last', hidden: T.showLast === false },
-      h('div', {}, h('small', {}, 'ÚLTIMA TIRADA'), this.lastN),
-      h('div', { class: 'r' }, h('small', {}, 'GANANCIA'), this.lastWin),
-      h('div', { class: 'r' }, h('small', {}, '×'), this.lastX),
-      h('div', { class: 'r' }, h('small', {}, 'CRÉDITO'), this.lastCredit));
-    this.initEl = h('small', { class: 'hyp-init' }, `Crédito inicial ${hud.fmt(hud.balance)}`);
+      h('div', {}, h('small', {}, this.L('last')), this.lastN),
+      h('div', { class: 'r' }, h('small', {}, this.L('win')), this.lastWin),
+      h('div', { class: 'r' }, h('small', {}, this.L('x')), this.lastX),
+      h('div', { class: 'r' }, h('small', {}, this.L('credit')), this.lastCredit));
+    this.initEl = h('small', { class: 'hyp-init' }, `${this.L('initial')} ${hud.fmt(hud.balance)}`);
     this.intro = h('div', { class: 'hyp-intro' }, T.logo ? h('img', { src: T.logo, alt: 'HYPER' }) : h('b', {}, T.title || '⚡ HYPER'),
-      h('p', {}, 'Juego automático súper rápido, sin rodillos. Cada tirada es un giro normal del juego: mismo RTP y mismas reglas.'),
-      h('p', {}, 'Elige la apuesta y cuántas tiradas, y pulsa ▶. Puedes pausar o cambiarlo cuando quieras.'));
+      h('p', {}, this.L('intro1')),
+      h('p', {}, this.L('intro2')));
     const main = h('section', { class: 'hyp-main' },
-      h('div', { class: 'hyp-head' }, h('div', {}, h('small', {}, 'APUESTA TOTAL'), this.totalBetEl), this.statusEl, h('div', { class: 'r' }, h('small', {}, 'PREMIO TOTAL'), this.totalWinEl)),
+      h('div', { class: 'hyp-head' }, h('div', {}, h('small', {}, this.L('totalBet')), this.totalBetEl), this.statusEl, h('div', { class: 'r' }, h('small', {}, this.L('totalWin')), this.totalWinEl)),
       this.last, this.initEl,
-      h('div', { class: 'hyp-cols' }, this.nEl, h('span', {}, 'GANANCIA'), h('span', {}, '×'), h('span', {}, 'CRÉDITO')),
+      h('div', { class: 'hyp-cols' }, this.nEl, h('span', {}, this.L('win')), h('span', {}, this.L('x')), h('span', {}, this.L('credit'))),
       this.list, this.intro);
     this.root = h('div', { class: `hyp ${T.image ? 'img' : ''}` }, h('button', { class: 'hyp-x', 'aria-label': 'Salir', onclick: () => this.close() }, '✕'), this.side, main);
     for (const [k, val] of Object.entries(hyperStyle(T))) this.root.style.setProperty(k, val);
     if (T.font) loadAnyFont(T.font, T.fontUrl).catch(() => {});
+    if (T.numFont) loadAnyFont(T.numFont, T.numFontUrl).catch(() => {});
     e.hudRoot.append(this.root);
     hud.lock(true);
     this.renderCount();
@@ -109,7 +124,7 @@ export class HyperPanel {
   renderHead() {
     this.totalBetEl.textContent = this.hud.fmt(this.totalBet);
     this.totalWinEl.textContent = this.hud.fmt(this.totalWin);
-    this.nEl.textContent = `TIRADA ${this.done}`;
+    this.nEl.textContent = `${this.L('spin')} ${this.done}`;
   }
   setStatus(t, cls = '') { this.statusEl.textContent = t; this.statusEl.className = `hyp-status ${cls}`; }
 
@@ -117,7 +132,7 @@ export class HyperPanel {
     const bet = round.cost || this.hud.bet;
     const x = round.win / Math.max(1, round.bet || bet);
     const row = h('div', { class: `hyp-row ${round.win > 0 ? 'win' : ''} ${feature ? 'feat' : ''}` },
-      h('span', {}, feature ? `${n} · BONUS` : String(n)), h('span', {}, this.hud.fmt(round.win)),
+      h('span', {}, feature ? `${n} · ${this.L('bonus')}` : String(n)), h('span', {}, this.hud.fmt(round.win)),
       h('span', {}, `${Number.isInteger(x) ? x : x.toFixed(2)}x`), h('span', {}, this.hud.fmt(round.balance)));
     this.list.prepend(row);
     this.list.scrollTop = 0;
@@ -125,7 +140,7 @@ export class HyperPanel {
     if (this.rows > 400) this.list.lastChild.remove();
     // Última tirada, grande y fija arriba
     const xs = `${Number.isInteger(x) ? x : x.toFixed(2)}x`;
-    this.lastN.textContent = feature ? `${n} · BONUS` : String(n);
+    this.lastN.textContent = feature ? `${n} · ${this.L('bonus')}` : String(n);
     this.lastWin.textContent = this.hud.fmt(round.win);
     this.lastX.textContent = xs;
     this.lastCredit.textContent = this.hud.fmt(round.balance);
@@ -141,13 +156,13 @@ export class HyperPanel {
     this.playBtn.textContent = '❚❚';
     this.playBtn.setAttribute('aria-label', 'Pausar');
     this.range.disabled = true;
-    this.setStatus('JUGANDO', 'on');
+    this.setStatus(this.L('playing'), 'on');
     this.startBalance ??= this.hud.balance;
     const e = this.e;
     const bet = this.hud.bet;
     while (this.running && this.done < this.count) {
-      if (this.hud.balance < bet) { this.finish('SALDO INSUFICIENTE', 'warn'); return; }
-      if (this.loss && this.startBalance - this.hud.balance >= this.loss * bet) { this.finish('LÍMITE DE PÉRDIDA', 'warn'); return; }
+      if (this.hud.balance < bet) { this.finish(this.L('noFunds'), 'warn'); return; }
+      if (this.loss && this.startBalance - this.hud.balance >= this.loss * bet) { this.finish(this.L('lossLimit'), 'warn'); return; }
       let round;
       const t0 = performance.now();
       try { round = await e.api.spin(bet, 'base'); } catch (err) { this.finish(err.message || 'Error de conexión', 'warn'); return; }
@@ -167,14 +182,14 @@ export class HyperPanel {
       const wait = 125 - (performance.now() - t0);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
-    if (this.done >= this.count) this.finish('TERMINADO', 'done');
+    if (this.done >= this.count) this.finish(this.L('done'), 'done');
   }
 
   pause() {
     this.running = false;
     this.playBtn.textContent = '▶';
     this.playBtn.setAttribute('aria-label', 'Jugar');
-    this.setStatus('EN PAUSA');
+    this.setStatus(this.L('paused'));
   }
 
   finish(text, cls) {
@@ -187,7 +202,7 @@ export class HyperPanel {
   /** Se detuvo en una función: se puede ver animada (es el mismo resultado ya cobrado) y seguir. */
   pauseOnFeature(round) {
     this.pause();
-    this.setStatus('FUNCIÓN', 'feat');
+    this.setStatus(this.L('feature'), 'feat');
     const see = h('button', { class: 'hyp-see', onclick: async () => {
       see.remove();
       this.root.hidden = true;
@@ -202,7 +217,7 @@ export class HyperPanel {
       this.hud.setBalance(round.balance);
       this.root.hidden = false;
       this.hud.lock(true);
-    } }, '▶ VER LA FUNCIÓN');
+    } }, this.L('see'));
     this.list.prepend(h('div', { class: 'hyp-row seebox' }, see));
   }
 

@@ -23,7 +23,7 @@ function boardPreset(orientation, gridBottom) {
         spin: { x: 360, y: T + 118, s: 176, anchor: b },
         bet: { x: 586, y: T + 62, s: 64, anchor: b },
         minus: { x: 478, y: T + 146, s: 44, anchor: b }, betval: { x: 536, y: T + 146, s: 38, anchor: b }, plus: { x: 594, y: T + 146, s: 44, anchor: b }, max: { x: 660, y: T + 146, s: 42, anchor: b },
-        auto: { x: 548, y: T + 214, s: 54, anchor: b }, turbo: { x: 640, y: T + 214, s: 54, anchor: b },
+        auto: { x: 548, y: T + 214, s: 54, anchor: b }, turbo: { x: 640, y: T + 214, s: 54, anchor: b }, hyper: { x: 732, y: T + 214, s: 54, anchor: b },
         info: { x: 40, y: 44, s: 52, anchor: t }, sound: { x: 680, y: 44, s: 52, anchor: t },
         fullscreen: { x: 622, y: 44, s: 44, anchor: t }, rotate: { x: 568, y: 44, s: 44, anchor: t }, buy: { x: 360, y: 205, s: 66 },
       },
@@ -36,7 +36,7 @@ function boardPreset(orientation, gridBottom) {
       spin: { x: 640, y: 652, s: 128 },
       bet: { x: 1000, y: 632, s: 46 },
       minus: { x: 900, y: 690, s: 42 }, betval: { x: 958, y: 690, s: 36 }, plus: { x: 1016, y: 690, s: 42 }, max: { x: 1082, y: 690, s: 42 },
-      auto: { x: 1164, y: 632, s: 48 }, turbo: { x: 1164, y: 690, s: 48 },
+      auto: { x: 1164, y: 632, s: 48 }, turbo: { x: 1164, y: 690, s: 48 }, hyper: { x: 1110, y: 690, s: 44 },
       info: { x: 38, y: 38, s: 50 }, sound: { x: 1242, y: 38, s: 50 },
       fullscreen: { x: 1186, y: 38, s: 42 }, rotate: { x: 1136, y: 38, s: 42 }, buy: { x: 150, y: 300, s: 84 },
     },
@@ -56,7 +56,7 @@ export function defaultCustomLayout(orientation, gridBottom = null, preset = nul
         info: { x: 48, y, s: xs }, minus: { x: 142, y, s }, plus: { x: 236, y, s },
         spin: { x: 360, y, s: S },
         auto: { x: 484, y, s }, turbo: { x: 578, y, s }, sound: { x: 672, y, s: xs },
-        max: { x: 236, y: top + 230, s: 50 }, buy: { x: 484, y: top + 230, s: 50 },
+        max: { x: 236, y: top + 230, s: 50 }, buy: { x: 484, y: top + 230, s: 50 }, hyper: { x: 600, y: top + 230, s: 50 },
         fullscreen: { x: 676, y: 44, s: 48 }, rotate: { x: 620, y: 44, s: 48 },
       },
     };
@@ -68,14 +68,14 @@ export function defaultCustomLayout(orientation, gridBottom = null, preset = nul
       info: { x: 72, y, s: xs }, balance: { x: 190, y, s: 52 },
       minus: { x: 318, y, s }, plus: { x: 404, y, s }, max: { x: 508, y, s },
       spin: { x: 640, y: 652, s: S },
-      auto: { x: 754, y, s }, turbo: { x: 840, y, s },
+      auto: { x: 754, y, s }, turbo: { x: 840, y, s }, hyper: { x: 797, y: 606, s: 40 },
       bet: { x: 968, y, s: 52 }, win: { x: 1090, y, s: 52 }, sound: { x: 1208, y, s: xs },
       buy: { x: 150, y: 300, s: 84 }, fullscreen: { x: 1244, y: 34, s: 42 }, rotate: { x: 1192, y: 34, s: 42 },
     },
   };
 }
 
-const LABELS = { spin: 'GIRAR', minus: 'Bajar apuesta', plus: 'Subir apuesta', max: 'Apuesta máxima', auto: 'Automático', turbo: 'Turbo',
+const LABELS = { spin: 'GIRAR', minus: 'Bajar apuesta', plus: 'Subir apuesta', max: 'Apuesta máxima', auto: 'Automático', turbo: 'Turbo', hyper: 'HYPER',
   info: 'Reglas', sound: 'Sonido', fullscreen: 'Pantalla completa', rotate: 'Girar pantalla', buy: 'Comprar bonus',
   balance: 'Saldo', bet: 'Apuesta', win: 'Premio', betval: 'Valor de la apuesta', board: 'Tablero de la botonera' };
 
@@ -95,7 +95,7 @@ export function buildCustom(hud, { stat, lobbyUrl, preview }) {
   if (B.border === false) hud.board.classList.add('noborder');
   if (B.radius != null) hud.board.style.setProperty('--cb-radius', `${Number(B.radius)}px`);
   const nodes = {
-    spin: hud.spinBtn, minus: hud.minus, plus: hud.plus, max: hud.maxBtn, auto: hud.autoBtn, turbo: hud.turboBtn,
+    spin: hud.spinBtn, minus: hud.minus, plus: hud.plus, max: hud.maxBtn, auto: hud.autoBtn, turbo: hud.turboBtn, hyper: hud.hyperBtn,
     info: hud.infoBtn, sound: hud.soundBtn, fullscreen: hud.fullBtn, rotate: hud.rotateBtn, buy: hud.buyBtn,
     balance: stat('SALDO', hud.balanceEl, 'saldo'), bet: stat('APUESTA', hud.betEl, 'apuesta'), win: stat('PREMIO', hud.winEl, 'premio'),
     betval: h('div', { class: 'cbetval' }, hud.betValEl),

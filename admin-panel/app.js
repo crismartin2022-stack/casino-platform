@@ -1435,6 +1435,14 @@ async function tabDesign(v) {
 }
 
 // ---- HYPER: diseño del panel de juego súper rápido (theme.hyper) ----
+const HYPER_TEXTS = [
+  ['bet', 'APUESTA'], ['spins', 'TIRADAS'], ['stop', 'Detenerse en la función'], ['loss', 'Detener si pierdo más de'], ['noLimit', 'Sin límite'],
+  ['totalBet', 'APUESTA TOTAL'], ['totalWin', 'PREMIO TOTAL'], ['last', 'ÚLTIMA TIRADA'], ['spin', 'TIRADA'], ['win', 'GANANCIA'], ['x', '×'], ['credit', 'CRÉDITO'],
+  ['initial', 'Crédito inicial'], ['bonus', 'BONUS'], ['see', '▶ VER LA FUNCIÓN'],
+  ['ready', 'LISTO'], ['playing', 'JUGANDO'], ['paused', 'EN PAUSA'], ['feature', 'FUNCIÓN'], ['done', 'TERMINADO'], ['noFunds', 'SALDO INSUFICIENTE'], ['lossLimit', 'LÍMITE DE PÉRDIDA'],
+  ['intro1', 'Juego automático súper rápido, sin rodillos. Cada tirada es un giro normal del juego: mismo RTP y mismas reglas.'],
+  ['intro2', 'Elige la apuesta y cuántas tiradas, y pulsa ▶. Puedes pausar o cambiarlo cuando quieras.'],
+];
 function hyperCard(t, p) {
   const H = t.hyper || {};
   const col = (k, label, def) => `<div><label>${label}</label><input type="color" data-hy="${k}" value="${esc(H[k] || def)}" /></div>`;
@@ -1450,12 +1458,17 @@ function hyperCard(t, p) {
       ${col('side', 'Panel de la izquierda', '#0b1020')}${col('accent', 'Color de acento (botón ▶, estado)', p.accent || '#ffd460')}
       ${col('text', 'Color del texto', '#ffffff')}${col('win', 'Color de las ganancias', '#4ade80')}
       ${col('feature', 'Color de las tiradas con bonus', '#7c3aed')}${col('rowLine', 'Líneas entre tiradas', '#2a3048')}
-      <div><label>Tipografía (Google Fonts)</label><input id="hyFont" list="dFontList" value="${esc(H.font || '')}" placeholder="La de la botonera" /></div>
+      <div><label>Tipografía de los títulos ${H.fontUrl ? '<span class="badge ok">archivo propio</span>' : '(Google Fonts)'}</label><input id="hyFont" list="dFontList" value="${esc(H.font || '')}" placeholder="La de la botonera" ${H.fontUrl ? 'readonly' : ''} />
+        <div class="row" style="margin-top:6px"><button class="small" data-hyfont="font">Subir tipografía…</button>${H.font ? '<button class="small danger" data-hyfontx="font">Quitar</button>' : ''}</div></div>
+      <div><label>Tipografía de los números (lista y última tirada) ${H.numFontUrl ? '<span class="badge ok">archivo propio</span>' : ''}</label><input id="hyNumFont" list="dFontList" value="${esc(H.numFont || '')}" placeholder="La del sistema (la más legible)" ${H.numFontUrl ? 'readonly' : ''} />
+        <div class="row" style="margin-top:6px"><button class="small" data-hyfont="numFont">Subir tipografía…</button>${H.numFont ? '<button class="small danger" data-hyfontx="numFont">Quitar</button>' : ''}</div></div>
       <div><label>Tamaño de las tiradas en la lista (<span id="hyFsV">${Math.round((H.rowSize ?? 1) * 100)}</span> %)</label><input id="hyFs" type="range" min="0.7" max="2" step="0.05" value="${H.rowSize ?? 1}" /></div>
       <label class="row" style="gap:8px;margin:0;color:var(--text)"><input type="checkbox" id="hyShowLast" style="width:auto" ${H.showLast !== false ? 'checked' : ''} /> Mostrar la ÚLTIMA TIRADA grande arriba de la lista</label>
       <div><label>Tamaño de la última tirada (<span id="hyLsV">${Math.round((H.lastSize ?? 1) * 100)}</span> %)</label><input id="hyLs" type="range" min="0.7" max="2.5" step="0.05" value="${H.lastSize ?? 1}" /></div>
       ${col('last', 'Color del recuadro de la última tirada', p.accent || '#ffd460')}
     </div>
+    <details class="fn-group"><summary>Textos del HYPER</summary><p class="muted" style="margin:6px 0">Vacío = el texto de fábrica (el que se ve en gris).</p>
+      <div class="grid2">${HYPER_TEXTS.map(([k, d]) => `<div><label>${esc(d.length > 40 ? 'Texto de presentación ' + (k === 'intro1' ? '1' : '2') : d)}</label><input data-hytx="${k}" value="${esc(H.texts?.[k] || '')}" placeholder="${esc(d)}" /></div>`).join('')}</div></details>
     <div class="row"><button class="primary" id="hySave">Guardar diseño del HYPER</button><button id="hyDemo">▶ Abrir el HYPER en la vista previa</button><button class="small" id="hyReset">Volver al diseño original</button></div></div>`;
 }
 function bindHyperCard(v) {
@@ -1464,7 +1477,9 @@ function bindHyperCard(v) {
   for (const [i, o, f] of [['#hyOp', '#hyOpV', (x) => Math.round(x * 100)], ['#hyBlur', '#hyBlurV', (x) => x], ['#hyFs', '#hyFsV', (x) => Math.round(x * 100)], ['#hyLs', '#hyLsV', (x) => Math.round(x * 100)]]) $(i, card).addEventListener('input', (e) => { $(o, card).textContent = f(Number(e.target.value)); });
   const read = () => {
     const cur = S.game.draft.theme?.hyper || {};
-    const out = { ...cur, title: $('#hyTitle', card).value.trim() || null, opacity: Number($('#hyOp', card).value), blur: Number($('#hyBlur', card).value), font: $('#hyFont', card).value.trim() || null, rowSize: Number($('#hyFs', card).value), lastSize: Number($('#hyLs', card).value), showLast: $('#hyShowLast', card).checked };
+    const texts = {};
+    for (const el of $$('[data-hytx]', card)) if (el.value.trim()) texts[el.dataset.hytx] = el.value.trim();
+    const out = { ...cur, texts: Object.keys(texts).length ? texts : null, numFont: $('#hyNumFont', card).value.trim() || null, title: $('#hyTitle', card).value.trim() || null, opacity: Number($('#hyOp', card).value), blur: Number($('#hyBlur', card).value), font: $('#hyFont', card).value.trim() || null, rowSize: Number($('#hyFs', card).value), lastSize: Number($('#hyLs', card).value), showLast: $('#hyShowLast', card).checked };
     for (const el of $$('[data-hy]', card)) out[el.dataset.hy] = el.value;
     return out;
   };
@@ -1475,6 +1490,18 @@ function bindHyperCard(v) {
   $$('[data-hyimg]', card).forEach((b) => b.addEventListener('click', guard(async () => {
     const url = await pickAsset('image');
     if (url) { await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [b.dataset.hyimg]: url } }], 'Imagen del HYPER aplicada'); renderTab(); }
+  })));
+  $$('[data-hyfont]', card).forEach((b) => b.addEventListener('click', guard(async () => {
+    const a = await pickAsset('font');
+    if (!a) return;
+    const asset = typeof a === 'string' ? (await api(`/api/admin/assets?gameId=${encodeURIComponent(S.gameId || '')}&kind=font`)).find((x) => x.url === a) : a;
+    const k = b.dataset.hyfont;
+    await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [k]: fontFamilyOf(asset || { filename: 'Fuente propia' }), [`${k}Url`]: asset?.url || a } }], 'Tipografía del HYPER aplicada');
+    renderTab();
+  })));
+  $$('[data-hyfontx]', card).forEach((b) => b.addEventListener('click', guard(async () => {
+    const k = b.dataset.hyfontx;
+    await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [k]: null, [`${k}Url`]: null } }], 'Tipografía quitada'); renderTab();
   })));
   $$('[data-hyclr]', card).forEach((b) => b.addEventListener('click', guard(async () => { await patchDraft([{ op: 'set', path: 'theme.hyper', value: { ...read(), [b.dataset.hyclr]: null } }]); renderTab(); })));
 }
